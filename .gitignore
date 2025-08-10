@@ -1,0 +1,23 @@
+# Node
+node_modules/
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+.next/
+dist/
+out/
+.vercel/
+
+# Env files (never commit secrets)
+.env
+.env.local
+.env.development
+.env.production
+.env.staging
+
+# OS / editor
+.DS_Store
+*.log
+
+# Supabase local artifacts
+supabase/.temp/

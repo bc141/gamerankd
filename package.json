@@ -1,0 +1,10 @@
+{
+	"devDependencies": {
+		"@supabase/supabase-js": "^2.54.0",
+		"@types/node": "^24.2.1",
+		"dotenv": "^17.2.1",
+		"node-fetch": "^3.3.2",
+		"ts-node": "^10.9.2",
+		"typescript": "^5.9.2"
+	}
+}

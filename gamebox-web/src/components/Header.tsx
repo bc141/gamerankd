@@ -1,28 +1,35 @@
+// src/components/Header.tsx
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
+
+type MinimalUser = { id: string; email?: string };
 
 export default function Header() {
   const supabase = supabaseBrowser();
   const router = useRouter();
   const pathname = usePathname();
 
-  const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
+  const [user, setUser] = useState<MinimalUser | null>(null);
   const [username, setUsername] = useState<string | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [displayName, setDisplayName] = useState<string | null>(null);
 
-  async function fetchUsername(userId: string) {
+  async function fetchProfile(userId: string) {
     const { data: prof } = await supabase
       .from('profiles')
-      .select('username')
+      .select('username, avatar_url, display_name')
       .eq('id', userId)
-      .single();
+      .maybeSingle();
     setUsername(prof?.username ?? null);
+    setAvatarUrl(prof?.avatar_url ?? null);
+    setDisplayName(prof?.display_name ?? null);
   }
 
-  // Mount ONCE: seed from existing session, and subscribe to auth changes
+  // Mount once: seed from existing session and subscribe to auth changes
   useEffect(() => {
     let cancelled = false;
 
@@ -30,15 +37,19 @@ export default function Header() {
       const { data } = await supabase.auth.getSession();
       if (cancelled) return;
       const u = data.session?.user ?? null;
-      setUser(u);
-      if (u) await fetchUsername(u.id);
+      setUser(u ?? null);
+      if (u) await fetchProfile(u.id);
     })();
 
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
       const u = session?.user ?? null;
-      setUser(u);
-      if (u) fetchUsername(u.id);
-      else setUsername(null);
+      setUser(u ?? null);
+      if (u) fetchProfile(u.id);
+      else {
+        setUsername(null);
+        setAvatarUrl(null);
+        setDisplayName(null);
+      }
     });
 
     return () => {
@@ -47,10 +58,36 @@ export default function Header() {
     };
   }, [supabase]);
 
-  // On navigation, refresh username only if already signed in
+  // Cross-tab sync: react to magic-link tab setting gb-auth-sync
   useEffect(() => {
-    if (user) fetchUsername(user.id);
-  }, [pathname, user]); // do NOT resubscribe here
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== 'gb-auth-sync') return;
+      supabase.auth.getSession().then(({ data }) => {
+        const u = data.session?.user ?? null;
+        setUser(u ?? null);
+        if (u) fetchProfile(u.id);
+        else {
+          setUsername(null);
+          setAvatarUrl(null);
+          setDisplayName(null);
+        }
+      });
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [supabase]);
+
+  // On navigation, refresh profile only if already signed in
+  useEffect(() => {
+    if (user) fetchProfile(user.id);
+  }, [pathname, user]);
+
+  // Prefetch likely routes for snappier UX
+  useEffect(() => {
+    router.prefetch('/search');
+    router.prefetch('/settings/profile');
+    if (username) router.prefetch(`/u/${username}`);
+  }, [router, username]);
 
   const signOut = async () => {
     await supabase.auth.signOut();
@@ -59,21 +96,59 @@ export default function Header() {
     router.refresh();
   };
 
+  const nameForHeader = useMemo(
+    () => (displayName || username || 'My profile'),
+    [displayName, username]
+  );
+
+  const NavLink = ({
+    href,
+    children,
+  }: {
+    href: string;
+    children: React.ReactNode;
+  }) => {
+    const isActive = pathname === href;
+    return (
+      <Link
+        href={href}
+        className={`text-sm underline ${isActive ? 'opacity-100' : 'opacity-80 hover:opacity-100'}`}
+      >
+        {children}
+      </Link>
+    );
+  };
+
   return (
     <header className="border-b border-white/10">
       <div className="mx-auto max-w-5xl px-4 h-14 flex items-center justify-between">
-        <Link href="/" className="font-semibold">Gamebox</Link>
-        <Link href="/search" className="text-sm underline">Search</Link>
+        <div className="flex items-center gap-6">
+          <Link href="/" className="font-semibold">Gamebox</Link>
+          <NavLink href="/search">Search</NavLink>
+        </div>
+
         {!user ? (
-          <Link href="/login" className="text-sm underline">Sign in</Link>
+          <NavLink href="/login">Sign in</NavLink>
         ) : (
           <div className="flex items-center gap-4">
+            {/* Avatar + Profile */}
             <Link
               href={username ? `/u/${username}` : `/onboarding/username`}
-              className="text-sm underline"
+              className="flex items-center gap-2 text-sm underline"
             >
-              {username ? 'My profile' : 'Pick username'}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={avatarUrl || '/avatar-placeholder.svg'}
+                alt="avatar"
+                className="h-6 w-6 rounded-full object-cover border border-white/20"
+              />
+              {username ? nameForHeader : 'Pick username'}
             </Link>
+
+            {/* Edit Profile */}
+            <NavLink href="/settings/profile">Edit profile</NavLink>
+
+            {/* Sign out */}
             <button
               type="button"
               onClick={signOut}

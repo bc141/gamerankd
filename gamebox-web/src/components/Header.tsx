@@ -63,7 +63,7 @@ export default function Header() {
     <header className="border-b border-white/10">
       <div className="mx-auto max-w-5xl px-4 h-14 flex items-center justify-between">
         <Link href="/" className="font-semibold">Gamebox</Link>
-
+        <Link href="/search" className="text-sm underline">Search</Link>
         {!user ? (
           <Link href="/login" className="text-sm underline">Sign in</Link>
         ) : (

@@ -8,10 +8,9 @@ import { supabaseBrowser } from '@/lib/supabaseBrowser';
 export default function LoginPage() {
   const supabase = supabaseBrowser();
 
-  const siteUrl =
-    (typeof window !== 'undefined' && window.location.origin) ||
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    'http://localhost:3000';
+  // Force all magic links to the production domain
+  const REDIRECT_BASE =
+    process.env.NEXT_PUBLIC_SITE_URL ?? 'https://gamerankd.com';
 
   return (
     <main className="max-w-md mx-auto p-8">
@@ -22,7 +21,7 @@ export default function LoginPage() {
         providers={[]}
         view="magic_link"
         showLinks={false}
-        redirectTo={`${siteUrl}/auth/callback`}  
+        redirectTo={`${REDIRECT_BASE}/auth/callback`}  // ← the important part
         appearance={{
           theme: ThemeSupa,
           variables: {

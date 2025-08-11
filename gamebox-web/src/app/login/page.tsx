@@ -1,3 +1,4 @@
+// src/app/login/page.tsx
 'use client';
 
 import { Auth } from '@supabase/auth-ui-react';
@@ -7,7 +8,6 @@ import { supabaseBrowser } from '@/lib/supabaseBrowser';
 export default function LoginPage() {
   const supabase = supabaseBrowser();
 
-  // Works locally and in Vercel (falls back to env in SSR/build)
   const siteUrl =
     (typeof window !== 'undefined' && window.location.origin) ||
     process.env.NEXT_PUBLIC_SITE_URL ||
@@ -19,10 +19,10 @@ export default function LoginPage() {
 
       <Auth
         supabaseClient={supabase}
-        providers={[]}          // no OAuth for now
+        providers={[]}
         view="magic_link"
         showLinks={false}
-        redirectTo={`${siteUrl}/auth/callback`}  // ← use siteUrl
+        redirectTo={`${siteUrl}/auth/callback`}  
         appearance={{
           theme: ThemeSupa,
           variables: {

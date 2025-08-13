@@ -60,22 +60,37 @@ export default function FeedPage() {
   async function onToggleLike(reviewUserId: string, gameId: number) {
     if (!me) return;
     const k = likeKey(reviewUserId, gameId);
-    if (toggling[k]) return; // in-flight
+    if (toggling[k]) return;
+  
     const cur = likes[k] ?? { liked: false, count: 0 };
-
-    // optimistic
+  
+    // optimistic update
     setToggling(p => ({ ...p, [k]: true }));
     setLikes(p => ({ ...p, [k]: { liked: !cur.liked, count: cur.count + (cur.liked ? -1 : 1) } }));
-
-    const { error } = await toggleLike(supabase, me.id, reviewUserId, gameId, cur.liked);
-    setToggling(p => ({ ...p, [k]: false }));
-
-    if (error) {
-      // revert on failure
+  
+    // watchdog to auto-clear stuck states (network errors etc.)
+    const timer = setTimeout(() => {
+      setToggling(p => ({ ...p, [k]: false }));
+    }, 4000);
+  
+    try {
+      const { error } = await toggleLike(supabase, me.id, reviewUserId, gameId, cur.liked);
+      if (error) {
+        // revert on failure
+        setLikes(p => ({ ...p, [k]: cur }));
+        console.error('toggleLike failed:', error.message);
+        return;
+      }
+      // broadcast cross-tab/page
+      broadcastLike(reviewUserId, gameId, !cur.liked, cur.liked ? -1 : +1);
+    } catch (e) {
+      // revert on exception
       setLikes(p => ({ ...p, [k]: cur }));
-      return;
+      console.error('toggleLike crashed:', e);
+    } finally {
+      clearTimeout(timer);
+      setToggling(p => ({ ...p, [k]: false }));
     }
-    broadcastLike(reviewUserId, gameId, !cur.liked, cur.liked ? -1 : +1);
   }
 
   useEffect(() => {
@@ -224,16 +239,16 @@ export default function FeedPage() {
 
                         {canLike && (
                           <button
-                            onClick={() => onToggleLike(r.reviewer_id, game!.id)}
-                            disabled={Boolean(toggling[k])}
-                            className={`ml-2 text-xs px-2 py-1 rounded border border-white/10 ${
-                              entry.liked ? 'bg-white/15' : 'bg-white/5'
-                            } disabled:opacity-50`}
-                            aria-pressed={entry.liked}
-                            title={entry.liked ? 'Unlike' : 'Like'}
-                          >
-                            ❤️ {entry.count}
-                          </button>
+                          onClick={() => onToggleLike(r.reviewer_id, game!.id)}
+                          aria-pressed={entry.liked}
+                          aria-disabled={Boolean(toggling[k])}
+                          className={`ml-2 text-xs px-2 py-1 rounded border border-white/10 ${
+                            entry.liked ? 'bg-white/15' : 'bg-white/5'
+                          } ${toggling[k] ? 'opacity-50' : ''}`}
+                          title={entry.liked ? 'Unlike' : 'Like'}
+                        >
+                          ❤️ {entry.count}
+                        </button>
                         )}
                       </div>
 

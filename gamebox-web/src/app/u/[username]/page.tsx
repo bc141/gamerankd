@@ -182,21 +182,34 @@ export default function PublicProfilePage() {
   async function onToggleLike(gameId: number) {
     if (!profile || !gameId) return;
     if (!viewerId) return router.push('/login');
-    if (viewerId === profile.id) return; // don’t like your own review
-
+    if (viewerId === profile.id) return; // don't like own review
+  
     const k = likeKey(profile.id, gameId);
     if (togglingLike[k]) return;
+  
     const cur = likes[k] ?? { liked: false, count: 0 };
-
     setTogglingLike(p => ({ ...p, [k]: true }));
     setLikes(p => ({ ...p, [k]: { liked: !cur.liked, count: cur.count + (cur.liked ? -1 : 1) } }));
-    const { error } = await toggleLikeRow(supabase, viewerId, profile.id, gameId, cur.liked);
-    setTogglingLike(p => ({ ...p, [k]: false }));
-    if (error) {
+  
+    const timer = setTimeout(() => {
+      setTogglingLike(p => ({ ...p, [k]: false }));
+    }, 4000);
+  
+    try {
+      const { error } = await toggleLikeRow(supabase, viewerId, profile.id, gameId, cur.liked);
+      if (error) {
+        setLikes(p => ({ ...p, [k]: cur }));
+        console.error('toggleLike failed:', error.message);
+        return;
+      }
+      broadcastLike(profile.id, gameId, !cur.liked, cur.liked ? -1 : +1);
+    } catch (e) {
       setLikes(p => ({ ...p, [k]: cur }));
-      return;
+      console.error('toggleLike crashed:', e);
+    } finally {
+      clearTimeout(timer);
+      setTogglingLike(p => ({ ...p, [k]: false }));
     }
-    broadcastLike(profile.id, gameId, !cur.liked, cur.liked ? -1 : +1);
   }
 
   if (error) return <main className="p-8 text-red-500">{error}</main>;
@@ -291,16 +304,16 @@ export default function PublicProfilePage() {
 
                     {canLike && gameId && (
                       <button
-                        onClick={() => onToggleLike(gameId)}
-                        disabled={Boolean(togglingLike[k])}
-                        className={`ml-2 text-xs px-2 py-1 rounded border border-white/10 ${
-                          entry.liked ? 'bg-white/15' : 'bg-white/5'
-                        } disabled:opacity-50`}
-                        aria-pressed={entry.liked}
-                        title={entry.liked ? 'Unlike' : 'Like'}
-                      >
-                        ❤️ {entry.count}
-                      </button>
+                      onClick={() => onToggleLike(gameId)}
+                      aria-pressed={entry.liked}
+                      aria-disabled={Boolean(togglingLike[k])}
+                      className={`ml-2 text-xs px-2 py-1 rounded border border-white/10 ${
+                        entry.liked ? 'bg-white/15' : 'bg-white/5'
+                      } ${togglingLike[k] ? 'opacity-50' : ''}`}
+                      title={entry.liked ? 'Unlike' : 'Like'}
+                    >
+                      ❤️ {entry.count}
+                    </button>
                     )}
                     {!canLike && gameId && (
                       <span className="ml-2 text-xs text-white/50">❤️ {entry.count}</span>

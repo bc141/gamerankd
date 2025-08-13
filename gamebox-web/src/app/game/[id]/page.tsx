@@ -107,18 +107,30 @@ export default function GamePage() {
     if (!me) return router.push('/login');
     const k = likeKey(reviewUserId, gameId);
     if (toggling[k]) return;
+  
     const cur = likes[k] ?? { liked: false, count: 0 };
-
     setToggling(p => ({ ...p, [k]: true }));
     setLikes(p => ({ ...p, [k]: { liked: !cur.liked, count: cur.count + (cur.liked ? -1 : 1) } }));
-    const { error } = await toggleLike(supabase, me.id, reviewUserId, gameId, cur.liked);
-    setToggling(p => ({ ...p, [k]: false }));
-
-    if (error) {
+  
+    const timer = setTimeout(() => {
+      setToggling(p => ({ ...p, [k]: false }));
+    }, 4000);
+  
+    try {
+      const { error } = await toggleLike(supabase, me.id, reviewUserId, gameId, cur.liked);
+      if (error) {
+        setLikes(p => ({ ...p, [k]: cur }));
+        console.error('toggleLike failed:', error.message);
+        return;
+      }
+      broadcastLike(reviewUserId, gameId, !cur.liked, cur.liked ? -1 : +1);
+    } catch (e) {
       setLikes(p => ({ ...p, [k]: cur }));
-      return;
+      console.error('toggleLike crashed:', e);
+    } finally {
+      clearTimeout(timer);
+      setToggling(p => ({ ...p, [k]: false }));
     }
-    broadcastLike(reviewUserId, gameId, !cur.liked, cur.liked ? -1 : +1);
   }
 
   // 1) Hydrate, load game, my rating, and recent reviews
@@ -479,16 +491,16 @@ export default function GamePage() {
 
                       {canLike && (
                         <button
-                          onClick={() => onToggleLike(a!.id, gameId)}
-                          disabled={Boolean(toggling[k])}
-                          className={`ml-2 text-xs px-2 py-1 rounded border border-white/10 ${
-                            entry.liked ? 'bg-white/15' : 'bg-white/5'
-                          } disabled:opacity-50`}
-                          aria-pressed={entry.liked}
-                          title={entry.liked ? 'Unlike' : 'Like'}
-                        >
-                          ❤️ {entry.count}
-                        </button>
+                        onClick={() => onToggleLike(a!.id, gameId)}
+                        aria-pressed={entry.liked}
+                        aria-disabled={Boolean(toggling[k])}
+                        className={`ml-2 text-xs px-2 py-1 rounded border border-white/10 ${
+                          entry.liked ? 'bg-white/15' : 'bg-white/5'
+                        } ${toggling[k] ? 'opacity-50' : ''}`}
+                        title={entry.liked ? 'Unlike' : 'Like'}
+                      >
+                        ❤️ {entry.count}
+                      </button>
                       )}
                     </div>
 

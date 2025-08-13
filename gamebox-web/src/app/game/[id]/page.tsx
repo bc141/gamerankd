@@ -7,12 +7,27 @@ import { waitForSession } from '@/lib/waitForSession';
 import StarRating from '@/components/StarRating';
 
 type Review = { user_id: string; rating: number; review?: string | null };
+
 type Game = {
   id: number;
   name: string;
   summary: string | null;
   cover_url: string | null;
   reviews?: Review[];
+};
+
+type RecentReview = {
+  user_id: string;
+  rating: number;        // 1..100
+  review: string | null;
+  created_at: string;
+};
+
+type ProfileLite = {
+  id: string;
+  username: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
 };
 
 // helpers (db keeps 1–100, UI is 0.5 steps out of 5)
@@ -40,17 +55,21 @@ export default function GamePage() {
 
   // committed rating/text
   const [myStars, setMyStars] = useState<number | null>(null);
-  const [myText, setMyText] = useState<string>(''); // <-- DECLARED
+  const [myText, setMyText] = useState<string>(''); // committed
 
   // editing buffers
   const [tempStars, setTempStars] = useState<number | null>(null);
-  const [tempText, setTempText] = useState<string>(''); // <-- DECLARED
+  const [tempText, setTempText] = useState<string>(''); // draft
 
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 1) Hydrate session first to avoid “signed out” flash
+  // recent reviews + reviewer profiles
+  const [recent, setRecent] = useState<RecentReview[] | null>(null);
+  const [reviewers, setReviewers] = useState<Map<string, ProfileLite>>(new Map());
+
+  // 1) Hydrate session first to avoid “signed out” flash, then load game + my rating + recent reviews
   useEffect(() => {
     if (!validId) return;
 
@@ -63,7 +82,7 @@ export default function GamePage() {
       setMe(user ? { id: user.id } : null);
       setReady(true);
 
-      // then load game + my rating
+      // Load game + my rating
       const { data, error } = await supabase
         .from('games')
         .select('id,name,summary,cover_url,reviews(user_id,rating,review)')
@@ -78,7 +97,7 @@ export default function GamePage() {
       const g = data as Game | null;
       setGame(g);
 
-      // preload my rating + text (if signed in and present)
+      // preload my rating + text
       if (user && g?.reviews?.length) {
         const mine = g.reviews.find(r => r.user_id === user.id);
         if (mine) {
@@ -99,9 +118,13 @@ export default function GamePage() {
         setMyText('');
         setTempText('');
       }
+
+      // Load recent reviews list
+      await fetchRecentReviews();
     })();
 
     return () => { mounted = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [validId, gameId, supabase]);
 
   // 2) helpers
@@ -112,6 +135,47 @@ export default function GamePage() {
       .eq('id', gameId)
       .single();
     setGame(data as Game);
+  };
+
+  const fetchRecentReviews = async () => {
+    // latest 10 reviews for this game
+    const { data: rlist, error: rErr } = await supabase
+      .from('reviews')
+      .select('user_id,rating,review,created_at')
+      .eq('game_id', gameId)
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    if (rErr) {
+      // don't kill the page; just show no recent
+      setRecent([]);
+      return;
+    }
+
+    const rows = (rlist ?? []) as RecentReview[];
+    setRecent(rows);
+
+    // fetch minimal profile info for the authors
+    const ids = Array.from(new Set(rows.map(r => r.user_id)));
+    if (ids.length === 0) {
+      setReviewers(new Map());
+      return;
+    }
+
+    const { data: ppl } = await supabase
+      .from('profiles')
+      .select('id,username,display_name,avatar_url')
+      .in('id', ids);
+
+    const map = new Map<string, ProfileLite>(
+      (ppl ?? []).map((p: any) => [p.id as string, {
+        id: p.id,
+        username: p.username ?? null,
+        display_name: p.display_name ?? null,
+        avatar_url: p.avatar_url ?? null,
+      }])
+    );
+    setReviewers(map);
   };
 
   const avgStars = useMemo(() => {
@@ -153,6 +217,7 @@ export default function GamePage() {
     setMyText(trimmed);
     setEditing(false);
     await refetchGame();
+    await fetchRecentReviews(); // refresh the public feed too
   }
 
   async function removeRating() {
@@ -179,6 +244,7 @@ export default function GamePage() {
     setTempText('');
     setEditing(false);
     await refetchGame();
+    await fetchRecentReviews();
   }
 
   // 4) UI branches
@@ -190,6 +256,7 @@ export default function GamePage() {
 
   return (
     <main className="p-8 max-w-2xl mx-auto text-white">
+      {/* cover */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={game.cover_url ?? ''}
@@ -289,7 +356,72 @@ export default function GamePage() {
       </div>
 
       {/* Summary */}
-      <p className="mt-6 whitespace-pre-wrap text-gray-200">{game.summary}</p>
+      {game.summary && (
+        <p className="mt-6 whitespace-pre-wrap text-gray-200">{game.summary}</p>
+      )}
+
+      {/* Recent reviews from everyone */}
+      <section className="mt-10">
+        <h2 className="text-lg font-semibold mb-3">Recent reviews</h2>
+
+        {recent == null ? (
+          <p className="text-white/60">Loading…</p>
+        ) : recent.length === 0 ? (
+          <p className="text-white/60">No reviews yet.</p>
+        ) : (
+          <ul className="space-y-4">
+            {recent.map((r, i) => {
+              const u = reviewers.get(r.user_id);
+              const name = u?.display_name || u?.username || 'Anonymous';
+              const avatar =
+                u?.avatar_url && u.avatar_url.trim() !== ''
+                  ? u.avatar_url
+                  : '/avatar-placeholder.svg';
+
+              return (
+                <li key={`${r.user_id}-${i}`} className="flex items-start gap-3">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={avatar}
+                    alt={name}
+                    className="h-8 w-8 rounded-full object-cover border border-white/10"
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      {u?.username ? (
+                        <a
+                          href={`/u/${u.username}`}
+                          className="font-medium hover:underline"
+                        >
+                          {name}
+                        </a>
+                      ) : (
+                        <span className="font-medium">{name}</span>
+                      )}
+                      <span className="text-xs text-white/40">
+                        {new Date(r.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
+
+                    <div className="mt-1 flex items-center gap-2">
+                      <StarRating value={from100(r.rating)} readOnly size={16} />
+                      <span className="text-sm text-white/60">
+                        {from100(r.rating).toFixed(1)} / 5
+                      </span>
+                    </div>
+
+                    {r.review && r.review.trim() !== '' && (
+                      <p className="mt-2 text-white/70 whitespace-pre-wrap break-words">
+                        {r.review.trim()}
+                      </p>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
     </main>
   );
 }

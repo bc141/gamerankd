@@ -1,3 +1,4 @@
+// gamebox-web/src/app/game/[id]/page.tsx
 'use client';
 
 import Link from 'next/link';
@@ -6,6 +7,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { waitForSession } from '@/lib/waitForSession';
 import StarRating from '@/components/StarRating';
+import { toggleLike } from '@/lib/likes';
 
 // ---------- helpers ----------
 const to100 = (stars: number) => Math.round(stars * 20); // 3.5 -> 70
@@ -24,6 +26,7 @@ type Game = {
 };
 
 type RawRecent = {
+  user_id?: string | null;
   created_at?: string | null;
   rating?: number | null;
   review?: string | null;
@@ -36,6 +39,7 @@ type RawRecent = {
 };
 
 type RecentItem = {
+  user_id: string;
   created_at: string;
   rating: number; // 1–100
   review: string | null;
@@ -76,6 +80,19 @@ export default function GamePage() {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // ❤️ likes state for recent reviews (key: `${reviewUserId}:${gameId}`)
+  const [likes, setLikes] = useState<Record<string, { liked: boolean; count: number }>>({});
+  const likeKey = (reviewUserId: string, gid: number) => `${reviewUserId}:${gid}`;
+
+  async function onToggleLike(reviewUserId: string, gid: number) {
+    if (!me) return router.push('/login');
+    const k = likeKey(reviewUserId, gid);
+    const entry = likes[k] ?? { liked: false, count: 0 };
+    const { error } = await toggleLike(supabase, me.id, reviewUserId, gid, entry.liked);
+    if (error) return; // optionally toast
+    setLikes(prev => ({ ...prev, [k]: { liked: !entry.liked, count: entry.count + (entry.liked ? -1 : 1) } }));
+  }
 
   // recent reviews for this game
   const [recent, setRecent] = useState<RecentItem[]>([]);
@@ -155,6 +172,7 @@ export default function GamePage() {
     const { data, error } = await supabase
       .from('reviews')
       .select(`
+        user_id,
         created_at,
         rating,
         review,
@@ -176,6 +194,7 @@ export default function GamePage() {
 
     setRecent(
       rows.map((r) => ({
+        user_id: String(r.user_id ?? ''),
         created_at: r.created_at ?? new Date(0).toISOString(),
         rating: typeof r.rating === 'number' ? r.rating : 0,
         review: r.review ?? null,
@@ -201,47 +220,47 @@ export default function GamePage() {
 
   const ratingsCount = game?.reviews?.length ?? 0;
 
- // 3) actions
-async function saveRating() {
-  if (!me) return router.push('/login');
-  if (!validId) return setError('Invalid game id.');
-  if (tempStars == null) return;
+  // 3) actions
+  async function saveRating() {
+    if (!me) return router.push('/login');
+    if (!validId) return setError('Invalid game id.');
+    if (tempStars == null) return;
 
-  const trimmed = (tempText ?? '').trim();
-  if (trimmed.length > MAX_REVIEW_LEN) {
-    return setError(`Review is too long (max ${MAX_REVIEW_LEN} chars).`);
-  }
-
-  setError(null);
-  setSaving(true);
-  try {
-    const payload = {
-      user_id: me.id,
-      game_id: gameId,
-      rating: to100(tempStars),
-      review: trimmed.length ? trimmed : null,
-    };
-
-    // Key fix: declare the conflict target so updates don’t hit the unique index
-    const { error } = await supabase
-      .from('reviews')
-      .upsert(payload, { onConflict: 'user_id,game_id' });
-
-    if (error) {
-      setError(error.message);
-      return;
+    const trimmed = (tempText ?? '').trim();
+    if (trimmed.length > MAX_REVIEW_LEN) {
+      return setError(`Review is too long (max ${MAX_REVIEW_LEN} chars).`);
     }
 
-    setMyStars(tempStars);
-    setMyText(trimmed);
-    setEditing(false);
+    setError(null);
+    setSaving(true);
+    try {
+      const payload = {
+        user_id: me.id,
+        game_id: gameId,
+        rating: to100(tempStars),
+        review: trimmed.length ? trimmed : null,
+      };
 
-    // refresh UI
-    await Promise.all([refetchGame(), refetchRecent()]);
-  } finally {
-    setSaving(false);
+      // Important: declare the conflict target so updates don’t hit the unique index
+      const { error } = await supabase
+        .from('reviews')
+        .upsert(payload, { onConflict: 'user_id,game_id' });
+
+      if (error) {
+        setError(error.message);
+        return;
+      }
+
+      setMyStars(tempStars);
+      setMyText(trimmed);
+      setEditing(false);
+
+      // refresh UI
+      await Promise.all([refetchGame(), refetchRecent()]);
+    } finally {
+      setSaving(false);
+    }
   }
-}
 
   async function removeRating() {
     if (!me) return router.push('/login');
@@ -295,7 +314,7 @@ async function saveRating() {
         <span>{avgStars == null ? 'No ratings yet' : `${avgStars} / 5`}</span>
         <span className="text-white/40">· {ratingsCount} rating{ratingsCount === 1 ? '' : 's'}</span>
 
-        {/* NEW: quick jump to editor (engagement micro-boost) */}
+        {/* quick jump to editor */}
         {showAuthControls && me && (
           <button
             onClick={() =>
@@ -405,8 +424,12 @@ async function saveRating() {
         ) : (
           <ul className="space-y-5">
             {recent.map((r, i) => {
-              const stars = (r.rating / 20).toFixed(1);
+              const starFloat = r.rating / 20;
+              const stars = starFloat.toFixed(1);
               const a = r.author;
+              const k = likeKey(r.user_id, game.id);
+              const entry = likes[k] ?? { liked: false, count: 0 };
+
               return (
                 <li key={`${r.created_at}-${i}`} className="flex items-start gap-3">
                   {/* avatar */}
@@ -418,7 +441,7 @@ async function saveRating() {
                   />
 
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm text-white/80">
+                    <div className="text-sm text-white/80 flex items-center gap-2 flex-wrap">
                       {a ? (
                         <Link
                           href={a.username ? `/u/${a.username}` : '#'}
@@ -427,9 +450,25 @@ async function saveRating() {
                           {a.display_name || a.username || 'Player'}
                         </Link>
                       ) : 'Someone'}
-                      {' '}rated{' '}
+                      <span>rated</span>
+                      <StarRating value={starFloat} readOnly size={16} />
                       <span className="text-white/60">{stars} / 5</span>
-                      {' '}<span className="text-white/30">· {new Date(r.created_at).toLocaleDateString()}</span>
+                      <span className="text-white/30">·</span>
+                      <span className="text-white/40">
+                        {new Date(r.created_at).toLocaleDateString()}
+                      </span>
+
+                      {/* ❤️ Like */}
+                      <button
+                        onClick={() => onToggleLike(r.user_id, game.id)}
+                        className={`ml-2 text-xs px-2 py-1 rounded border border-white/10 ${
+                          entry.liked ? 'bg-white/15' : 'bg-white/5'
+                        }`}
+                        aria-pressed={entry.liked}
+                        title={entry.liked ? 'Unlike' : 'Like'}
+                      >
+                        ❤️ {entry.count}
+                      </button>
                     </div>
 
                     {r.review && r.review.trim() !== '' && (

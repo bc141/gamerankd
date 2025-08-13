@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { waitForSession } from '@/lib/waitForSession';
 import WhoToFollow from '@/components/WhoToFollow';
+import { toggleLike } from '@/lib/likes';
 
 type Author = {
   id: string;
@@ -15,6 +16,7 @@ type Author = {
 };
 
 type Row = {
+  reviewer_id: string; // NEW: review's author id (from reviews.user_id)
   created_at: string;
   rating: number; // 1–100
   review: string | null;
@@ -22,8 +24,7 @@ type Row = {
   author: Author | null;
 };
 
-// If your FK name differs, update the alias below to match your DB:
-// e.g. 'profiles!reviews_user_id_fkey' or 'profiles!public_reviews_user_id_fkey'
+// Adjust if your FK alias differs
 const AUTHOR_JOIN = 'profiles!reviews_user_id_profiles_fkey';
 
 export default function FeedPage() {
@@ -31,8 +32,25 @@ export default function FeedPage() {
 
   const [rows, setRows] = useState<Row[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+
   const [ready, setReady] = useState(false);
   const [me, setMe] = useState<{ id: string } | null>(null);
+
+  // ❤️ likes state
+  const [likes, setLikes] = useState<Record<string, { liked: boolean; count: number }>>({});
+  const likeKey = (reviewUserId: string, gameId: number) => `${reviewUserId}:${gameId}`;
+
+  async function onToggleLike(reviewUserId: string, gameId: number) {
+    if (!me) return; // feed already asks to sign in
+    const k = likeKey(reviewUserId, gameId);
+    const entry = likes[k] ?? { liked: false, count: 0 };
+    const { error } = await toggleLike(supabase, me.id, reviewUserId, gameId, entry.liked);
+    if (error) return; // optionally toast this
+    setLikes(prev => ({
+      ...prev,
+      [k]: { liked: !entry.liked, count: entry.count + (entry.liked ? -1 : 1) },
+    }));
+  }
 
   useEffect(() => {
     let mounted = true;
@@ -45,13 +63,13 @@ export default function FeedPage() {
       setMe(user ? { id: user.id } : null);
       setReady(true);
 
-      // If logged out, show empty feed but still render suggestions
+      // If logged out, empty feed (suggestions still render)
       if (!user) {
         setRows([]);
         return;
       }
 
-      // 1) Who am I following?
+      // 1) who am I following?
       const { data: flw, error: fErr } = await supabase
         .from('follows')
         .select('followee_id')
@@ -63,10 +81,11 @@ export default function FeedPage() {
       const followingIds = (flw ?? []).map(r => String(r.followee_id));
       if (followingIds.length === 0) { setRows([]); return; }
 
-      // 2) Recent reviews from those users, with author & game embedded
+      // 2) recent reviews by those users (embed author + game)
       const { data, error } = await supabase
         .from('reviews')
         .select(`
+          user_id,
           created_at,
           rating,
           review,
@@ -80,8 +99,8 @@ export default function FeedPage() {
       if (!mounted) return;
       if (error) { setError(error.message); return; }
 
-      // Normalize defensively
       const safe: Row[] = (data ?? []).map((r: any) => ({
+        reviewer_id: String(r?.user_id ?? r?.author?.id ?? ''),
         created_at: r?.created_at ?? new Date(0).toISOString(),
         rating: typeof r?.rating === 'number' ? r.rating : 0,
         review: r?.review ?? null,
@@ -109,12 +128,8 @@ export default function FeedPage() {
   }, [supabase]);
 
   // Top-level loading / error branches
-  if (!ready) {
-    return <main className="p-8">Loading…</main>;
-  }
-  if (error) {
-    return <main className="p-8 text-red-500">{error}</main>;
-  }
+  if (!ready) return <main className="p-8">Loading…</main>;
+  if (error) return <main className="p-8 text-red-500">{error}</main>;
 
   // Layout: list + sticky suggestions
   return (
@@ -140,6 +155,11 @@ export default function FeedPage() {
                 const game = r.games;
                 const stars = (r.rating / 20).toFixed(1);
 
+                // like state for this review
+                const canLike = Boolean(r.reviewer_id && game?.id);
+                const k = canLike ? `${r.reviewer_id}:${game!.id}` : '';
+                const entry = canLike ? (likes[k] ?? { liked: false, count: 0 }) : { liked: false, count: 0 };
+
                 return (
                   <li key={`${r.created_at}-${i}`} className="flex items-start gap-3">
                     {/* avatar */}
@@ -151,7 +171,7 @@ export default function FeedPage() {
                     />
 
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm text-white/80">
+                      <div className="text-sm text-white/80 flex items-center gap-2 flex-wrap">
                         {author ? (
                           <Link
                             href={author.username ? `/u/${author.username}` : '#'}
@@ -160,14 +180,30 @@ export default function FeedPage() {
                             {author.display_name || author.username || 'Player'}
                           </Link>
                         ) : 'Someone'}
-                        {' '}rated{' '}
+                        <span>rated</span>
                         {game ? (
                           <Link href={`/game/${game.id}`} className="hover:underline font-medium">
                             {game.name}
                           </Link>
-                        ) : 'a game'}
-                        {' '}<span className="text-white/60">· {stars} / 5</span>
-                        {' '}<span className="text-white/30">· {new Date(r.created_at).toLocaleDateString()}</span>
+                        ) : (
+                          <span>a game</span>
+                        )}
+                        <span className="text-white/60">· {stars} / 5</span>
+                        <span className="text-white/30">·</span>
+                        <span className="text-white/40">{new Date(r.created_at).toLocaleDateString()}</span>
+
+                        {canLike && (
+                          <button
+                            onClick={() => onToggleLike(r.reviewer_id, game!.id)}
+                            className={`ml-2 text-xs px-2 py-1 rounded border border-white/10 ${
+                              entry.liked ? 'bg-white/15' : 'bg-white/5'
+                            }`}
+                            aria-pressed={entry.liked}
+                            title={entry.liked ? 'Unlike' : 'Like'}
+                          >
+                            ❤️ {entry.count}
+                          </button>
+                        )}
                       </div>
 
                       {r.review && r.review.trim() !== '' && (

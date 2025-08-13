@@ -5,11 +5,10 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { waitForSession } from '@/lib/waitForSession';
-import { toggleFollow } from '@/lib/follows';
 
 type MiniProfile = {
   id: string;
-  username: string | null;
+  username: string;
   display_name: string | null;
   avatar_url: string | null;
 };
@@ -23,33 +22,34 @@ export default function FollowersPage() {
     ? (params as any).username[0]
     : (params as any)?.username;
 
-  const [viewerId, setViewerId] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
+  const [me, setMe] = useState<{ id: string } | null>(null);
   const [owner, setOwner] = useState<MiniProfile | null>(null);
   const [people, setPeople] = useState<MiniProfile[] | null>(null);
-  const [followingSet, setFollowingSet] = useState<Set<string>>(new Set());
-  const [busyId, setBusyId] = useState<string | null>(null);
+  const [myFollowing, setMyFollowing] = useState<Set<string>>(new Set());
+  const [savingId, setSavingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // hydrate auth
   useEffect(() => {
     let mounted = true;
     (async () => {
       const session = await waitForSession(supabase);
       if (!mounted) return;
-      setViewerId(session?.user?.id ?? null);
+      const user = session?.user ?? null;
+      setMe(user ? { id: user.id } : null);
+      setReady(true);
     })();
     return () => { mounted = false; };
   }, [supabase]);
 
-  // load owner + followers + viewer's following set
   useEffect(() => {
-    if (!slug) return;
+    if (!ready || !slug) return;
     let cancelled = false;
 
     (async () => {
       setError(null);
 
-      // 1) owner by username
+      // Whose page?
       const { data: prof, error: pErr } = await supabase
         .from('profiles')
         .select('id,username,display_name,avatar_url')
@@ -57,70 +57,73 @@ export default function FollowersPage() {
         .single();
 
       if (cancelled) return;
-      if (pErr || !prof) { setError('Profile not found'); return; }
+      if (pErr || !prof) return setError('Profile not found');
+
       setOwner(prof as MiniProfile);
 
-      // 2) follower IDs (users who follow this owner)
+      // Followers of that user (edges where followee_id = owner.id)
       const { data: followerEdges, error: fErr } = await supabase
         .from('follows')
         .select('follower_id')
         .eq('followee_id', (prof as any).id);
 
       if (cancelled) return;
-      if (fErr) { setError(fErr.message); return; }
+      if (fErr) return setError(fErr.message);
 
       const ids = Array.from(new Set((followerEdges ?? []).map((r: any) => String(r.follower_id))));
       if (ids.length === 0) {
         setPeople([]);
       } else {
-        // 3) fetch follower profiles
         const { data: ppl, error: pplErr } = await supabase
           .from('profiles')
           .select('id,username,display_name,avatar_url')
           .in('id', ids);
+
         if (cancelled) return;
-        if (pplErr) { setError(pplErr.message); return; }
+        if (pplErr) return setError(pplErr.message);
 
         const sorted = (ppl ?? []).slice().sort((a: any, b: any) => {
           const an = (a.display_name || a.username || '').toLowerCase();
           const bn = (b.display_name || b.username || '').toLowerCase();
           return an.localeCompare(bn);
         });
+
         setPeople(sorted as MiniProfile[]);
       }
 
-      // 4) viewer's following set (for button state)
-      if (viewerId) {
+      // My following set (for buttons)
+      if (me) {
         const { data: edges } = await supabase
           .from('follows')
           .select('followee_id')
-          .eq('follower_id', viewerId);
-        const s = new Set<string>();
-        for (const r of edges ?? []) s.add(String(r.followee_id));
-        if (!cancelled) setFollowingSet(s);
+          .eq('follower_id', me.id);
+        setMyFollowing(new Set((edges ?? []).map((r: any) => String(r.followee_id))));
       } else {
-        setFollowingSet(new Set());
+        setMyFollowing(new Set());
       }
     })();
 
     return () => { cancelled = true; };
-  }, [slug, viewerId, supabase]);
+  }, [ready, slug, supabase, me?.id]);
 
-  async function onToggle(targetId: string, currentlyFollowing: boolean) {
-    if (!viewerId) return router.push('/login');
-    setBusyId(targetId);
-    const { error } = await toggleFollow(supabase, targetId, currentlyFollowing);
-    setBusyId(null);
-    if (!error) {
-      const next = new Set(followingSet);
-      if (currentlyFollowing) next.delete(targetId); else next.add(targetId);
-      setFollowingSet(next);
+  async function toggleFollow(targetId: string, currentlyFollowing: boolean) {
+    if (!me) return router.push('/login');
+    setSavingId(targetId);
+    if (currentlyFollowing) {
+      await supabase.from('follows').delete().eq('follower_id', me.id).eq('followee_id', targetId);
+      setMyFollowing(prev => {
+        const next = new Set(prev); next.delete(targetId); return next;
+      });
+    } else {
+      await supabase.from('follows').insert({ follower_id: me.id, followee_id: targetId });
+      setMyFollowing(prev => new Set(prev).add(targetId));
     }
+    setSavingId(null);
   }
 
   const title = useMemo(() => {
     if (!owner) return 'Followers';
-    const name = owner.display_name || owner.username || 'User';
+    const name = owner.display_name || owner.username;
     return `${name} · Followers`;
   }, [owner]);
 
@@ -139,31 +142,25 @@ export default function FollowersPage() {
       ) : (
         <ul className="divide-y divide-white/10 rounded border border-white/10 bg-white/5">
           {people.map(p => {
-            const isMe = viewerId === p.id;
-            const following = followingSet.has(p.id);
+            const following = myFollowing.has(p.id);
+            const isMe = me?.id === p.id;
             return (
               <li key={p.id} className="p-3 flex items-center gap-3">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={p.avatar_url || '/avatar-placeholder.svg'}
-                  alt=""
-                  className="h-9 w-9 rounded-full object-cover border border-white/10"
-                />
+                <img src={p.avatar_url || '/avatar-placeholder.svg'} alt="" className="h-9 w-9 rounded-full object-cover border border-white/10" />
                 <div className="flex-1 min-w-0">
-                  <Link href={p.username ? `/u/${p.username}` : '#'} className="font-medium hover:underline truncate">
-                    {p.display_name || p.username || 'Player'}
+                  <Link href={`/u/${p.username}`} className="font-medium hover:underline truncate">
+                    {p.display_name || p.username}
                   </Link>
-                  {p.username && p.display_name && (
-                    <div className="text-xs text-white/50 truncate">@{p.username}</div>
-                  )}
+                  {p.display_name && <div className="text-xs text-white/50 truncate">@{p.username}</div>}
                 </div>
-                {viewerId && !isMe && (
+                {!isMe && (
                   <button
-                    onClick={() => onToggle(p.id, following)}
-                    disabled={busyId === p.id}
-                    className={`px-3 py-1 rounded text-sm disabled:opacity-50 ${following ? 'bg-white/10' : 'bg-indigo-600 text-white'}`}
+                    onClick={() => toggleFollow(p.id, following)}
+                    disabled={savingId === p.id}
+                    className={`px-3 py-1 rounded text-sm ${following ? 'bg-white/10' : 'bg-indigo-600'} disabled:opacity-50`}
                   >
-                    {busyId === p.id ? '…' : (following ? 'Following' : 'Follow')}
+                    {following ? 'Following' : 'Follow'}
                   </button>
                 )}
               </li>

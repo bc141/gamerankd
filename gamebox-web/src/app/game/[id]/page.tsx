@@ -201,26 +201,31 @@ export default function GamePage() {
 
   const ratingsCount = game?.reviews?.length ?? 0;
 
-  // 3) actions
-  async function saveRating() {
-    if (!me) return router.push('/login');
-    if (!validId) return setError('Invalid game id.');
-    if (tempStars == null) return;
+ // 3) actions
+async function saveRating() {
+  if (!me) return router.push('/login');
+  if (!validId) return setError('Invalid game id.');
+  if (tempStars == null) return;
 
-    const trimmed = (tempText ?? '').trim();
-    if (trimmed.length > MAX_REVIEW_LEN) {
-      return setError(`Review is too long (max ${MAX_REVIEW_LEN} chars).`);
-    }
+  const trimmed = (tempText ?? '').trim();
+  if (trimmed.length > MAX_REVIEW_LEN) {
+    return setError(`Review is too long (max ${MAX_REVIEW_LEN} chars).`);
+  }
 
-    setError(null);
-    setSaving(true);
-    const { error } = await supabase.from('reviews').upsert({
+  setError(null);
+  setSaving(true);
+  try {
+    const payload = {
       user_id: me.id,
       game_id: gameId,
       rating: to100(tempStars),
       review: trimmed.length ? trimmed : null,
-    });
-    setSaving(false);
+    };
+
+    // Key fix: declare the conflict target so updates don’t hit the unique index
+    const { error } = await supabase
+      .from('reviews')
+      .upsert(payload, { onConflict: 'user_id,game_id' });
 
     if (error) {
       setError(error.message);
@@ -230,8 +235,13 @@ export default function GamePage() {
     setMyStars(tempStars);
     setMyText(trimmed);
     setEditing(false);
+
+    // refresh UI
     await Promise.all([refetchGame(), refetchRecent()]);
+  } finally {
+    setSaving(false);
   }
+}
 
   async function removeRating() {
     if (!me) return router.push('/login');

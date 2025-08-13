@@ -1,24 +1,33 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { waitForSession } from '@/lib/waitForSession';
-import { toggleFollow } from '@/lib/follows';
 
-type Mini = { id: string; username: string | null; display_name: string | null; avatar_url: string | null };
+type MiniProfile = {
+  id: string;
+  username: string;
+  display_name: string | null;
+  avatar_url: string | null;
+};
 
 export default function FollowingPage() {
   const supabase = supabaseBrowser();
+  const router = useRouter();
   const params = useParams();
-  const slug = Array.isArray((params as any)?.username) ? (params as any).username[0] : (params as any)?.username;
 
-  const [viewerId, setViewerId] = useState<string | null>(null);
-  const [profile, setProfile] = useState<Mini | null>(null);
-  const [people, setPeople] = useState<Mini[] | null>(null);
-  const [followingSet, setFollowingSet] = useState<Set<string>>(new Set());
-  const [busy, setBusy] = useState<string | null>(null);
+  const slug = Array.isArray((params as any)?.username)
+    ? (params as any).username[0]
+    : (params as any)?.username;
+
+  const [ready, setReady] = useState(false);
+  const [me, setMe] = useState<{ id: string } | null>(null);
+  const [owner, setOwner] = useState<MiniProfile | null>(null);
+  const [people, setPeople] = useState<MiniProfile[] | null>(null);
+  const [myFollowing, setMyFollowing] = useState<Set<string>>(new Set());
+  const [savingId, setSavingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -26,112 +35,129 @@ export default function FollowingPage() {
     (async () => {
       const session = await waitForSession(supabase);
       if (!mounted) return;
-      setViewerId(session?.user?.id ?? null);
+      const user = session?.user ?? null;
+      setMe(user ? { id: user.id } : null);
+      setReady(true);
     })();
     return () => { mounted = false; };
   }, [supabase]);
 
   useEffect(() => {
-    if (!slug) return;
-    let mounted = true;
+    if (!ready || !slug) return;
+    let cancelled = false;
 
     (async () => {
       setError(null);
 
-      // 1) profile by username
-      const uname = String(slug).toLowerCase();
       const { data: prof, error: pErr } = await supabase
         .from('profiles')
         .select('id,username,display_name,avatar_url')
-        .eq('username', uname)
+        .eq('username', String(slug).toLowerCase())
         .single();
 
-      if (pErr || !prof) { setError('Profile not found'); return; }
-      if (!mounted) return;
-      setProfile(prof);
+      if (cancelled) return;
+      if (pErr || !prof) return setError('Profile not found');
 
-      // 2) ids they are following (followee_id)
-      const { data: rel, error: rErr } = await supabase
+      setOwner(prof as MiniProfile);
+
+      // People this owner follows (edges where follower_id = owner.id)
+      const { data: followingEdges, error: fErr } = await supabase
         .from('follows')
         .select('followee_id')
-        .eq('follower_id', prof.id)
-        .order('created_at', { ascending: false });
+        .eq('follower_id', (prof as any).id);
 
-      if (rErr) { setError(rErr.message); return; }
-      const followeeIds = (rel ?? []).map(r => r.followee_id as string).filter(Boolean);
-      if (!mounted) return;
+      if (cancelled) return;
+      if (fErr) return setError(fErr.message);
 
-      if (followeeIds.length === 0) {
+      const ids = Array.from(new Set((followingEdges ?? []).map((r: any) => String(r.followee_id))));
+      if (ids.length === 0) {
         setPeople([]);
       } else {
-        const { data: list, error: lErr } = await supabase
+        const { data: ppl, error: pplErr } = await supabase
           .from('profiles')
           .select('id,username,display_name,avatar_url')
-          .in('id', followeeIds);
-        if (lErr) { setError(lErr.message); return; }
-        setPeople((list ?? []) as Mini[]);
+          .in('id', ids);
+
+        if (cancelled) return;
+        if (pplErr) return setError(pplErr.message);
+
+        const sorted = (ppl ?? []).slice().sort((a: any, b: any) => {
+          const an = (a.display_name || a.username || '').toLowerCase();
+          const bn = (b.display_name || b.username || '').toLowerCase();
+          return an.localeCompare(bn);
+        });
+
+        setPeople(sorted as MiniProfile[]);
       }
 
-      // 3) viewer following set for button state
-      if (viewerId) {
-        const { data: myFollows } = await supabase
+      // My following set for buttons
+      if (me) {
+        const { data: edges } = await supabase
           .from('follows')
           .select('followee_id')
-          .eq('follower_id', viewerId);
-        const s = new Set<string>();
-        for (const r of myFollows ?? []) s.add(r.followee_id as string);
-        if (mounted) setFollowingSet(s);
+          .eq('follower_id', me.id);
+        setMyFollowing(new Set((edges ?? []).map((r: any) => String(r.followee_id))));
       } else {
-        setFollowingSet(new Set());
+        setMyFollowing(new Set());
       }
     })();
 
-    return () => { mounted = false; };
-  }, [slug, viewerId, supabase]);
+    return () => { cancelled = true; };
+  }, [ready, slug, supabase, me?.id]);
 
-  const title = useMemo(() => (profile?.display_name || profile?.username || 'User') + ' · Following', [profile]);
+  async function toggleFollow(targetId: string, currentlyFollowing: boolean) {
+    if (!me) return router.push('/login');
+    setSavingId(targetId);
+    if (currentlyFollowing) {
+      await supabase.from('follows').delete().eq('follower_id', me.id).eq('followee_id', targetId);
+      setMyFollowing(prev => { const next = new Set(prev); next.delete(targetId); return next; });
+    } else {
+      await supabase.from('follows').insert({ follower_id: me.id, followee_id: targetId });
+      setMyFollowing(prev => new Set(prev).add(targetId));
+    }
+    setSavingId(null);
+  }
+
+  const title = useMemo(() => {
+    if (!owner) return 'Following';
+    const name = owner.display_name || owner.username;
+    return `${name} · Following`;
+  }, [owner]);
 
   if (error) return <main className="p-8 text-red-500">{error}</main>;
-  if (!profile || !people) return <main className="p-8">Loading…</main>;
+  if (!owner || people == null) return <main className="p-8">Loading…</main>;
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-6">
-      <h1 className="text-2xl font-bold mb-4">{title}</h1>
+    <main className="p-8 max-w-2xl mx-auto">
+      <div className="mb-6">
+        <Link className="text-sm text-white/60 hover:underline" href={`/u/${owner.username}`}>&larr; Back to profile</Link>
+        <h1 className="text-2xl font-bold mt-2">{title}</h1>
+      </div>
 
       {people.length === 0 ? (
-        <p className="text-white/70">Not following anyone yet.</p>
+        <p className="text-white/60">Not following anyone yet.</p>
       ) : (
-        <ul className="space-y-4">
-          {people.map(u => {
-            const isMe = viewerId === u.id;
-            const isFollowing = followingSet.has(u.id);
+        <ul className="divide-y divide-white/10 rounded border border-white/10 bg-white/5">
+          {people.map(p => {
+            const following = myFollowing.has(p.id);
+            const isMe = me?.id === p.id;
             return (
-              <li key={u.id} className="flex items-center justify-between gap-3">
-                <Link href={u.username ? `/u/${u.username}` : '#'} className="flex items-center gap-3 min-w-0">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={u.avatar_url || '/avatar-placeholder.svg'} alt="" className="h-10 w-10 rounded-full object-cover border border-white/15" />
-                  <div className="min-w-0">
-                    <div className="truncate font-medium">{u.display_name || u.username || 'Player'}</div>
-                    {u.username && <div className="text-xs text-white/50 truncate">@{u.username}</div>}
-                  </div>
-                </Link>
-
-                {viewerId && !isMe && (
+              <li key={p.id} className="p-3 flex items-center gap-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={p.avatar_url || '/avatar-placeholder.svg'} alt="" className="h-9 w-9 rounded-full object-cover border border-white/10" />
+                <div className="flex-1 min-w-0">
+                  <Link href={`/u/${p.username}`} className="font-medium hover:underline truncate">
+                    {p.display_name || p.username}
+                  </Link>
+                  {p.display_name && <div className="text-xs text-white/50 truncate">@{p.username}</div>}
+                </div>
+                {!isMe && (
                   <button
-                    onClick={async () => {
-                      setBusy(u.id);
-                      const { error } = await toggleFollow(supabase, u.id, isFollowing);
-                      setBusy(null);
-                      if (!error) {
-                        const s = new Set(followingSet);
-                        if (isFollowing) s.delete(u.id); else s.add(u.id);
-                        setFollowingSet(s);
-                      }
-                    }}
-                    disabled={busy === u.id}
-                    className={`px-3 py-1.5 rounded text-sm disabled:opacity-50 ${isFollowing ? 'bg-white/10' : 'bg-indigo-600 text-white'}`}
+                    onClick={() => toggleFollow(p.id, following)}
+                    disabled={savingId === p.id}
+                    className={`px-3 py-1 rounded text-sm ${following ? 'bg-white/10' : 'bg-indigo-600'} disabled:opacity-50`}
                   >
-                    {busy === u.id ? '…' : (isFollowing ? 'Following' : 'Follow')}
+                    {following ? 'Following' : 'Follow'}
                   </button>
                 )}
               </li>

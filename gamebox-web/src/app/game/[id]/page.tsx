@@ -92,6 +92,8 @@ export default function GamePage() {
   // likes (for recent list)
   const [likes, setLikes] = useState<Record<string, LikeEntry>>({});
   const [toggling, setToggling] = useState<Record<string, boolean>>({});
+
+  // cross-tab / same-tab like sync
   useEffect(() => {
     const off = addLikeListener(({ reviewUserId, gameId, liked, delta }) => {
       const k = likeKey(reviewUserId, gameId);
@@ -102,36 +104,6 @@ export default function GamePage() {
     });
     return off;
   }, []);
-
-  async function onToggleLike(reviewUserId: string, gameId: number) {
-    if (!me) return router.push('/login');
-    const k = likeKey(reviewUserId, gameId);
-    if (toggling[k]) return;
-  
-    const cur = likes[k] ?? { liked: false, count: 0 };
-    setToggling(p => ({ ...p, [k]: true }));
-    setLikes(p => ({ ...p, [k]: { liked: !cur.liked, count: cur.count + (cur.liked ? -1 : 1) } }));
-  
-    const timer = setTimeout(() => {
-      setToggling(p => ({ ...p, [k]: false }));
-    }, 4000);
-  
-    try {
-      const { error } = await toggleLike(supabase, me.id, reviewUserId, gameId, cur.liked);
-      if (error) {
-        setLikes(p => ({ ...p, [k]: cur }));
-        console.error('toggleLike failed:', error.message);
-        return;
-      }
-      broadcastLike(reviewUserId, gameId, !cur.liked, cur.liked ? -1 : +1);
-    } catch (e) {
-      setLikes(p => ({ ...p, [k]: cur }));
-      console.error('toggleLike crashed:', e);
-    } finally {
-      clearTimeout(timer);
-      setToggling(p => ({ ...p, [k]: false }));
-    }
-  }
 
   // 1) Hydrate, load game, my rating, and recent reviews
   useEffect(() => {
@@ -325,6 +297,41 @@ export default function GamePage() {
     await Promise.all([refetchGame(), refetchRecent()]);
   }
 
+  // Like handler (single source of truth)
+  async function handleLike(reviewUserId: string, gameId: number) {
+    if (!me) return router.push('/login');
+
+    const k = likeKey(reviewUserId, gameId);
+    if (toggling[k]) return;
+
+    const cur = likes[k] ?? { liked: false, count: 0 };
+
+    // throttle + optimistic
+    setToggling(p => ({ ...p, [k]: true }));
+    setLikes(p => ({
+      ...p,
+      [k]: { liked: !cur.liked, count: cur.count + (cur.liked ? -1 : 1) },
+    }));
+
+    try {
+      const { liked, count, error } = await toggleLike(supabase, reviewUserId, gameId);
+      if (error) {
+        // revert on failure
+        setLikes(p => ({ ...p, [k]: cur }));
+        console.error('toggleLike failed:', error.message);
+        return;
+      }
+      // snap to DB & broadcast
+      setLikes(p => ({ ...p, [k]: { liked, count } }));
+      broadcastLike(reviewUserId, gameId, liked, liked ? 1 : -1);
+    } catch (e) {
+      setLikes(p => ({ ...p, [k]: cur }));
+      console.error(e);
+    } finally {
+      setToggling(p => ({ ...p, [k]: false }));
+    }
+  }
+
   // 4) UI
   if (!validId) return <main className="p-8 text-red-600">Invalid game URL.</main>;
   if (error) return <main className="p-8 text-red-600">{error}</main>;
@@ -491,16 +498,17 @@ export default function GamePage() {
 
                       {canLike && (
                         <button
-                        onClick={() => onToggleLike(a!.id, gameId)}
-                        aria-pressed={entry.liked}
-                        aria-disabled={Boolean(toggling[k])}
-                        className={`ml-2 text-xs px-2 py-1 rounded border border-white/10 ${
-                          entry.liked ? 'bg-white/15' : 'bg-white/5'
-                        } ${toggling[k] ? 'opacity-50' : ''}`}
-                        title={entry.liked ? 'Unlike' : 'Like'}
-                      >
-                        ❤️ {entry.count}
-                      </button>
+                          onClick={() => handleLike(a!.id, gameId)}
+                          className={`ml-2 text-xs px-2 py-1 rounded border border-white/10 ${
+                            entry.liked ? 'bg-white/15' : 'bg-white/5'
+                          }`}
+                          aria-pressed={entry.liked}
+                          aria-label={entry.liked ? 'Unlike review' : 'Like review'}
+                          title={entry.liked ? 'Unlike' : 'Like'}
+                          disabled={toggling[likeKey(a!.id, gameId)]}
+                        >
+                          ❤️ {entry.count}
+                        </button>
                       )}
                     </div>
 

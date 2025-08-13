@@ -3,8 +3,9 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 export type LikeEntry = { liked: boolean; count: number };
 
-export const likeKey = (reviewUserId: string, gameId: number) =>
-  `${reviewUserId}:${gameId}`;
+export function likeKey(reviewUserId: string, gameId: number) {
+  return `${reviewUserId}:${gameId}`;
+}
 
 type Pair = { reviewUserId: string; gameId: number };
 
@@ -29,28 +30,30 @@ export async function fetchLikesBulk(
     .in('game_id', uniqGameIds)
     .in('review_user_id', uniqUserIds);
 
-  if (allErr) return {};
+  if (allErr || !Array.isArray(allLikes)) return {};
 
   // Viewer’s likes within the same visible set
-  let mine: { review_user_id: string; game_id: number }[] = [];
+  let mineRows: { review_user_id: string; game_id: number }[] = [];
   if (viewerId) {
-    const { data: myLikes, error: myErr } = await supabase
+    const { data: mine, error: mineErr } = await supabase
       .from('likes')
       .select('review_user_id, game_id')
-      .eq('user_id', viewerId)
+      .eq('liker_id', viewerId)            // ← FIX: use liker_id, not user_id
       .in('game_id', uniqGameIds)
       .in('review_user_id', uniqUserIds);
-    if (!myErr && Array.isArray(myLikes)) mine = myLikes as any[];
+
+    if (!mineErr && Array.isArray(mine)) mineRows = mine as any[];
   }
 
+  // Count totals per pair
   const counts = new Map<string, number>();
-  for (const row of (allLikes ?? [])) {
+  for (const row of allLikes) {
     const k = likeKey(String(row.review_user_id), Number(row.game_id));
     counts.set(k, (counts.get(k) ?? 0) + 1);
   }
 
   const mineSet = new Set(
-    mine.map(r => likeKey(String(r.review_user_id), Number(r.game_id)))
+    mineRows.map(r => likeKey(String(r.review_user_id), Number(r.game_id)))
   );
 
   const out: Record<string, LikeEntry> = {};
@@ -62,35 +65,27 @@ export async function fetchLikesBulk(
 }
 
 /**
- * Toggle like for one review (by (reviewUserId, gameId)) on behalf of likerId.
- * Uses an upsert-on-conflict for like, and delete for unlike.
+ * Toggle like for one review (by (reviewUserId, gameId)).
+ * Uses RPC so the DB sets liker_id = auth.uid(), which satisfies RLS.
+ * Returns the authoritative { liked, count } from Postgres.
  */
 export async function toggleLike(
   supabase: SupabaseClient,
-  likerId: string,
   reviewUserId: string,
-  gameId: number,
-  currentlyLiked: boolean
-) {
-  if (currentlyLiked) {
-    return supabase
-      .from('likes')
-      .delete()
-      .eq('user_id', likerId)
-      .eq('review_user_id', reviewUserId)
-      .eq('game_id', gameId);
-  }
-  // like
-  return supabase
-    .from('likes')
-    .upsert(
-      {
-        user_id: likerId,
-        review_user_id: reviewUserId,
-        game_id: gameId,
-      },
-      { onConflict: 'user_id,review_user_id,game_id' }
-    );
+  gameId: number
+): Promise<{ liked: boolean; count: number; error: any | null }> {
+  const { data, error } = await supabase.rpc('toggle_like', {
+    p_review_user_id: reviewUserId,
+    p_game_id: gameId,
+  });
+
+  if (error) return { liked: false, count: 0, error };
+  const row = Array.isArray(data) ? data[0] : data; // set-returning funcs come back as arrays
+  return {
+    liked: !!row?.liked,
+    count: Number(row?.count ?? 0),
+    error: null,
+  };
 }
 
 /** Cross-tab + same-page broadcast so likes stay in sync everywhere. */
@@ -102,17 +97,11 @@ export function broadcastLike(
   liked: boolean,
   delta: number
 ) {
-  const payload = {
-    t: Date.now(),
-    reviewUserId,
-    gameId,
-    liked,
-    delta,
-  };
+  const payload = { t: Date.now(), reviewUserId, gameId, liked, delta };
   try {
-    // fire local (same tab) event
+    // same-tab
     window.dispatchEvent(new CustomEvent(LS_KEY, { detail: payload }));
-    // notify other tabs
+    // other tabs
     localStorage.setItem(LS_KEY, JSON.stringify(payload));
   } catch {}
 }

@@ -1,4 +1,4 @@
-// src/app/feed/page.tsx
+// gamebox-web/src/app/feed/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -10,8 +10,8 @@ import {
   likeKey,
   fetchLikesBulk,
   toggleLike,
-  broadcastLike,
   addLikeListener,
+  broadcastLike,
   type LikeEntry,
 } from '@/lib/likes';
 
@@ -23,7 +23,7 @@ type Author = {
 };
 
 type Row = {
-  reviewer_id: string; // reviews.user_id
+  reviewer_id: string; // from reviews.user_id
   created_at: string;
   rating: number; // 1–100
   review: string | null;
@@ -31,6 +31,8 @@ type Row = {
   author: Author | null;
 };
 
+// If your FK name differs, update the alias below to match your DB:
+// e.g. 'profiles!reviews_user_id_fkey'
 const AUTHOR_JOIN = 'profiles!reviews_user_id_profiles_fkey';
 
 export default function FeedPage() {
@@ -38,26 +40,30 @@ export default function FeedPage() {
 
   const [rows, setRows] = useState<Row[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+
   const [ready, setReady] = useState(false);
   const [me, setMe] = useState<{ id: string } | null>(null);
 
-  // ❤️ like state (per (reviewer_id, game_id))
+  // ❤️ likes state: key => { liked, count }
   const [likes, setLikes] = useState<Record<string, LikeEntry>>({});
-  const [likeBusy, setLikeBusy] = useState<Record<string, boolean>>({});
+  const [busy, setBusy] = useState<Record<string, boolean>>({});
 
-  // cross-tab/page sync (ignore our own events – handled in likes.ts)
+  // keep all feed items in sync with likes from this/other tabs
   useEffect(() => {
     const off = addLikeListener(({ reviewUserId, gameId, liked, delta }) => {
       const k = likeKey(reviewUserId, gameId);
       setLikes(prev => {
         const cur = prev[k] ?? { liked: false, count: 0 };
-        return { ...prev, [k]: { liked, count: Math.max(0, cur.count + delta) } };
+        return {
+          ...prev,
+          [k]: { liked, count: Math.max(0, cur.count + delta) },
+        };
       });
     });
     return off;
   }, []);
 
-  // load feed + prefetch likes
+  // hydrate, load following, load feed, preload likes
   useEffect(() => {
     let mounted = true;
 
@@ -69,6 +75,7 @@ export default function FeedPage() {
       setMe(user ? { id: user.id } : null);
       setReady(true);
 
+      // show suggestions even if logged out
       if (!user) {
         setRows([]);
         return;
@@ -79,13 +86,14 @@ export default function FeedPage() {
         .from('follows')
         .select('followee_id')
         .eq('follower_id', user.id);
+
       if (!mounted) return;
       if (fErr) { setError(fErr.message); return; }
 
       const followingIds = (flw ?? []).map(r => String(r.followee_id));
       if (followingIds.length === 0) { setRows([]); return; }
 
-      // 2) reviews by those users
+      // 2) recent reviews by those users (embed author + game + user_id)
       const { data, error } = await supabase
         .from('reviews')
         .select(`
@@ -99,6 +107,7 @@ export default function FeedPage() {
         .in('user_id', followingIds)
         .order('created_at', { ascending: false })
         .limit(50);
+
       if (!mounted) return;
       if (error) { setError(error.message); return; }
 
@@ -126,48 +135,52 @@ export default function FeedPage() {
 
       setRows(safe);
 
-      // 3) prefetch likes for visible set
+      // 3) preload likes for what's visible so initial state is correct
       const pairs = safe
-        .filter(x => x.reviewer_id && x.games?.id)
-        .map(x => ({ reviewUserId: x.reviewer_id, gameId: x.games!.id }));
-      const map = await fetchLikesBulk(supabase, user.id, pairs);
+        .filter(r => r.reviewer_id && r.games?.id)
+        .map(r => ({ reviewUserId: r.reviewer_id, gameId: r.games!.id }));
+      const initial = await fetchLikesBulk(supabase, user.id, pairs);
       if (!mounted) return;
-      setLikes(map);
+      setLikes(initial);
     })();
 
     return () => { mounted = false; };
   }, [supabase]);
 
   async function onToggleLike(reviewUserId: string, gameId: number) {
-    if (!me) return;
+    if (!me) return; // page already prompts to sign in
     const k = likeKey(reviewUserId, gameId);
-    if (likeBusy[k]) return;
+    if (busy[k]) return;
 
     const cur = likes[k] ?? { liked: false, count: 0 };
-    setLikeBusy(p => ({ ...p, [k]: true }));
 
     // optimistic flip
+    setBusy(p => ({ ...p, [k]: true }));
     setLikes(p => ({
       ...p,
-      [k]: { liked: !cur.liked, count: Math.max(0, cur.count + (cur.liked ? -1 : 1)) },
+      [k]: { liked: !cur.liked, count: cur.count + (cur.liked ? -1 : 1) },
     }));
 
     try {
+      // authoritative result from DB
       const { liked, count, error } = await toggleLike(supabase, reviewUserId, gameId);
-      if (error) {
-        // revert
-        setLikes(p => ({ ...p, [k]: cur }));
-        return;
-      }
-      // authoritative state
+      if (error) throw error;
+
       setLikes(p => ({ ...p, [k]: { liked, count } }));
-      // notify other tabs/pages
-      broadcastLike(reviewUserId, gameId, liked, liked ? 1 : -1);
+
+      // broadcast to other tabs
+      const delta = liked === cur.liked ? 0 : (liked ? +1 : -1);
+      if (delta !== 0) broadcastLike(reviewUserId, gameId, liked, delta);
+    } catch (e) {
+      // revert optimistic on failure
+      setLikes(p => ({ ...p, [k]: cur }));
+      console.error('toggleLike(feed) failed:', e);
     } finally {
-      setLikeBusy(p => ({ ...p, [k]: false }));
+      setBusy(p => ({ ...p, [k]: false }));
     }
   }
 
+  // Top-level loading / error branches
   if (!ready) return <main className="p-8">Loading…</main>;
   if (error) return <main className="p-8 text-red-500">{error}</main>;
 
@@ -184,42 +197,46 @@ export default function FeedPage() {
           ) : !rows ? (
             <p>Loading…</p>
           ) : rows.length === 0 ? (
-            <p className="text-white/70">No activity yet. Follow players from search or their profiles.</p>
+            <p className="text-white/70">
+              No activity yet. Follow players from search or their profiles.
+            </p>
           ) : (
             <ul className="space-y-6">
               {rows.map((r, i) => {
-                const author = r.author;
-                const game = r.games;
+                const a = r.author;
+                const g = r.games;
                 const stars = (r.rating / 20).toFixed(1);
-                const canLike = Boolean(r.reviewer_id && game?.id);
-                const k = canLike ? likeKey(r.reviewer_id, game!.id) : '';
-                const entry = canLike ? (likes[k] ?? { liked: false, count: 0 }) : { liked: false, count: 0 };
-                const busy = canLike ? !!likeBusy[k] : false;
+
+                const canLike = Boolean(r.reviewer_id && g?.id);
+                const k = canLike ? likeKey(r.reviewer_id, g!.id) : '';
+                const entry = canLike
+                  ? (likes[k] ?? { liked: false, count: 0 })
+                  : { liked: false, count: 0 };
 
                 return (
                   <li key={`${r.created_at}-${i}`} className="flex items-start gap-3">
                     {/* avatar */}
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={author?.avatar_url || '/avatar-placeholder.svg'}
+                      src={a?.avatar_url || '/avatar-placeholder.svg'}
                       alt="avatar"
                       className="h-10 w-10 rounded-full object-cover border border-white/15"
                     />
 
                     <div className="flex-1 min-w-0">
                       <div className="text-sm text-white/80 flex items-center gap-2 flex-wrap">
-                        {author ? (
+                        {a ? (
                           <Link
-                            href={author.username ? `/u/${author.username}` : '#'}
+                            href={a.username ? `/u/${a.username}` : '#'}
                             className="font-medium hover:underline"
                           >
-                            {author.display_name || author.username || 'Player'}
+                            {a.display_name || a.username || 'Player'}
                           </Link>
                         ) : 'Someone'}
                         <span>rated</span>
-                        {game ? (
-                          <Link href={`/game/${game.id}`} className="hover:underline font-medium">
-                            {game.name}
+                        {g ? (
+                          <Link href={`/game/${g.id}`} className="hover:underline font-medium">
+                            {g.name}
                           </Link>
                         ) : (
                           <span>a game</span>
@@ -230,12 +247,11 @@ export default function FeedPage() {
 
                         {canLike && (
                           <button
-                            onClick={() => onToggleLike(r.reviewer_id, game!.id)}
+                            onClick={() => onToggleLike(r.reviewer_id, g!.id)}
                             className={`ml-2 text-xs px-2 py-1 rounded border border-white/10 ${
                               entry.liked ? 'bg-white/15' : 'bg-white/5'
-                            } ${busy ? 'opacity-50' : ''}`}
+                            } ${busy[k] ? 'opacity-50 pointer-events-none' : ''}`}
                             aria-pressed={entry.liked}
-                            disabled={busy}
                             title={entry.liked ? 'Unlike' : 'Like'}
                           >
                             ❤️ {entry.count}
@@ -244,16 +260,18 @@ export default function FeedPage() {
                       </div>
 
                       {r.review && r.review.trim() !== '' && (
-                        <p className="mt-2 whitespace-pre-wrap text-white/80">{r.review.trim()}</p>
+                        <p className="mt-2 whitespace-pre-wrap text-white/80">
+                          {r.review.trim()}
+                        </p>
                       )}
                     </div>
 
                     {/* cover */}
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    {game?.cover_url && (
+                    {g?.cover_url && (
                       <img
-                        src={game.cover_url}
-                        alt={game.name}
+                        src={g.cover_url}
+                        alt={g.name}
                         className="h-16 w-12 rounded object-cover border border-white/10"
                       />
                     )}

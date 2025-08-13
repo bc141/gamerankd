@@ -188,45 +188,47 @@ export default function PublicProfilePage() {
     }));
   }
 
-   // like toggle for one row (reviewUserId = profile.id)
-   async function onToggleLike(gameId: number) {
-    if (!profile || !gameId) return;
-    if (!viewerId) return router.push('/login');
-    if (viewerId === profile.id) return; // don't like own review
+   /// like toggle for one row (reviewUserId = profile.id)
+async function onToggleLike(gameId: number) {
+  if (!profile || !gameId) return;
+  if (!viewerId) return router.push('/login');
 
-    const k = likeKey(profile.id, gameId);
-    if (togglingLike[k]) return;
+  const k = likeKey(profile.id, gameId);
+  if (togglingLike[k]) return;
 
-    const cur = likes[k] ?? { liked: false, count: 0 };
+  const before = likes[k] ?? { liked: false, count: 0 };
 
-    // optimistic + throttle
-    setTogglingLike(p => ({ ...p, [k]: true }));
-    setLikes(p => ({ ...p, [k]: { liked: !cur.liked, count: cur.count + (cur.liked ? -1 : 1) } }));
+  // Optimistic flip (no extra fetch afterwards)
+  const optimistic = {
+    liked: !before.liked,
+    count: before.count + (before.liked ? -1 : 1),
+  };
+  setTogglingLike(p => ({ ...p, [k]: true }));
+  setLikes(p => ({ ...p, [k]: optimistic }));
 
-    try {
-      // 1) server toggle → authoritative liked/count
-      const { liked, count, error } = await toggleLike(supabase, profile.id, gameId);
-      if (error) {
-        setLikes(p => ({ ...p, [k]: cur })); // revert on error
-        return;
-      }
-
-      // 2) snap to RPC result
-      setLikes(p => ({ ...p, [k]: { liked, count } }));
-
-      // 3) tiny follow-up fetch for THIS pair only — ensures perfect accuracy
-      const single = await fetchLikesBulk(supabase, viewerId, [{ reviewUserId: profile.id, gameId }]);
-      const refreshed = single[k];
-      if (refreshed) {
-        setLikes(p => ({ ...p, [k]: refreshed }));
-      }
-
-      // 4) cross-tab/page broadcast
-      broadcastLike(profile.id, gameId, liked, liked ? 1 : -1);
-    } finally {
-      setTogglingLike(p => ({ ...p, [k]: false }));
+  try {
+    // RPC returns authoritative { liked, count }
+    const { liked, count, error } = await toggleLike(supabase, profile.id, gameId);
+    if (error) {
+      // Revert on failure
+      setLikes(p => ({ ...p, [k]: before }));
+      return;
     }
+
+    // Only re-render if RPC disagrees with the optimistic value (kills the flicker)
+    if (liked !== optimistic.liked || count !== optimistic.count) {
+      setLikes(p => ({ ...p, [k]: { liked, count } }));
+    }
+
+    // Broadcast a delta only if the final state changed vs BEFORE (keeps other tabs in sync without over-bumping)
+    const delta = liked === before.liked ? 0 : (liked ? 1 : -1);
+    if (delta !== 0) {
+      broadcastLike(profile.id, gameId, liked, delta);
+    }
+  } finally {
+    setTogglingLike(p => ({ ...p, [k]: false }));
   }
+}
 
   // branches
   if (error) return <main className="p-8 text-red-500">{error}</main>;
@@ -289,7 +291,8 @@ export default function PublicProfilePage() {
 
             const k = gameId ? likeKey(profile.id, gameId) : '';
             const entry = gameId ? (likes[k] ?? { liked: false, count: 0 }) : { liked: false, count: 0 };
-            const canLike = Boolean(gameId) && viewerId !== profile.id;
+
+            
 
             return (
               <li key={`${gameId ?? 'g'}-${i}`} className="flex items-start gap-4">
@@ -312,26 +315,23 @@ export default function PublicProfilePage() {
                     <span className="text-white/30">·</span>
                     <span className="text-xs text-white/40">{new Date(r.created_at).toLocaleDateString()}</span>
 
-                    {canLike && gameId && (
-                      likesReady ? (
-                        <button
-                          onClick={() => onToggleLike(gameId)}
-                          aria-pressed={entry.liked}
-                          aria-disabled={Boolean(togglingLike[k])}
-                          className={`ml-2 text-xs px-2 py-1 rounded border border-white/10 ${
-                            entry.liked ? 'bg-white/15' : 'bg-white/5'
-                          } ${togglingLike[k] ? 'opacity-50' : ''}`}
-                          title={entry.liked ? 'Unlike' : 'Like'}
-                        >
-                          ❤️ {entry.count}
-                        </button>
-                      ) : (
-                        <span className="ml-2 text-xs text-white/40">❤️ …</span>
-                      )
-                    )}
-                    {!canLike && gameId && (
-                      <span className="ml-2 text-xs text-white/50">❤️ {entry.count}</span>
-                    )}
+                    {gameId && (
+  likesReady ? (
+    <button
+      onClick={() => onToggleLike(gameId)}
+      aria-pressed={entry.liked}
+      aria-disabled={Boolean(togglingLike[k])}
+      className={`ml-2 text-xs px-2 py-1 rounded border border-white/10 ${
+        entry.liked ? 'bg-white/15' : 'bg-white/5'
+      } ${togglingLike[k] ? 'opacity-50' : ''}`}
+      title={entry.liked ? 'Unlike' : 'Like'}
+    >
+      ❤️ {entry.count}
+    </button>
+  ) : (
+    <span className="ml-2 text-xs text-white/40">❤️ …</span>
+  )
+)}
                   </div>
 
                   {r.review && r.review.trim() !== '' && (

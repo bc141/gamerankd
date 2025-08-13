@@ -6,51 +6,55 @@ import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { waitForSession } from '@/lib/waitForSession';
 import StarRating from '@/components/StarRating';
 
-type ReviewRow = { user_id: string; rating: number; review: string | null; created_at: string };
+type Review = { user_id: string; rating: number; review?: string | null };
 type Game = {
   id: number;
   name: string;
   summary: string | null;
   cover_url: string | null;
-  reviews?: ReviewRow[];
+  reviews?: Review[];
 };
 
-type Profile = { id: string; username: string | null; display_name: string | null };
-
-const to100 = (stars: number) => Math.round(stars * 20);
-const from100 = (score: number) => score / 20;
+// helpers (db keeps 1–100, UI is 0.5 steps out of 5)
+const to100 = (stars: number) => Math.round(stars * 20); // 3.5 -> 70
+const from100 = (score: number) => score / 20;           // 78  -> 3.9
+const MAX_REVIEW_LEN = 500;
 
 export default function GamePage() {
   const supabase = supabaseBrowser();
   const router = useRouter();
   const params = useParams();
 
-  const idParam = Array.isArray((params as any)?.id) ? (params as any).id[0] : (params as any)?.id;
+  const idParam = Array.isArray((params as any)?.id)
+    ? (params as any).id[0]
+    : (params as any)?.id;
   const gameId = Number(idParam);
   const validId = Number.isFinite(gameId);
 
+  // session / readiness
   const [ready, setReady] = useState(false);
   const [me, setMe] = useState<{ id: string } | null>(null);
 
+  // data + UI state
   const [game, setGame] = useState<Game | null>(null);
 
-  const [myStars, setMyStars] = useState<number | null>(null);     // committed
-  const [tempStars, setTempStars] = useState<number | null>(null); // editing
+  // committed rating/text
+  const [myStars, setMyStars] = useState<number | null>(null);
+  const [myText, setMyText] = useState<string>(''); // <-- DECLARED
 
-  const [myReview, setMyReview] = useState<string>('');            // committed text
-  const [tempReview, setTempReview] = useState<string>('');        // editing text
+  // editing buffers
+  const [tempStars, setTempStars] = useState<number | null>(null);
+  const [tempText, setTempText] = useState<string>(''); // <-- DECLARED
 
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [recent, setRecent] = useState<Array<ReviewRow & { user?: Profile }>>([]);
-
-  // hydrate session, load game + my rating/review + recent reviews
+  // 1) Hydrate session first to avoid “signed out” flash
   useEffect(() => {
     if (!validId) return;
-    let mounted = true;
 
+    let mounted = true;
     (async () => {
       const session = await waitForSession(supabase);
       const user = session?.user ?? null;
@@ -59,9 +63,10 @@ export default function GamePage() {
       setMe(user ? { id: user.id } : null);
       setReady(true);
 
+      // then load game + my rating
       const { data, error } = await supabase
         .from('games')
-        .select('id,name,summary,cover_url,reviews(user_id,rating,review,created_at)')
+        .select('id,name,summary,cover_url,reviews(user_id,rating,review)')
         .eq('id', gameId)
         .single();
 
@@ -70,60 +75,44 @@ export default function GamePage() {
         setError(error.message);
         return;
       }
-
       const g = data as Game | null;
       setGame(g);
 
-      // preload my rating + review
+      // preload my rating + text (if signed in and present)
       if (user && g?.reviews?.length) {
         const mine = g.reviews.find(r => r.user_id === user.id);
         if (mine) {
           const stars = from100(mine.rating);
           setMyStars(stars);
           setTempStars(stars);
-          setMyReview(mine.review ?? '');
-          setTempReview(mine.review ?? '');
+          setMyText(mine.review ?? '');
+          setTempText(mine.review ?? '');
         } else {
           setMyStars(null);
           setTempStars(null);
-          setMyReview('');
-          setTempReview('');
+          setMyText('');
+          setTempText('');
         }
       } else {
         setMyStars(null);
         setTempStars(null);
-        setMyReview('');
-        setTempReview('');
+        setMyText('');
+        setTempText('');
       }
-
-      await loadRecent(); // after base load
     })();
-
-    async function loadRecent() {
-      // latest 12 reviews for this game
-      const { data: revs } = await supabase
-        .from('reviews')
-        .select('user_id,rating,review,created_at')
-        .eq('game_id', gameId)
-        .order('created_at', { ascending: false })
-        .limit(12);
-
-      const list = (revs ?? []) as ReviewRow[];
-      const ids = Array.from(new Set(list.map(r => r.user_id)));
-      if (ids.length) {
-        const { data: profs } = await supabase
-          .from('profiles')
-          .select('id,username,display_name')
-          .in('id', ids);
-        const map = new Map((profs ?? []).map(p => [p.id, p as Profile]));
-        setRecent(list.map(r => ({ ...r, user: map.get(r.user_id) })));
-      } else {
-        setRecent([]);
-      }
-    }
 
     return () => { mounted = false; };
   }, [validId, gameId, supabase]);
+
+  // 2) helpers
+  const refetchGame = async () => {
+    const { data } = await supabase
+      .from('games')
+      .select('id,name,summary,cover_url,reviews(user_id,rating,review)')
+      .eq('id', gameId)
+      .single();
+    setGame(data as Game);
+  };
 
   const avgStars = useMemo(() => {
     const list = game?.reviews ?? [];
@@ -134,33 +123,25 @@ export default function GamePage() {
 
   const ratingsCount = game?.reviews?.length ?? 0;
 
-  async function refetchGame() {
-    const { data } = await supabase
-      .from('games')
-      .select('id,name,summary,cover_url,reviews(user_id,rating,review,created_at)')
-      .eq('id', gameId)
-      .single();
-    setGame(data as Game);
-  }
-
-  async function saveRatingAndReview() {
+  // 3) actions
+  async function saveRating() {
     if (!me) return router.push('/login');
     if (!validId) return setError('Invalid game id.');
     if (tempStars == null) return;
 
+    const trimmed = (tempText ?? '').trim();
+    if (trimmed.length > MAX_REVIEW_LEN) {
+      return setError(`Review is too long (max ${MAX_REVIEW_LEN} chars).`);
+    }
+
     setError(null);
     setSaving(true);
-    const { error } = await supabase
-      .from('reviews')
-      .upsert(
-        {
-          user_id: me.id,
-          game_id: gameId,
-          rating: to100(tempStars),
-          review: tempReview.trim() || null,
-        },
-        { onConflict: 'user_id,game_id' }
-      );
+    const { error } = await supabase.from('reviews').upsert({
+      user_id: me.id,
+      game_id: gameId,
+      rating: to100(tempStars),
+      review: trimmed.length ? trimmed : null,
+    });
     setSaving(false);
 
     if (error) {
@@ -169,7 +150,7 @@ export default function GamePage() {
     }
 
     setMyStars(tempStars);
-    setMyReview(tempReview);
+    setMyText(trimmed);
     setEditing(false);
     await refetchGame();
   }
@@ -187,59 +168,83 @@ export default function GamePage() {
       .eq('game_id', gameId);
     setSaving(false);
 
-    if (error) return setError(error.message);
+    if (error) {
+      setError(error.message);
+      return;
+    }
 
     setMyStars(null);
     setTempStars(null);
-    setMyReview('');
-    setTempReview('');
+    setMyText('');
+    setTempText('');
     setEditing(false);
     await refetchGame();
   }
 
+  // 4) UI branches
   if (!validId) return <main className="p-8 text-red-600">Invalid game URL.</main>;
   if (error) return <main className="p-8 text-red-600">{error}</main>;
   if (!game) return <main className="p-8">Loading…</main>;
 
-  const showAuthControls = ready;
+  const showAuthControls = ready; // only decide after hydration
 
   return (
     <main className="p-8 max-w-2xl mx-auto text-white">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={game.cover_url ?? ''} alt={game.name} className="rounded mb-4 max-h-[360px] object-cover" />
+      <img
+        src={game.cover_url ?? ''}
+        alt={game.name}
+        className="rounded mb-4 max-h-[360px] object-cover"
+      />
 
       <h1 className="text-3xl font-bold">{game.name}</h1>
 
+      {/* Community average */}
       <div className="mt-2 flex items-center gap-2 text-sm text-white/70">
         <StarRating value={avgStars ?? 0} readOnly size={18} />
         <span>{avgStars == null ? 'No ratings yet' : `${avgStars} / 5`}</span>
         <span className="text-white/40">· {ratingsCount} rating{ratingsCount === 1 ? '' : 's'}</span>
       </div>
 
-      {/* My rating + review */}
-      <div className="mt-5 space-y-3">
+      {/* My rating + review controls */}
+      <div className="mt-5 flex flex-col gap-3">
         {showAuthControls && me ? (
           <>
             {myStars != null && !editing ? (
-              <div className="flex items-center gap-3">
-                <StarRating value={myStars} readOnly />
-                {myReview && <span className="text-white/80">{myReview}</span>}
-                <button
-                  onClick={() => { setEditing(true); setTempStars(myStars); setTempReview(myReview); }}
-                  className="bg-indigo-600 text-white px-3 py-1 rounded"
-                >
-                  Change
-                </button>
-                <button onClick={removeRating} className="bg-white/10 px-3 py-1 rounded" disabled={saving}>
-                  Remove
-                </button>
-              </div>
+              <>
+                <div className="flex items-center gap-3">
+                  <StarRating value={myStars} readOnly />
+                  <button
+                    onClick={() => {
+                      setEditing(true);
+                      setTempStars(myStars);
+                      setTempText(myText);
+                    }}
+                    className="bg-indigo-600 text-white px-3 py-1 rounded"
+                  >
+                    Change
+                  </button>
+                  <button
+                    onClick={removeRating}
+                    className="bg-white/10 px-3 py-1 rounded"
+                    disabled={saving}
+                  >
+                    Remove
+                  </button>
+                </div>
+                {myText && (
+                  <p className="text-white/80 whitespace-pre-wrap mt-1">{myText}</p>
+                )}
+              </>
             ) : (
               <>
                 <div className="flex items-center gap-3">
-                  <StarRating value={tempStars ?? 0} onChange={setTempStars} />
+                  <StarRating
+                    value={tempStars ?? 0}
+                    onChange={setTempStars}   // 0.5 steps via hover/click
+                  />
                   <button
-                    onClick={saveRatingAndReview}
+                    onClick={saveRating}
                     disabled={saving || tempStars == null}
                     className="bg-indigo-600 text-white px-3 py-1 rounded disabled:opacity-50"
                   >
@@ -247,7 +252,11 @@ export default function GamePage() {
                   </button>
                   {myStars != null && (
                     <button
-                      onClick={() => { setEditing(false); setTempStars(myStars); setTempReview(myReview); }}
+                      onClick={() => {
+                        setEditing(false);
+                        setTempStars(myStars);
+                        setTempText(myText);
+                      }}
                       className="bg-white/10 px-3 py-1 rounded"
                       disabled={saving}
                     >
@@ -255,45 +264,32 @@ export default function GamePage() {
                     </button>
                   )}
                 </div>
+
+                {/* Review text area */}
                 <textarea
-                  value={tempReview}
-                  onChange={(e) => setTempReview(e.target.value)}
-                  placeholder="Write a short review (optional)…"
-                  rows={3}
-                  className="w-full border border-white/20 bg-neutral-900 text-white rounded px-3 py-2"
+                  value={tempText}
+                  onChange={(e) => setTempText(e.target.value)}
+                  placeholder="Add an optional short review (max 500 chars)…"
+                  rows={4}
+                  maxLength={MAX_REVIEW_LEN}
+                  className="mt-2 w-full border border-white/20 bg-neutral-900 text-white rounded px-3 py-2"
                 />
+                <div className="text-xs text-white/50">
+                  {tempText.length}/{MAX_REVIEW_LEN}
+                </div>
               </>
             )}
           </>
         ) : (
-          showAuthControls ? <a className="underline" href="/login">Sign in to rate & review</a> : null
+          // don’t show “Sign in” until auth hydration completes
+          showAuthControls ? (
+            <a className="underline" href="/login">Sign in to rate & review</a>
+          ) : null
         )}
       </div>
 
-      {/* Recent community reviews */}
-      {recent.length > 0 && (
-        <section className="mt-8">
-          <h2 className="font-semibold mb-3">Recent reviews</h2>
-          <ul className="space-y-4">
-            {recent.map((r, i) => (
-              <li key={i} className="border border-white/10 rounded p-3">
-                <div className="flex items-center gap-2 text-sm text-white/70">
-                  <StarRating value={from100(r.rating)} readOnly size={16} />
-                  <span>{from100(r.rating).toFixed(1)} / 5</span>
-                  <span className="text-white/40">· {new Date(r.created_at).toLocaleDateString()}</span>
-                </div>
-                {r.review && <p className="mt-2">{r.review}</p>}
-                <div className="mt-1 text-sm text-white/60">
-                  {r.user?.username ? <a className="underline" href={`/u/${r.user.username}`}>{r.user.display_name || r.user.username}</a> : 'Unknown user'}
-                </div>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
       {/* Summary */}
-      <p className="mt-8 whitespace-pre-wrap text-gray-200">{game.summary}</p>
+      <p className="mt-6 whitespace-pre-wrap text-gray-200">{game.summary}</p>
     </main>
   );
 }

@@ -1,61 +1,75 @@
-// src/lib/likes.ts
+// gamebox-web/src/lib/likes.ts
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-export async function getLikeCounts(
-  supabase: SupabaseClient,
-  pairs: Array<{ review_user_id: string; game_id: number }>
-): Promise<Record<string, number>> {
-  if (pairs.length === 0) return {};
-  // de-dup and query
-  const ids = Array.from(new Set(pairs.map(p => `${p.review_user_id}:${p.game_id}`)));
-  const { data, error } = await supabase
-    .from('review_likes')
-    .select('review_user_id, game_id');
-  if (error) return {};
-  const counts: Record<string, number> = {};
-  for (const row of data ?? []) {
-    const k = `${row.review_user_id}:${row.game_id}`;
-    if (!ids.includes(k)) continue;
-    counts[k] = (counts[k] ?? 0) + 1;
-  }
-  return counts;
-}
-
-export async function didILike(
-  supabase: SupabaseClient,
-  meId: string,
-  review_user_id: string,
-  game_id: number
-): Promise<boolean> {
-  const { data } = await supabase
-    .from('review_likes')
-    .select('user_id')
-    .eq('user_id', meId)
-    .eq('review_user_id', review_user_id)
-    .eq('game_id', game_id)
-    .limit(1);
-  return !!(data && data.length > 0);
-}
+export const likeKey = (reviewUserId: string, gameId: number) =>
+  `${reviewUserId}:${gameId}`;
 
 export async function toggleLike(
   supabase: SupabaseClient,
   meId: string,
-  review_user_id: string,
-  game_id: number,
+  reviewUserId: string,
+  gameId: number,
   currentlyLiked: boolean
-): Promise<{ error: null | { message: string } }> {
+) {
   if (currentlyLiked) {
     const { error } = await supabase
-      .from('review_likes')
+      .from('likes')
       .delete()
-      .eq('user_id', meId)
-      .eq('review_user_id', review_user_id)
-      .eq('game_id', game_id);
-    return { error: error ?? null };
+      .eq('liker_id', meId)
+      .eq('review_user_id', reviewUserId)
+      .eq('game_id', gameId);
+    return { error };
   } else {
     const { error } = await supabase
-      .from('review_likes')
-      .insert({ user_id: meId, review_user_id, game_id });
-    return { error: error ?? null };
+      .from('likes')
+      .upsert(
+        { liker_id: meId, review_user_id: reviewUserId, game_id: gameId },
+        { onConflict: 'liker_id,review_user_id,game_id' }
+      );
+    return { error };
   }
+}
+
+type Pair = { reviewUserId: string; gameId: number };
+
+export async function getLikeStateForPairs(
+  supabase: SupabaseClient,
+  meId: string,
+  pairs: Pair[]
+): Promise<{ likedKeys: Set<string>; counts: Record<string, number> }> {
+  if (!pairs.length) return { likedKeys: new Set(), counts: {} };
+
+  // dedupe pairs
+  const uniq = Array.from(new Map(pairs.map(p => [likeKey(p.reviewUserId, p.gameId), p])).values());
+  const userIds = Array.from(new Set(uniq.map(p => p.reviewUserId)));
+  const gameIds = Array.from(new Set(uniq.map(p => p.gameId)));
+
+  // 1) counts for all pairs (filter exact in JS)
+  const { data: allRows, error: cErr } = await supabase
+    .from('likes')
+    .select('review_user_id, game_id')
+    .in('review_user_id', userIds)
+    .in('game_id', gameIds);
+
+  if (cErr) return { likedKeys: new Set(), counts: {} };
+
+  const counts: Record<string, number> = {};
+  for (const r of allRows ?? []) {
+    const k = likeKey(String(r.review_user_id), Number(r.game_id));
+    counts[k] = (counts[k] ?? 0) + 1;
+  }
+
+  // 2) which of those are liked by me?
+  const { data: mine } = await supabase
+    .from('likes')
+    .select('review_user_id, game_id')
+    .eq('liker_id', meId)
+    .in('review_user_id', userIds)
+    .in('game_id', gameIds);
+
+  const likedKeys = new Set<string>(
+    (mine ?? []).map(r => likeKey(String(r.review_user_id), Number(r.game_id)))
+  );
+
+  return { likedKeys, counts };
 }

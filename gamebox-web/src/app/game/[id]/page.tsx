@@ -1,4 +1,3 @@
-// gamebox-web/src/app/game/[id]/page.tsx
 'use client';
 
 import Link from 'next/link';
@@ -7,11 +6,18 @@ import { useParams, useRouter } from 'next/navigation';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { waitForSession } from '@/lib/waitForSession';
 import StarRating from '@/components/StarRating';
-import { toggleLike } from '@/lib/likes';
+import {
+  likeKey,
+  fetchLikesBulk,
+  toggleLike,
+  broadcastLike,
+  addLikeListener,
+  type LikeEntry,
+} from '@/lib/likes';
 
 // ---------- helpers ----------
-const to100 = (stars: number) => Math.round(stars * 20); // 3.5 -> 70
-const from100 = (score: number) => score / 20;           // 78  -> 3.9
+const to100 = (stars: number) => Math.round(stars * 20);
+const from100 = (score: number) => score / 20;
 const MAX_REVIEW_LEN = 500;
 
 // ---------- types ----------
@@ -26,7 +32,6 @@ type Game = {
 };
 
 type RawRecent = {
-  user_id?: string | null;
   created_at?: string | null;
   rating?: number | null;
   review?: string | null;
@@ -39,7 +44,6 @@ type RawRecent = {
 };
 
 type RecentItem = {
-  user_id: string;
   created_at: string;
   rating: number; // 1–100
   review: string | null;
@@ -81,24 +85,43 @@ export default function GamePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // ❤️ likes state for recent reviews (key: `${reviewUserId}:${gameId}`)
-  const [likes, setLikes] = useState<Record<string, { liked: boolean; count: number }>>({});
-  const likeKey = (reviewUserId: string, gid: number) => `${reviewUserId}:${gid}`;
-
-  async function onToggleLike(reviewUserId: string, gid: number) {
-    if (!me) return router.push('/login');
-    const k = likeKey(reviewUserId, gid);
-    const entry = likes[k] ?? { liked: false, count: 0 };
-    const { error } = await toggleLike(supabase, me.id, reviewUserId, gid, entry.liked);
-    if (error) return; // optionally toast
-    setLikes(prev => ({ ...prev, [k]: { liked: !entry.liked, count: entry.count + (entry.liked ? -1 : 1) } }));
-  }
-
   // recent reviews for this game
   const [recent, setRecent] = useState<RecentItem[]>([]);
   const [recentErr, setRecentErr] = useState<string | null>(null);
 
-  // 1) Hydrate session first to avoid “signed out” flash, then load game + my rating and recent reviews
+  // likes (for recent list)
+  const [likes, setLikes] = useState<Record<string, LikeEntry>>({});
+  const [toggling, setToggling] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    const off = addLikeListener(({ reviewUserId, gameId, liked, delta }) => {
+      const k = likeKey(reviewUserId, gameId);
+      setLikes(prev => {
+        const cur = prev[k] ?? { liked: false, count: 0 };
+        return { ...prev, [k]: { liked, count: Math.max(0, cur.count + delta) } };
+      });
+    });
+    return off;
+  }, []);
+
+  async function onToggleLike(reviewUserId: string, gameId: number) {
+    if (!me) return router.push('/login');
+    const k = likeKey(reviewUserId, gameId);
+    if (toggling[k]) return;
+    const cur = likes[k] ?? { liked: false, count: 0 };
+
+    setToggling(p => ({ ...p, [k]: true }));
+    setLikes(p => ({ ...p, [k]: { liked: !cur.liked, count: cur.count + (cur.liked ? -1 : 1) } }));
+    const { error } = await toggleLike(supabase, me.id, reviewUserId, gameId, cur.liked);
+    setToggling(p => ({ ...p, [k]: false }));
+
+    if (error) {
+      setLikes(p => ({ ...p, [k]: cur }));
+      return;
+    }
+    broadcastLike(reviewUserId, gameId, !cur.liked, cur.liked ? -1 : +1);
+  }
+
+  // 1) Hydrate, load game, my rating, and recent reviews
   useEffect(() => {
     if (!validId) return;
 
@@ -111,7 +134,7 @@ export default function GamePage() {
       setMe(user ? { id: user.id } : null);
       setReady(true);
 
-      // Load game with embedded reviews (for avg + my rating preload)
+      // Load game + my rating
       const { data, error } = await supabase
         .from('games')
         .select('id,name,summary,cover_url,reviews(user_id,rating,review)')
@@ -148,8 +171,7 @@ export default function GamePage() {
         setTempText('');
       }
 
-      // recent reviews list
-      await refetchRecent();
+      await refetchRecent(); // also preloads likes
     })();
 
     return () => { mounted = false; };
@@ -172,7 +194,6 @@ export default function GamePage() {
     const { data, error } = await supabase
       .from('reviews')
       .select(`
-        user_id,
         created_at,
         rating,
         review,
@@ -191,24 +212,30 @@ export default function GamePage() {
     }
 
     const rows: RawRecent[] = Array.isArray(data) ? (data as RawRecent[]) : [];
+    const normalized: RecentItem[] = rows.map((r) => ({
+      created_at: r.created_at ?? new Date(0).toISOString(),
+      rating: typeof r.rating === 'number' ? r.rating : 0,
+      review: r.review ?? null,
+      author:
+        r.author && r.author.id
+          ? {
+              id: String(r.author.id),
+              username: r.author.username ?? null,
+              display_name: r.author.display_name ?? null,
+              avatar_url: r.author.avatar_url ?? null,
+            }
+          : null,
+    }));
 
-    setRecent(
-      rows.map((r) => ({
-        user_id: String(r.user_id ?? ''),
-        created_at: r.created_at ?? new Date(0).toISOString(),
-        rating: typeof r.rating === 'number' ? r.rating : 0,
-        review: r.review ?? null,
-        author:
-          r.author && r.author.id
-            ? {
-                id: String(r.author.id),
-                username: r.author.username ?? null,
-                display_name: r.author.display_name ?? null,
-                avatar_url: r.author.avatar_url ?? null,
-              }
-            : null,
-      }))
-    );
+    setRecent(normalized);
+
+    // Preload likes for the visible set
+    const viewerId = me?.id ?? null;
+    const pairs = normalized
+      .filter(r => r.author?.id)
+      .map(r => ({ reviewUserId: r.author!.id, gameId }));
+    const map = await fetchLikesBulk(supabase, viewerId, pairs);
+    setLikes(map);
   };
 
   const avgStars = useMemo(() => {
@@ -241,7 +268,6 @@ export default function GamePage() {
         review: trimmed.length ? trimmed : null,
       };
 
-      // Important: declare the conflict target so updates don’t hit the unique index
       const { error } = await supabase
         .from('reviews')
         .upsert(payload, { onConflict: 'user_id,game_id' });
@@ -255,7 +281,6 @@ export default function GamePage() {
       setMyText(trimmed);
       setEditing(false);
 
-      // refresh UI
       await Promise.all([refetchGame(), refetchRecent()]);
     } finally {
       setSaving(false);
@@ -288,12 +313,12 @@ export default function GamePage() {
     await Promise.all([refetchGame(), refetchRecent()]);
   }
 
-  // 4) UI branches
+  // 4) UI
   if (!validId) return <main className="p-8 text-red-600">Invalid game URL.</main>;
   if (error) return <main className="p-8 text-red-600">{error}</main>;
   if (!game) return <main className="p-8">Loading…</main>;
 
-  const showAuthControls = ready; // only decide after hydration
+  const showAuthControls = ready;
 
   return (
     <main className="p-8 max-w-4xl mx-auto text-white">
@@ -305,7 +330,6 @@ export default function GamePage() {
         className="rounded mb-4 max-h-[360px] object-cover"
       />
 
-      {/* Title */}
       <h1 className="text-3xl font-bold">{game.name}</h1>
 
       {/* Community average + quick CTA */}
@@ -314,7 +338,6 @@ export default function GamePage() {
         <span>{avgStars == null ? 'No ratings yet' : `${avgStars} / 5`}</span>
         <span className="text-white/40">· {ratingsCount} rating{ratingsCount === 1 ? '' : 's'}</span>
 
-        {/* quick jump to editor */}
         {showAuthControls && me && (
           <button
             onClick={() =>
@@ -386,7 +409,6 @@ export default function GamePage() {
                   )}
                 </div>
 
-                {/* Review text area */}
                 <textarea
                   value={tempText}
                   onChange={(e) => setTempText(e.target.value)}
@@ -424,11 +446,11 @@ export default function GamePage() {
         ) : (
           <ul className="space-y-5">
             {recent.map((r, i) => {
-              const starFloat = r.rating / 20;
-              const stars = starFloat.toFixed(1);
+              const stars = (r.rating / 20).toFixed(1);
               const a = r.author;
-              const k = likeKey(r.user_id, game.id);
-              const entry = likes[k] ?? { liked: false, count: 0 };
+              const canLike = Boolean(a?.id);
+              const k = canLike ? likeKey(a!.id, gameId) : '';
+              const entry = canLike ? (likes[k] ?? { liked: false, count: 0 }) : { liked: false, count: 0 };
 
               return (
                 <li key={`${r.created_at}-${i}`} className="flex items-start gap-3">
@@ -451,24 +473,23 @@ export default function GamePage() {
                         </Link>
                       ) : 'Someone'}
                       <span>rated</span>
-                      <StarRating value={starFloat} readOnly size={16} />
                       <span className="text-white/60">{stars} / 5</span>
                       <span className="text-white/30">·</span>
-                      <span className="text-white/40">
-                        {new Date(r.created_at).toLocaleDateString()}
-                      </span>
+                      <span className="text-white/40">{new Date(r.created_at).toLocaleDateString()}</span>
 
-                      {/* ❤️ Like */}
-                      <button
-                        onClick={() => onToggleLike(r.user_id, game.id)}
-                        className={`ml-2 text-xs px-2 py-1 rounded border border-white/10 ${
-                          entry.liked ? 'bg-white/15' : 'bg-white/5'
-                        }`}
-                        aria-pressed={entry.liked}
-                        title={entry.liked ? 'Unlike' : 'Like'}
-                      >
-                        ❤️ {entry.count}
-                      </button>
+                      {canLike && (
+                        <button
+                          onClick={() => onToggleLike(a!.id, gameId)}
+                          disabled={Boolean(toggling[k])}
+                          className={`ml-2 text-xs px-2 py-1 rounded border border-white/10 ${
+                            entry.liked ? 'bg-white/15' : 'bg-white/5'
+                          } disabled:opacity-50`}
+                          aria-pressed={entry.liked}
+                          title={entry.liked ? 'Unlike' : 'Like'}
+                        >
+                          ❤️ {entry.count}
+                        </button>
+                      )}
                     </div>
 
                     {r.review && r.review.trim() !== '' && (

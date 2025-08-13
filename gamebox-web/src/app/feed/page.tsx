@@ -1,4 +1,3 @@
-// gamebox-web/src/app/feed/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -6,7 +5,14 @@ import Link from 'next/link';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { waitForSession } from '@/lib/waitForSession';
 import WhoToFollow from '@/components/WhoToFollow';
-import { toggleLike, getLikeStateForPairs, likeKey } from '@/lib/likes';
+import {
+  likeKey,
+  fetchLikesBulk,
+  toggleLike,
+  broadcastLike,
+  addLikeListener,
+  type LikeEntry,
+} from '@/lib/likes';
 
 type Author = {
   id: string;
@@ -24,7 +30,7 @@ type Row = {
   author: Author | null;
 };
 
-// If your FK alias differs, update this:
+// Adjust if your FK alias differs
 const AUTHOR_JOIN = 'profiles!reviews_user_id_profiles_fkey';
 
 export default function FeedPage() {
@@ -36,8 +42,41 @@ export default function FeedPage() {
   const [me, setMe] = useState<{ id: string } | null>(null);
 
   // ❤️ likes state
-  const [likes, setLikes] = useState<Record<string, { liked: boolean; count: number }>>({});
-  const [pendingKey, setPendingKey] = useState<string | null>(null);
+  const [likes, setLikes] = useState<Record<string, LikeEntry>>({});
+  const [toggling, setToggling] = useState<Record<string, boolean>>({}); // guard spam
+
+  // preload + live-sync likes
+  useEffect(() => {
+    const off = addLikeListener(({ reviewUserId, gameId, liked, delta }) => {
+      const k = likeKey(reviewUserId, gameId);
+      setLikes(prev => {
+        const cur = prev[k] ?? { liked: false, count: 0 };
+        return { ...prev, [k]: { liked, count: Math.max(0, cur.count + delta) } };
+      });
+    });
+    return off;
+  }, []);
+
+  async function onToggleLike(reviewUserId: string, gameId: number) {
+    if (!me) return;
+    const k = likeKey(reviewUserId, gameId);
+    if (toggling[k]) return; // in-flight
+    const cur = likes[k] ?? { liked: false, count: 0 };
+
+    // optimistic
+    setToggling(p => ({ ...p, [k]: true }));
+    setLikes(p => ({ ...p, [k]: { liked: !cur.liked, count: cur.count + (cur.liked ? -1 : 1) } }));
+
+    const { error } = await toggleLike(supabase, me.id, reviewUserId, gameId, cur.liked);
+    setToggling(p => ({ ...p, [k]: false }));
+
+    if (error) {
+      // revert on failure
+      setLikes(p => ({ ...p, [k]: cur }));
+      return;
+    }
+    broadcastLike(reviewUserId, gameId, !cur.liked, cur.liked ? -1 : +1);
+  }
 
   useEffect(() => {
     let mounted = true;
@@ -50,7 +89,6 @@ export default function FeedPage() {
       setMe(user ? { id: user.id } : null);
       setReady(true);
 
-      // If logged out, empty feed (suggestions still render)
       if (!user) {
         setRows([]);
         return;
@@ -92,54 +130,39 @@ export default function FeedPage() {
         rating: typeof r?.rating === 'number' ? r.rating : 0,
         review: r?.review ?? null,
         games: r?.games
-          ? { id: Number(r.games.id), name: String(r.games.name ?? 'Unknown'), cover_url: r.games.cover_url ?? null }
+          ? {
+              id: Number(r.games.id),
+              name: String(r.games.name ?? 'Unknown'),
+              cover_url: r.games.cover_url ?? null,
+            }
           : null,
         author: r?.author
-          ? { id: String(r.author.id), username: r.author.username ?? null, display_name: r.author.display_name ?? null, avatar_url: r.author.avatar_url ?? null }
+          ? {
+              id: String(r.author.id),
+              username: r.author.username ?? null,
+              display_name: r.author.display_name ?? null,
+              avatar_url: r.author.avatar_url ?? null,
+            }
           : null,
       }));
 
       setRows(safe);
 
-      // 3) seed likes (counts + my liked set)
+      // 3) preload likes in bulk
       const pairs = safe
-        .filter(r => r.author?.id && r.games?.id)
-        .map(r => ({ reviewUserId: r.author!.id, gameId: r.games!.id }));
-      const { likedKeys, counts } = await getLikeStateForPairs(supabase, user.id, pairs);
-
-      const next: Record<string, { liked: boolean; count: number }> = {};
-      for (const p of pairs) {
-        const k = likeKey(p.reviewUserId, p.gameId);
-        next[k] = { liked: likedKeys.has(k), count: counts[k] ?? 0 };
-      }
-      if (mounted) setLikes(next);
+        .filter(r => r.reviewer_id && r.games?.id)
+        .map(r => ({ reviewUserId: r.reviewer_id, gameId: r.games!.id }));
+      const map = await fetchLikesBulk(supabase, user.id, pairs);
+      if (!mounted) return;
+      setLikes(map);
     })();
 
     return () => { mounted = false; };
   }, [supabase]);
 
-  async function onToggleLike(reviewUserId: string, gameId: number) {
-    if (!me) return;
-    const k = likeKey(reviewUserId, gameId);
-    if (pendingKey === k) return; // debounce
-
-    const entry = likes[k] ?? { liked: false, count: 0 };
-    setPendingKey(k);
-    const { error } = await toggleLike(supabase, me.id, reviewUserId, gameId, entry.liked);
-    if (!error) {
-      setLikes(prev => ({
-        ...prev,
-        [k]: { liked: !entry.liked, count: entry.count + (entry.liked ? -1 : 1) }
-      }));
-    }
-    setPendingKey(null);
-  }
-
-  // Top-level loading / error branches
   if (!ready) return <main className="p-8">Loading…</main>;
   if (error) return <main className="p-8 text-red-500">{error}</main>;
 
-  // Layout: list + sticky suggestions
   return (
     <main className="mx-auto max-w-5xl px-4 py-6">
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-8">
@@ -153,39 +176,44 @@ export default function FeedPage() {
           ) : !rows ? (
             <p>Loading…</p>
           ) : rows.length === 0 ? (
-            <p className="text-white/70">No activity yet. Follow players from search or their profiles.</p>
+            <p className="text-white/70">
+              No activity yet. Follow players from search or their profiles.
+            </p>
           ) : (
             <ul className="space-y-6">
               {rows.map((r, i) => {
-                const a = r.author;
-                const g = r.games;
+                const author = r.author;
+                const game = r.games;
                 const stars = (r.rating / 20).toFixed(1);
 
-                const canLike = Boolean(r.reviewer_id && g?.id);
-                const k = canLike ? likeKey(r.reviewer_id, g!.id) : null;
-                const entry = k ? (likes[k] ?? { liked: false, count: 0 }) : { liked: false, count: 0 };
+                const canLike = Boolean(r.reviewer_id && game?.id);
+                const k = canLike ? likeKey(r.reviewer_id, game!.id) : '';
+                const entry = canLike ? (likes[k] ?? { liked: false, count: 0 }) : { liked: false, count: 0 };
 
                 return (
                   <li key={`${r.created_at}-${i}`} className="flex items-start gap-3">
                     {/* avatar */}
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={a?.avatar_url || '/avatar-placeholder.svg'}
+                      src={author?.avatar_url || '/avatar-placeholder.svg'}
                       alt="avatar"
                       className="h-10 w-10 rounded-full object-cover border border-white/15"
                     />
 
                     <div className="flex-1 min-w-0">
                       <div className="text-sm text-white/80 flex items-center gap-2 flex-wrap">
-                        {a ? (
-                          <Link href={a.username ? `/u/${a.username}` : '#'} className="font-medium hover:underline">
-                            {a.display_name || a.username || 'Player'}
+                        {author ? (
+                          <Link
+                            href={author.username ? `/u/${author.username}` : '#'}
+                            className="font-medium hover:underline"
+                          >
+                            {author.display_name || author.username || 'Player'}
                           </Link>
                         ) : 'Someone'}
                         <span>rated</span>
-                        {g ? (
-                          <Link href={`/game/${g.id}`} className="hover:underline font-medium">
-                            {g.name}
+                        {game ? (
+                          <Link href={`/game/${game.id}`} className="hover:underline font-medium">
+                            {game.name}
                           </Link>
                         ) : (
                           <span>a game</span>
@@ -194,15 +222,14 @@ export default function FeedPage() {
                         <span className="text-white/30">·</span>
                         <span className="text-white/40">{new Date(r.created_at).toLocaleDateString()}</span>
 
-                        {k && (
+                        {canLike && (
                           <button
-                            type="button"
-                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleLike(r.reviewer_id, g!.id); }}
-                            disabled={pendingKey === k}
-                            aria-pressed={entry.liked}
+                            onClick={() => onToggleLike(r.reviewer_id, game!.id)}
+                            disabled={Boolean(toggling[k])}
                             className={`ml-2 text-xs px-2 py-1 rounded border border-white/10 ${
                               entry.liked ? 'bg-white/15' : 'bg-white/5'
-                            } ${pendingKey === k ? 'opacity-60 cursor-not-allowed' : ''}`}
+                            } disabled:opacity-50`}
+                            aria-pressed={entry.liked}
                             title={entry.liked ? 'Unlike' : 'Like'}
                           >
                             ❤️ {entry.count}
@@ -217,10 +244,10 @@ export default function FeedPage() {
 
                     {/* cover */}
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    {g?.cover_url && (
+                    {game?.cover_url && (
                       <img
-                        src={g.cover_url}
-                        alt={g.name}
+                        src={game.cover_url}
+                        alt={game.name}
                         className="h-16 w-12 rounded object-cover border border-white/10"
                       />
                     )}

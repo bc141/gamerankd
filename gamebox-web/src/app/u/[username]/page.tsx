@@ -188,8 +188,8 @@ export default function PublicProfilePage() {
     }));
   }
 
-  // like toggle for one row (reviewUserId = profile.id)
-  async function onToggleLike(gameId: number) {
+   // like toggle for one row (reviewUserId = profile.id)
+   async function onToggleLike(gameId: number) {
     if (!profile || !gameId) return;
     if (!viewerId) return router.push('/login');
     if (viewerId === profile.id) return; // don't like own review
@@ -204,12 +204,24 @@ export default function PublicProfilePage() {
     setLikes(p => ({ ...p, [k]: { liked: !cur.liked, count: cur.count + (cur.liked ? -1 : 1) } }));
 
     try {
+      // 1) server toggle → authoritative liked/count
       const { liked, count, error } = await toggleLike(supabase, profile.id, gameId);
       if (error) {
-        setLikes(p => ({ ...p, [k]: cur }));
+        setLikes(p => ({ ...p, [k]: cur })); // revert on error
         return;
       }
+
+      // 2) snap to RPC result
       setLikes(p => ({ ...p, [k]: { liked, count } }));
+
+      // 3) tiny follow-up fetch for THIS pair only — ensures perfect accuracy
+      const single = await fetchLikesBulk(supabase, viewerId, [{ reviewUserId: profile.id, gameId }]);
+      const refreshed = single[k];
+      if (refreshed) {
+        setLikes(p => ({ ...p, [k]: refreshed }));
+      }
+
+      // 4) cross-tab/page broadcast
       broadcastLike(profile.id, gameId, liked, liked ? 1 : -1);
     } finally {
       setTogglingLike(p => ({ ...p, [k]: false }));

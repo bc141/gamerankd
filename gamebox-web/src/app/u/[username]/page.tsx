@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
@@ -170,9 +171,23 @@ export default function PublicProfilePage() {
               <div className="text-white/60">@{profile.username}</div>
             )}
             {profile.bio && <p className="text-white/70 mt-1">{profile.bio}</p>}
+
+            {/* CLICKABLE follow counts */}
             <div className="mt-2 text-sm text-white/60 flex items-center gap-4">
-              <span><strong className="text-white">{counts.followers}</strong> Followers</span>
-              <span><strong className="text-white">{counts.following}</strong> Following</span>
+              <Link
+                href={`/u/${profile.username}/followers`}
+                className="hover:underline"
+              >
+                <strong className="text-white">{counts.followers}</strong>{' '}
+                Followers
+              </Link>
+              <Link
+                href={`/u/${profile.username}/following`}
+                className="hover:underline"
+              >
+                <strong className="text-white">{counts.following}</strong>{' '}
+                Following
+              </Link>
             </div>
           </div>
         </div>

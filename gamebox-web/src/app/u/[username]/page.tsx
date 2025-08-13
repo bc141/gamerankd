@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import StarRating from '@/components/StarRating';
 import { waitForSession } from '@/lib/waitForSession';
@@ -19,34 +19,48 @@ type Profile = {
 };
 
 type ReviewRow = {
-  rating: number;                           // 1–100
-  review: string | null;                    // textual review
+  rating: number; // 1–100
+  review: string | null;
   created_at: string;
   games: { id: number; name: string; cover_url: string | null } | null;
 };
+
+type SortMode = 'recent' | 'top' | 'low';
 
 export default function PublicProfilePage() {
   const supabase = supabaseBrowser();
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
+
   const slug = Array.isArray((params as any)?.username)
     ? (params as any).username[0]
     : (params as any)?.username;
 
-  const [ready, setReady] = useState(false); // auth hydration
+  // auth hydration
+  const [ready, setReady] = useState(false);
   const [viewerId, setViewerId] = useState<string | null>(null);
 
+  // profile + reviews
   const [profile, setProfile] = useState<Profile | null>(null);
   const [rows, setRows] = useState<ReviewRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // follow UI
   const [counts, setCounts] = useState<{ followers: number; following: number }>({ followers: 0, following: 0 });
-  const [isFollowing, setIsFollowing] = useState<boolean>(false);
-  const isOwnProfile = viewerId && profile?.id ? viewerId === profile.id : false;
+  const [isFollowing, setIsFollowing] = useState(false);
   const [toggling, setToggling] = useState(false);
 
-  // 1) Hydrate session so we know viewerId (prevents flicker)
+  // sort (read from URL)
+  const urlSort = searchParams.get('sort');
+  const initialSort: SortMode =
+    urlSort === 'top' ? 'top' : urlSort === 'low' ? 'low' : 'recent';
+  const [sort, setSort] = useState<SortMode>(initialSort);
+
+  const isOwnProfile = !!(viewerId && profile?.id && viewerId === profile.id);
+  const avatarSrc = profile?.avatar_url || '/avatar-placeholder.svg';
+
+  // 1) hydrate session
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -55,20 +69,21 @@ export default function PublicProfilePage() {
       setViewerId(session?.user?.id ?? null);
       setReady(true);
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [supabase]);
 
-  // 2) Fetch profile + their ratings + follow counts/state
+  // 2) fetch profile (by slug)
   useEffect(() => {
     if (!ready || !slug) return;
-
     let cancelled = false;
 
     (async () => {
       setError(null);
+      setRows(null);
 
       const uname = String(slug).toLowerCase();
-
       const { data: prof, error: pErr } = await supabase
         .from('profiles')
         .select('id,username,display_name,bio,avatar_url')
@@ -83,19 +98,50 @@ export default function PublicProfilePage() {
       }
       setProfile(prof as Profile);
 
-      // reviews
-      const { data: reviewsData, error } = await supabase
+      const c = await getFollowCounts(supabase, (prof as any).id);
+      if (!cancelled) setCounts(c);
+
+      if (viewerId && viewerId !== (prof as any).id) {
+        const f = await checkIsFollowing(supabase, (prof as any).id);
+        if (!cancelled) setIsFollowing(f);
+      } else {
+        if (!cancelled) setIsFollowing(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [ready, slug, supabase, viewerId]);
+
+  // 3) fetch reviews whenever profile or sort changes
+  useEffect(() => {
+    if (!profile) return;
+    let cancelled = false;
+
+    (async () => {
+      const q = supabase
         .from('reviews')
         .select('rating, review, created_at, games:game_id (id,name,cover_url)')
-        .eq('user_id', prof.id)
-        .order('rating', { ascending: false })
-        .order('created_at', { ascending: false });
+        .eq('user_id', profile.id)
+        .limit(50);
 
+      if (sort === 'top') {
+        q.order('rating', { ascending: false }).order('created_at', { ascending: false });
+      } else if (sort === 'low') {
+        q.order('rating', { ascending: true }).order('created_at', { ascending: false });
+      } else {
+        // recent
+        q.order('created_at', { ascending: false });
+      }
+
+      const { data, error } = await q;
       if (cancelled) return;
 
-      if (error) setError(error.message);
-      else {
-        const safeRows: ReviewRow[] = (reviewsData ?? []).map((r: any) => ({
+      if (error) {
+        setError(error.message);
+      } else {
+        const safe: ReviewRow[] = (data ?? []).map((r: any) => ({
           rating: typeof r?.rating === 'number' ? r.rating : 0,
           review: r?.review ?? null,
           created_at: r?.created_at ?? new Date(0).toISOString(),
@@ -107,29 +153,28 @@ export default function PublicProfilePage() {
               }
             : null,
         }));
-        setRows(safeRows);
-      }
-
-      // counts
-      const c = await getFollowCounts(supabase, prof.id);
-      if (!cancelled) setCounts(c);
-
-      // following state (only if signed in & not self)
-      if (viewerId && viewerId !== prof.id) {
-        const f = await checkIsFollowing(supabase, prof.id);
-        if (!cancelled) setIsFollowing(f);
-      } else {
-        if (!cancelled) setIsFollowing(false);
+        setRows(safe);
       }
     })();
 
-    return () => { cancelled = true; };
-  }, [ready, slug, viewerId, supabase]);
+    return () => {
+      cancelled = true;
+    };
+  }, [profile?.id, sort, supabase]);
 
-  const avatarSrc = useMemo(
-    () => (profile?.avatar_url && profile.avatar_url.trim() !== '' ? profile.avatar_url : '/avatar-placeholder.svg'),
-    [profile?.avatar_url]
-  );
+  // keep URL ?sort= in sync (no full nav)
+  useEffect(() => {
+    const current = searchParams.get('sort');
+    const want =
+      sort === 'recent' ? null : sort === 'top' ? 'top' : 'low';
+    if ((current || null) !== want) {
+      const params = new URLSearchParams(searchParams.toString());
+      if (want) params.set('sort', want);
+      else params.delete('sort');
+      router.replace(`?${params.toString()}`, { scroll: false });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sort]);
 
   async function onToggleFollow() {
     if (!profile) return;
@@ -172,21 +217,13 @@ export default function PublicProfilePage() {
             )}
             {profile.bio && <p className="text-white/70 mt-1">{profile.bio}</p>}
 
-            {/* CLICKABLE follow counts */}
+            {/* CLICKABLE counts */}
             <div className="mt-2 text-sm text-white/60 flex items-center gap-4">
-              <Link
-                href={`/u/${profile.username}/followers`}
-                className="hover:underline"
-              >
-                <strong className="text-white">{counts.followers}</strong>{' '}
-                Followers
+              <Link href={`/u/${profile.username}/followers`} className="hover:underline">
+                <strong className="text-white">{counts.followers}</strong> Followers
               </Link>
-              <Link
-                href={`/u/${profile.username}/following`}
-                className="hover:underline"
-              >
-                <strong className="text-white">{counts.following}</strong>{' '}
-                Following
+              <Link href={`/u/${profile.username}/following`} className="hover:underline">
+                <strong className="text-white">{counts.following}</strong> Following
               </Link>
             </div>
           </div>
@@ -195,7 +232,7 @@ export default function PublicProfilePage() {
         {/* Follow / Edit */}
         <div className="shrink-0">
           {isOwnProfile ? (
-            <a href="/settings/profile" className="bg-white/10 px-3 py-2 rounded text-sm">Edit profile</a>
+            <Link href="/settings/profile" className="bg-white/10 px-3 py-2 rounded text-sm">Edit profile</Link>
           ) : (
             <button
               onClick={onToggleFollow}
@@ -208,11 +245,39 @@ export default function PublicProfilePage() {
         </div>
       </section>
 
+      {/* Sort toggle */}
+      <div className="mt-8 flex items-center gap-2">
+        <button
+          onClick={() => setSort('recent')}
+          className={`px-3 py-1.5 rounded-full text-sm ${
+            sort === 'recent' ? 'bg-white/20' : 'bg-white/10 hover:bg-white/15'
+          }`}
+        >
+          Recent
+        </button>
+        <button
+          onClick={() => setSort('top')}
+          className={`px-3 py-1.5 rounded-full text-sm ${
+            sort === 'top' ? 'bg-white/20' : 'bg-white/10 hover:bg-white/15'
+          }`}
+        >
+          Highest
+        </button>
+        <button
+          onClick={() => setSort('low')}
+          className={`px-3 py-1.5 rounded-full text-sm ${
+            sort === 'low' ? 'bg-white/20' : 'bg-white/10 hover:bg-white/15'
+          }`}
+        >
+          Lowest
+        </button>
+      </div>
+
       {/* Reviews */}
       {rows.length === 0 ? (
-        <p className="mt-8 text-white/70">No ratings yet.</p>
+        <p className="mt-6 text-white/70">No ratings yet.</p>
       ) : (
-        <ul className="mt-8 space-y-6">
+        <ul className="mt-6 space-y-6">
           {rows.map((r, i) => {
             const stars = from100(r.rating);
             const gameId = r.games?.id;
@@ -220,7 +285,7 @@ export default function PublicProfilePage() {
             const cover = r.games?.cover_url ?? '';
 
             return (
-              <li key={`${gameId ?? 'g'}-${i}`} className="flex items-start gap-4">
+              <li key={`${r.created_at}-${i}`} className="flex items-start gap-4">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={cover}
@@ -228,12 +293,13 @@ export default function PublicProfilePage() {
                   className="h-16 w-12 object-cover rounded border border-white/10"
                 />
                 <div className="flex-1 min-w-0">
-                  <a
-                    href={gameId ? `/game/${gameId}` : '#'}
-                    className="font-medium hover:underline truncate block"
-                  >
-                    {gameName}
-                  </a>
+                  {gameId ? (
+                    <Link href={`/game/${gameId}`} className="font-medium hover:underline truncate block">
+                      {gameName}
+                    </Link>
+                  ) : (
+                    <span className="font-medium truncate block">{gameName}</span>
+                  )}
                   <div className="mt-1 flex items-center gap-2">
                     <StarRating value={stars} readOnly size={18} />
                     <span className="text-sm text-white/60">{stars.toFixed(1)} / 5</span>

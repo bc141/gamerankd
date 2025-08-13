@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import StarRating from '@/components/StarRating';
 import { waitForSession } from '@/lib/waitForSession';
+import { getFollowCounts, checkIsFollowing, toggleFollow } from '@/lib/follows';
 
 const from100 = (n: number) => n / 20;
 
@@ -17,37 +18,46 @@ type Profile = {
 };
 
 type ReviewRow = {
-  rating: number; // 1–100
-  review: string | null; // NEW: text review
+  rating: number;                           // 1–100
+  review: string | null;                    // textual review
   created_at: string;
   games: { id: number; name: string; cover_url: string | null } | null;
 };
 
 export default function PublicProfilePage() {
   const supabase = supabaseBrowser();
+  const router = useRouter();
   const params = useParams();
   const slug = Array.isArray((params as any)?.username)
     ? (params as any).username[0]
     : (params as any)?.username;
 
-  const [ready, setReady] = useState(false);
+  const [ready, setReady] = useState(false); // auth hydration
+  const [viewerId, setViewerId] = useState<string | null>(null);
+
   const [profile, setProfile] = useState<Profile | null>(null);
   const [rows, setRows] = useState<ReviewRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // 1) Hydrate auth (prevents brief “signed out” flashes)
+  // follow UI
+  const [counts, setCounts] = useState<{ followers: number; following: number }>({ followers: 0, following: 0 });
+  const [isFollowing, setIsFollowing] = useState<boolean>(false);
+  const isOwnProfile = viewerId && profile?.id ? viewerId === profile.id : false;
+  const [toggling, setToggling] = useState(false);
+
+  // 1) Hydrate session so we know viewerId (prevents flicker)
   useEffect(() => {
     let mounted = true;
     (async () => {
-      await waitForSession(supabase); // fine if logged out
-      if (mounted) setReady(true);
+      const session = await waitForSession(supabase);
+      if (!mounted) return;
+      setViewerId(session?.user?.id ?? null);
+      setReady(true);
     })();
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, [supabase]);
 
-  // 2) Fetch profile + their ratings
+  // 2) Fetch profile + their ratings + follow counts/state
   useEffect(() => {
     if (!ready || !slug) return;
 
@@ -72,6 +82,7 @@ export default function PublicProfilePage() {
       }
       setProfile(prof as Profile);
 
+      // reviews
       const { data: reviewsData, error } = await supabase
         .from('reviews')
         .select('rating, review, created_at, games:game_id (id,name,cover_url)')
@@ -81,66 +92,108 @@ export default function PublicProfilePage() {
 
       if (cancelled) return;
 
-      if (error) {
-        setError(error.message);
-        return;
+      if (error) setError(error.message);
+      else {
+        const safeRows: ReviewRow[] = (reviewsData ?? []).map((r: any) => ({
+          rating: typeof r?.rating === 'number' ? r.rating : 0,
+          review: r?.review ?? null,
+          created_at: r?.created_at ?? new Date(0).toISOString(),
+          games: r?.games
+            ? {
+                id: Number(r.games.id),
+                name: String(r.games.name ?? 'Unknown game'),
+                cover_url: r.games.cover_url ?? null,
+              }
+            : null,
+        }));
+        setRows(safeRows);
       }
 
-      // Normalize into ReviewRow[]
-      const safeRows: ReviewRow[] = (reviewsData ?? []).map((r: any) => ({
-        rating: typeof r?.rating === 'number' ? r.rating : 0,
-        review: r?.review ?? null,
-        created_at: r?.created_at ?? new Date(0).toISOString(),
-        games: r?.games
-          ? {
-              id: Number(r.games.id),
-              name: String(r.games.name ?? 'Unknown game'),
-              cover_url: r.games.cover_url ?? null,
-            }
-          : null,
-      }));
+      // counts
+      const c = await getFollowCounts(supabase, prof.id);
+      if (!cancelled) setCounts(c);
 
-      if (!cancelled) setRows(safeRows);
+      // following state (only if signed in & not self)
+      if (viewerId && viewerId !== prof.id) {
+        const f = await checkIsFollowing(supabase, prof.id);
+        if (!cancelled) setIsFollowing(f);
+      } else {
+        if (!cancelled) setIsFollowing(false);
+      }
     })();
 
-    return () => {
-      cancelled = true;
-    };
-  }, [ready, slug, supabase]);
+    return () => { cancelled = true; };
+  }, [ready, slug, viewerId, supabase]);
 
   const avatarSrc = useMemo(
-    () =>
-      profile?.avatar_url && profile.avatar_url.trim() !== ''
-        ? profile.avatar_url
-        : '/avatar-placeholder.svg',
+    () => (profile?.avatar_url && profile.avatar_url.trim() !== '' ? profile.avatar_url : '/avatar-placeholder.svg'),
     [profile?.avatar_url]
   );
+
+  async function onToggleFollow() {
+    if (!profile) return;
+    if (!viewerId) return router.push('/login');
+    if (isOwnProfile) return;
+
+    setToggling(true);
+    const { error } = await toggleFollow(supabase, profile.id, isFollowing);
+    setToggling(false);
+    if (error) return alert(error.message);
+
+    // optimistic update
+    setIsFollowing(!isFollowing);
+    setCounts((prev) => ({
+      followers: prev.followers + (isFollowing ? -1 : 1),
+      following: prev.following,
+    }));
+  }
 
   if (error) return <main className="p-8 text-red-500">{error}</main>;
   if (!ready || !profile || !rows) return <main className="p-8">Loading…</main>;
 
   return (
     <main className="p-8 max-w-3xl mx-auto">
-      {/* Profile header */}
-      <section className="flex items-center gap-4">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={avatarSrc}
-          alt={`${profile.username} avatar`}
-          className="h-16 w-16 rounded-full object-cover border border-white/20"
-        />
-        <div>
-          <h1 className="text-2xl font-bold">
-            {profile.display_name || profile.username}
-          </h1>
-          {profile.display_name && (
-            <div className="text-white/60">@{profile.username}</div>
+      {/* Header */}
+      <section className="flex items-start justify-between gap-6">
+        <div className="flex items-center gap-4">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={avatarSrc}
+            alt={`${profile.username} avatar`}
+            className="h-16 w-16 rounded-full object-cover border border-white/20"
+          />
+          <div>
+            <h1 className="text-2xl font-bold">
+              {profile.display_name || profile.username}
+            </h1>
+            {profile.display_name && (
+              <div className="text-white/60">@{profile.username}</div>
+            )}
+            {profile.bio && <p className="text-white/70 mt-1">{profile.bio}</p>}
+            <div className="mt-2 text-sm text-white/60 flex items-center gap-4">
+              <span><strong className="text-white">{counts.followers}</strong> Followers</span>
+              <span><strong className="text-white">{counts.following}</strong> Following</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Follow / Edit */}
+        <div className="shrink-0">
+          {isOwnProfile ? (
+            <a href="/settings/profile" className="bg-white/10 px-3 py-2 rounded text-sm">Edit profile</a>
+          ) : (
+            <button
+              onClick={onToggleFollow}
+              disabled={toggling}
+              className={`px-3 py-2 rounded text-sm ${isFollowing ? 'bg-white/10' : 'bg-indigo-600 text-white'}`}
+            >
+              {toggling ? '…' : isFollowing ? 'Following' : 'Follow'}
+            </button>
           )}
-          {profile.bio && <p className="text-white/70 mt-1">{profile.bio}</p>}
         </div>
       </section>
 
-      {/* Reviews list */}
+      {/* Reviews */}
       {rows.length === 0 ? (
         <p className="mt-8 text-white/70">No ratings yet.</p>
       ) : (
@@ -168,16 +221,12 @@ export default function PublicProfilePage() {
                   </a>
                   <div className="mt-1 flex items-center gap-2">
                     <StarRating value={stars} readOnly size={18} />
-                    <span className="text-sm text-white/60">
-                      {stars.toFixed(1)} / 5
-                    </span>
+                    <span className="text-sm text-white/60">{stars.toFixed(1)} / 5</span>
                     <span className="text-white/30">·</span>
                     <span className="text-xs text-white/40">
                       {new Date(r.created_at).toLocaleDateString()}
                     </span>
                   </div>
-
-                  {/* NEW: text review, if present */}
                   {r.review && r.review.trim() !== '' && (
                     <p className="text-white/70 mt-2 whitespace-pre-wrap break-words">
                       {r.review.trim()}

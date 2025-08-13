@@ -30,32 +30,50 @@ export default function Header() {
     setProf({ username: data?.username ?? null, avatar_url: data?.avatar_url ?? null });
   }
 
+  async function loadSession() {
+    const { data } = await supabase.auth.getSession();
+    const u = data.session?.user ?? null;
+    setUser(u ? { id: u.id, email: u.email ?? undefined } : null);
+    if (u) await fetchMiniProfile(u.id);
+    else setProf({ username: null, avatar_url: null });
+  }
+
   // Mount: load session + subscribe to auth changes
   useEffect(() => {
     let cancelled = false;
+
     (async () => {
-      const { data } = await supabase.auth.getSession();
-      if (cancelled) return;
-      const u = data.session?.user ?? null;
-      setUser(u ? { id: u.id, email: u.email ?? undefined } : null);
-      if (u) await fetchMiniProfile(u.id);
+      if (!cancelled) await loadSession();
     })();
+
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
       const u = session?.user ?? null;
       setUser(u ? { id: u.id, email: u.email ?? undefined } : null);
       if (u) fetchMiniProfile(u.id);
       else setProf({ username: null, avatar_url: null });
     });
+
     return () => {
       sub.subscription.unsubscribe();
       cancelled = true;
     };
   }, [supabase]);
 
+  // STEP 4: Cross-tab auth sync (other tab sets localStorage 'gb-auth-sync')
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'gb-auth-sync') loadSession();
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
   // When route changes and we're signed in, refresh username/avatar in case they changed
   useEffect(() => {
     if (user) fetchMiniProfile(user.id);
-  }, [pathname]); // (user) captured; safe enough for our use
+    // also close the menu on navigation
+    setOpen(false);
+  }, [pathname]); // (user) captured; fine for our use
 
   // close menu on outside click / Escape
   useEffect(() => {
@@ -84,6 +102,25 @@ export default function Header() {
     router.refresh();
   };
 
+  const isActive = (href: string) => {
+    if (!pathname) return false;
+    if (href === '/') return pathname === '/';
+    return pathname.startsWith(href);
+  };
+
+  const navLink = (href: string, label: string) => (
+    <Link
+      href={href}
+      className={`text-sm pb-0.5 border-b-2 ${
+        isActive(href)
+          ? 'border-indigo-500 text-white'
+          : 'border-transparent text-white/80 hover:text-white hover:border-white/30'
+      }`}
+    >
+      {label}
+    </Link>
+  );
+
   const avatarSrc = prof.avatar_url || '/avatar-placeholder.svg';
   const profileHref = prof.username ? `/u/${prof.username}` : '/onboarding/username';
 
@@ -92,7 +129,12 @@ export default function Header() {
       <div className="mx-auto max-w-5xl px-4 h-14 flex items-center justify-between">
         <div className="flex items-center gap-6">
           <Link href="/" className="font-semibold">Gamebox</Link>
-          <Link href="/search" className="text-sm underline">Search</Link>
+          {/* Primary nav */}
+          <nav className="hidden sm:flex items-center gap-5">
+            {navLink('/', 'Home')}
+            {user && navLink('/feed', 'Feed')}
+            {navLink('/search', 'Search')}
+          </nav>
         </div>
 
         {!user ? (
@@ -113,7 +155,6 @@ export default function Header() {
                 alt="Your avatar"
                 className="h-8 w-8 rounded-full object-cover border border-white/20"
               />
-              {/* label visible on md+ to keep mobile clean */}
               <span className="hidden md:inline text-sm text-white/90">My profile</span>
               <svg
                 className={`hidden md:inline h-4 w-4 opacity-70 transition-transform ${open ? 'rotate-180' : ''}`}
@@ -157,6 +198,15 @@ export default function Header() {
             )}
           </div>
         )}
+      </div>
+
+      {/* compact nav for small screens */}
+      <div className="sm:hidden border-t border-white/10">
+        <nav className="mx-auto max-w-5xl px-4 h-10 flex items-center gap-5">
+          {navLink('/', 'Home')}
+          {user && navLink('/feed', 'Feed')}
+          {navLink('/search', 'Search')}
+        </nav>
       </div>
     </header>
   );

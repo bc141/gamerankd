@@ -8,20 +8,25 @@ import { supabaseBrowser } from '@/lib/supabaseBrowser';
 export default function LoginPage() {
   const supabase = supabaseBrowser();
 
-  // Force all magic links to the production domain
-  const REDIRECT_BASE =
-    process.env.NEXT_PUBLIC_SITE_URL ?? 'https://gamerankd.com';
+  // If we're on a preview (vercel.app), use that origin; else use canonical domain.
+  const isBrowser = typeof window !== 'undefined';
+  const hostname = isBrowser ? window.location.hostname : '';
+  const runtimeOrigin = isBrowser ? window.location.origin : undefined;
+  const isPreview = isBrowser && /\.vercel\.app$/.test(hostname);
+
+  const REDIRECT_BASE = isPreview
+    ? (runtimeOrigin ?? 'http://localhost:3000')
+    : (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.gamerankd.com');
 
   return (
     <main className="max-w-md mx-auto p-8">
       <h1 className="text-2xl font-bold mb-4">Sign in</h1>
-
       <Auth
         supabaseClient={supabase}
         providers={[]}
         view="magic_link"
         showLinks={false}
-        redirectTo={`${REDIRECT_BASE}/auth/callback`}  // ← the important part
+        redirectTo={`${REDIRECT_BASE}/auth/callback`}
         appearance={{
           theme: ThemeSupa,
           variables: {

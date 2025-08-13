@@ -27,8 +27,8 @@ type Profile = {
 };
 
 type ReviewRow = {
-  rating: number;                           // 1–100
-  review: string | null;                    // textual review
+  rating: number; // 1–100
+  review: string | null;
   created_at: string;
   games: { id: number; name: string; cover_url: string | null } | null;
 };
@@ -41,22 +41,27 @@ export default function PublicProfilePage() {
     ? (params as any).username[0]
     : (params as any)?.username;
 
-  const [ready, setReady] = useState(false); // auth hydration
+  // auth
+  const [ready, setReady] = useState(false);
   const [viewerId, setViewerId] = useState<string | null>(null);
 
+  // data
   const [profile, setProfile] = useState<Profile | null>(null);
   const [rows, setRows] = useState<ReviewRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // follow UI
+  // follows
   const [counts, setCounts] = useState<{ followers: number; following: number }>({ followers: 0, following: 0 });
-  const [isFollowing, setIsFollowing] = useState<boolean>(false);
-  const isOwnProfile = viewerId && profile?.id ? viewerId === profile.id : false;
+  const [isFollowing, setIsFollowing] = useState(false);
   const [togglingFollow, setTogglingFollow] = useState(false);
+  const isOwnProfile = viewerId && profile?.id ? viewerId === profile.id : false;
 
-  // ❤️ likes for this profile’s review list
+  // ❤️ likes (per-game on this profile), with anti-flicker
   const [likes, setLikes] = useState<Record<string, LikeEntry>>({});
+  const [likesReady, setLikesReady] = useState(false);
   const [togglingLike, setTogglingLike] = useState<Record<string, boolean>>({});
+
+  // cross-tab/same-tab like sync
   useEffect(() => {
     const off = addLikeListener(({ reviewUserId, gameId, liked, delta }) => {
       const k = likeKey(reviewUserId, gameId);
@@ -68,7 +73,7 @@ export default function PublicProfilePage() {
     return off;
   }, []);
 
-  // 1) Hydrate session
+  // 1) hydrate session
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -80,17 +85,18 @@ export default function PublicProfilePage() {
     return () => { mounted = false; };
   }, [supabase]);
 
-  // 2) Fetch profile + their ratings + follow counts/state
+  // 2) fetch profile + reviews + follow data + preload likes
   useEffect(() => {
     if (!ready || !slug) return;
-
     let cancelled = false;
 
     (async () => {
       setError(null);
+      setLikesReady(false);
 
       const uname = String(slug).toLowerCase();
 
+      // profile
       const { data: prof, error: pErr } = await supabase
         .from('profiles')
         .select('id,username,display_name,bio,avatar_url')
@@ -98,25 +104,26 @@ export default function PublicProfilePage() {
         .single();
 
       if (cancelled) return;
-
       if (pErr || !prof) {
         setError('Profile not found');
         return;
       }
-      setProfile(prof as Profile);
+      const owner = prof as Profile;
+      setProfile(owner);
 
-      // reviews
-      const { data: reviewsData, error } = await supabase
+      // reviews by this profile
+      const { data: reviewsData, error: rErr } = await supabase
         .from('reviews')
         .select('rating, review, created_at, games:game_id (id,name,cover_url)')
-        .eq('user_id', prof.id)
+        .eq('user_id', owner.id)
         .order('rating', { ascending: false })
         .order('created_at', { ascending: false });
 
       if (cancelled) return;
 
-      if (error) setError(error.message);
-      else {
+      if (rErr) {
+        setError(rErr.message);
+      } else {
         const safe: ReviewRow[] = (reviewsData ?? []).map((r: any) => ({
           rating: typeof r?.rating === 'number' ? r.rating : 0,
           review: r?.review ?? null,
@@ -131,22 +138,24 @@ export default function PublicProfilePage() {
         }));
         setRows(safe);
 
-        // preload likes for these rows — all reviews are by prof.id
-        const viewer = viewerId ?? null;
+        // preload likes for all (owner.id, gameId) pairs
         const pairs = safe
           .filter(r => r.games?.id)
-          .map(r => ({ reviewUserId: String(prof.id), gameId: r.games!.id }));
+          .map(r => ({ reviewUserId: owner.id, gameId: r.games!.id }));
+        const viewer = viewerId ?? null;
         const map = await fetchLikesBulk(supabase, viewer, pairs);
-        if (!cancelled) setLikes(map);
+        if (!cancelled) {
+          setLikes(map);
+          setLikesReady(true);
+        }
       }
 
-      // counts
-      const c = await getFollowCounts(supabase, prof.id);
+      // follow counts + state
+      const c = await getFollowCounts(supabase, owner.id);
       if (!cancelled) setCounts(c);
 
-      // following state (only if signed in & not self)
-      if (viewerId && viewerId !== prof.id) {
-        const f = await checkIsFollowing(supabase, prof.id);
+      if (viewerId && viewerId !== owner.id) {
+        const f = await checkIsFollowing(supabase, owner.id);
         if (!cancelled) setIsFollowing(f);
       } else {
         if (!cancelled) setIsFollowing(false);
@@ -161,6 +170,7 @@ export default function PublicProfilePage() {
     [profile?.avatar_url]
   );
 
+  // follow toggle
   async function onToggleFollow() {
     if (!profile) return;
     if (!viewerId) return router.push('/login');
@@ -171,48 +181,42 @@ export default function PublicProfilePage() {
     setTogglingFollow(false);
     if (error) return alert(error.message);
 
-    // optimistic update
     setIsFollowing(!isFollowing);
-    setCounts((prev) => ({
+    setCounts(prev => ({
       followers: prev.followers + (isFollowing ? -1 : 1),
       following: prev.following,
     }));
   }
 
+  // like toggle for one row (reviewUserId = profile.id)
   async function onToggleLike(gameId: number) {
     if (!profile || !gameId) return;
     if (!viewerId) return router.push('/login');
     if (viewerId === profile.id) return; // don't like own review
-  
+
     const k = likeKey(profile.id, gameId);
     if (togglingLike[k]) return;
-  
+
     const cur = likes[k] ?? { liked: false, count: 0 };
-  
-    // mark busy + optimistic flip
+
+    // optimistic + throttle
     setTogglingLike(p => ({ ...p, [k]: true }));
     setLikes(p => ({ ...p, [k]: { liked: !cur.liked, count: cur.count + (cur.liked ? -1 : 1) } }));
-  
+
     try {
-      // NEW 3-arg API returns authoritative state
       const { liked, count, error } = await toggleLike(supabase, profile.id, gameId);
       if (error) {
-        // revert on failure
         setLikes(p => ({ ...p, [k]: cur }));
-        console.error('toggleLike failed:', error.message);
         return;
       }
-      // snap to DB result + notify other tabs/pages
       setLikes(p => ({ ...p, [k]: { liked, count } }));
       broadcastLike(profile.id, gameId, liked, liked ? 1 : -1);
-    } catch (e) {
-      setLikes(p => ({ ...p, [k]: cur }));
-      console.error('toggleLike crashed:', e);
     } finally {
       setTogglingLike(p => ({ ...p, [k]: false }));
     }
   }
 
+  // branches
   if (error) return <main className="p-8 text-red-500">{error}</main>;
   if (!ready || !profile || !rows) return <main className="p-8">Loading…</main>;
 
@@ -228,15 +232,11 @@ export default function PublicProfilePage() {
             className="h-16 w-16 rounded-full object-cover border border-white/20"
           />
           <div>
-            <h1 className="text-2xl font-bold">
-              {profile.display_name || profile.username}
-            </h1>
-            {profile.display_name && (
-              <div className="text-white/60">@{profile.username}</div>
-            )}
+            <h1 className="text-2xl font-bold">{profile.display_name || profile.username}</h1>
+            {profile.display_name && <div className="text-white/60">@{profile.username}</div>}
             {profile.bio && <p className="text-white/70 mt-1">{profile.bio}</p>}
 
-            {/* CLICKABLE follow counts */}
+            {/* clickable counts */}
             <div className="mt-2 text-sm text-white/60 flex items-center gap-4">
               <Link href={`/u/${profile.username}/followers`} className="hover:underline">
                 <strong className="text-white">{counts.followers}</strong> Followers
@@ -250,7 +250,7 @@ export default function PublicProfilePage() {
 
         {/* Follow / Edit */}
         <div className="shrink-0">
-          {viewerId === profile.id ? (
+          {isOwnProfile ? (
             <a href="/settings/profile" className="bg-white/10 px-3 py-2 rounded text-sm">Edit profile</a>
           ) : (
             <button
@@ -277,7 +277,6 @@ export default function PublicProfilePage() {
 
             const k = gameId ? likeKey(profile.id, gameId) : '';
             const entry = gameId ? (likes[k] ?? { liked: false, count: 0 }) : { liked: false, count: 0 };
-
             const canLike = Boolean(gameId) && viewerId !== profile.id;
 
             return (
@@ -299,22 +298,24 @@ export default function PublicProfilePage() {
                     <StarRating value={stars} readOnly size={18} />
                     <span className="text-sm text-white/60">{stars.toFixed(1)} / 5</span>
                     <span className="text-white/30">·</span>
-                    <span className="text-xs text-white/40">
-                      {new Date(r.created_at).toLocaleDateString()}
-                    </span>
+                    <span className="text-xs text-white/40">{new Date(r.created_at).toLocaleDateString()}</span>
 
                     {canLike && gameId && (
-                      <button
-                      onClick={() => onToggleLike(gameId)}
-                      aria-pressed={entry.liked}
-                      aria-disabled={Boolean(togglingLike[k])}
-                      className={`ml-2 text-xs px-2 py-1 rounded border border-white/10 ${
-                        entry.liked ? 'bg-white/15' : 'bg-white/5'
-                      } ${togglingLike[k] ? 'opacity-50' : ''}`}
-                      title={entry.liked ? 'Unlike' : 'Like'}
-                    >
-                      ❤️ {entry.count}
-                    </button>
+                      likesReady ? (
+                        <button
+                          onClick={() => onToggleLike(gameId)}
+                          aria-pressed={entry.liked}
+                          aria-disabled={Boolean(togglingLike[k])}
+                          className={`ml-2 text-xs px-2 py-1 rounded border border-white/10 ${
+                            entry.liked ? 'bg-white/15' : 'bg-white/5'
+                          } ${togglingLike[k] ? 'opacity-50' : ''}`}
+                          title={entry.liked ? 'Unlike' : 'Like'}
+                        >
+                          ❤️ {entry.count}
+                        </button>
+                      ) : (
+                        <span className="ml-2 text-xs text-white/40">❤️ …</span>
+                      )
                     )}
                     {!canLike && gameId && (
                       <span className="ml-2 text-xs text-white/50">❤️ {entry.count}</span>

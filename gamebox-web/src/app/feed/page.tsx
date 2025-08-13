@@ -10,6 +10,8 @@ import {
   likeKey,
   fetchLikesBulk,
   toggleLike,
+  broadcastLike,
+  addLikeListener,
   type LikeEntry,
 } from '@/lib/likes';
 
@@ -41,16 +43,31 @@ export default function FeedPage() {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // likes state for visible rows
+  // likes for visible items: key -> { liked, count }
   const [likes, setLikes] = useState<Record<string, LikeEntry>>({});
+  // per-item busy guard to prevent double clicks
   const [busy, setBusy] = useState<Record<string, boolean>>({});
 
-  // Load session first
+  // Cross-tab / cross-page listener (game page, profile page, other tabs)
+  useEffect(() => {
+    const off = addLikeListener(({ reviewUserId, gameId, liked, delta }) => {
+      const k = likeKey(reviewUserId, gameId);
+      setLikes(prev => {
+        const cur = prev[k] ?? { liked: false, count: 0 };
+        return { ...prev, [k]: { liked, count: Math.max(0, cur.count + delta) } };
+      });
+    });
+    return off;
+  }, []);
+
+  // Hydrate session and fetch feed + initial likes
   useEffect(() => {
     let mounted = true;
+
     (async () => {
       const session = await waitForSession(supabase);
       if (!mounted) return;
+
       const user = session?.user ?? null;
       setMe(user ? { id: user.id } : null);
       setReady(true);
@@ -118,22 +135,25 @@ export default function FeedPage() {
       const pairs = safe
         .filter(r => r.reviewer_id && r.games?.id)
         .map(r => ({ reviewUserId: r.reviewer_id, gameId: r.games!.id }));
-      const map = await fetchLikesBulk(supabase, user.id, pairs);
-      setLikes(map);
+      if (pairs.length) {
+        const map = await fetchLikesBulk(supabase, user.id, pairs);
+        if (!mounted) return;
+        setLikes(map);
+      }
     })();
 
     return () => { mounted = false; };
   }, [supabase]);
 
-  // Like/Unlike handler with optimistic UI + authoritative snap
+  // Like/Unlike with optimistic UI + authoritative snap + cross-tab broadcast + tiny truth-sync
   async function onToggleLike(reviewUserId: string, gameId: number) {
-    if (!me) return; // page already asks to sign in
+    if (!me) return; // Sign-in prompt already handled
     const k = likeKey(reviewUserId, gameId);
     if (busy[k]) return;
 
     const before = likes[k] ?? { liked: false, count: 0 };
 
-    // optimistic flip
+    // Optimistic bump
     setLikes(prev => ({
       ...prev,
       [k]: { liked: !before.liked, count: before.count + (before.liked ? -1 : 1) },
@@ -141,14 +161,25 @@ export default function FeedPage() {
     setBusy(prev => ({ ...prev, [k]: true }));
 
     try {
+      // RPC returns authoritative { liked, count }
       const { liked, count, error } = await toggleLike(supabase, reviewUserId, gameId);
       if (error) {
-        // revert on error
+        // revert on failure
         setLikes(prev => ({ ...prev, [k]: before }));
         return;
       }
-      // authoritative state from DB (prevents flicker/desync)
+
+      // Snap to DB truth
       setLikes(prev => ({ ...prev, [k]: { liked, count } }));
+
+      // Cross-tab/page notify (likes.ts ignores same-tab re-entry)
+      broadcastLike(reviewUserId, gameId, liked, liked ? 1 : -1);
+
+      // Tiny truth-sync for this single pair (defeats any stale race)
+      setTimeout(async () => {
+        const map = await fetchLikesBulk(supabase, me.id, [{ reviewUserId, gameId }]);
+        setLikes(prev => ({ ...prev, ...map }));
+      }, 120);
     } finally {
       setBusy(prev => ({ ...prev, [k]: false }));
     }

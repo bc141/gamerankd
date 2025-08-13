@@ -91,7 +91,7 @@ export default function GamePage() {
 
   // likes (for recent list)
   const [likes, setLikes] = useState<Record<string, LikeEntry>>({});
-  const [toggling, setToggling] = useState<Record<string, boolean>>({});
+  const [likeBusy, setLikeBusy] = useState<Record<string, boolean>>({});
 
   // cross-tab / same-tab like sync
   useEffect(() => {
@@ -155,7 +155,7 @@ export default function GamePage() {
         setTempText('');
       }
 
-      await refetchRecent(); // also preloads likes
+      await refetchRecent(user ? user.id : null); // also preloads likes
     })();
 
     return () => { mounted = false; };
@@ -172,7 +172,7 @@ export default function GamePage() {
     setGame(data as Game);
   };
 
-  const refetchRecent = async () => {
+  const refetchRecent = async (viewerId: string | null) => {
     setRecentErr(null);
 
     const { data, error } = await supabase
@@ -214,7 +214,6 @@ export default function GamePage() {
     setRecent(normalized);
 
     // Preload likes for the visible set
-    const viewerId = me?.id ?? null;
     const pairs = normalized
       .filter(r => r.author?.id)
       .map(r => ({ reviewUserId: r.author!.id, gameId }));
@@ -265,7 +264,7 @@ export default function GamePage() {
       setMyText(trimmed);
       setEditing(false);
 
-      await Promise.all([refetchGame(), refetchRecent()]);
+      await Promise.all([refetchGame(), refetchRecent(me.id)]);
     } finally {
       setSaving(false);
     }
@@ -294,41 +293,43 @@ export default function GamePage() {
     setMyText('');
     setTempText('');
     setEditing(false);
-    await Promise.all([refetchGame(), refetchRecent()]);
+    await Promise.all([refetchGame(), refetchRecent(me.id)]);
   }
 
-  // Like handler (single source of truth)
-  async function handleLike(reviewUserId: string, gameId: number) {
+  // Like/Unlike handler (single source of truth)
+  async function onToggleLike(reviewUserId: string, gameId: number) {
     if (!me) return router.push('/login');
 
     const k = likeKey(reviewUserId, gameId);
-    if (toggling[k]) return;
+    if (likeBusy[k]) return;
 
-    const cur = likes[k] ?? { liked: false, count: 0 };
+    const before = likes[k] ?? { liked: false, count: 0 };
 
-    // throttle + optimistic
-    setToggling(p => ({ ...p, [k]: true }));
+    // optimistic bump
     setLikes(p => ({
       ...p,
-      [k]: { liked: !cur.liked, count: cur.count + (cur.liked ? -1 : 1) },
+      [k]: { liked: !before.liked, count: before.count + (before.liked ? -1 : 1) },
     }));
+    setLikeBusy(p => ({ ...p, [k]: true }));
 
     try {
       const { liked, count, error } = await toggleLike(supabase, reviewUserId, gameId);
       if (error) {
         // revert on failure
-        setLikes(p => ({ ...p, [k]: cur }));
-        console.error('toggleLike failed:', error.message);
+        setLikes(p => ({ ...p, [k]: before }));
         return;
       }
-      // snap to DB & broadcast
+      // authoritative snap + broadcast for other tabs/pages
       setLikes(p => ({ ...p, [k]: { liked, count } }));
       broadcastLike(reviewUserId, gameId, liked, liked ? 1 : -1);
-    } catch (e) {
-      setLikes(p => ({ ...p, [k]: cur }));
-      console.error(e);
+
+      // small truth-sync in case of races
+      setTimeout(async () => {
+        const map = await fetchLikesBulk(supabase, me.id, [{ reviewUserId, gameId }]);
+        setLikes(p => ({ ...p, ...map }));
+      }, 120);
     } finally {
-      setToggling(p => ({ ...p, [k]: false }));
+      setLikeBusy(p => ({ ...p, [k]: false }));
     }
   }
 
@@ -498,14 +499,14 @@ export default function GamePage() {
 
                       {canLike && (
                         <button
-                          onClick={() => handleLike(a!.id, gameId)}
+                          onClick={() => onToggleLike(a!.id, gameId)}
+                          disabled={likeBusy[k]}
                           className={`ml-2 text-xs px-2 py-1 rounded border border-white/10 ${
                             entry.liked ? 'bg-white/15' : 'bg-white/5'
-                          }`}
+                          } ${likeBusy[k] ? 'opacity-50' : ''}`}
                           aria-pressed={entry.liked}
                           aria-label={entry.liked ? 'Unlike review' : 'Like review'}
                           title={entry.liked ? 'Unlike' : 'Like'}
-                          disabled={toggling[likeKey(a!.id, gameId)]}
                         >
                           ❤️ {entry.count}
                         </button>

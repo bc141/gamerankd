@@ -10,7 +10,7 @@ import { getFollowCounts, checkIsFollowing, toggleFollow } from '@/lib/follows';
 import {
   likeKey,
   fetchLikesBulk,
-  toggleLike as toggleLikeRow,
+  toggleLike,
   broadcastLike,
   addLikeListener,
   type LikeEntry,
@@ -188,26 +188,27 @@ export default function PublicProfilePage() {
     if (togglingLike[k]) return;
   
     const cur = likes[k] ?? { liked: false, count: 0 };
+  
+    // mark busy + optimistic flip
     setTogglingLike(p => ({ ...p, [k]: true }));
     setLikes(p => ({ ...p, [k]: { liked: !cur.liked, count: cur.count + (cur.liked ? -1 : 1) } }));
   
-    const timer = setTimeout(() => {
-      setTogglingLike(p => ({ ...p, [k]: false }));
-    }, 4000);
-  
     try {
-      const { error } = await toggleLikeRow(supabase, viewerId, profile.id, gameId, cur.liked);
+      // NEW 3-arg API returns authoritative state
+      const { liked, count, error } = await toggleLike(supabase, profile.id, gameId);
       if (error) {
+        // revert on failure
         setLikes(p => ({ ...p, [k]: cur }));
         console.error('toggleLike failed:', error.message);
         return;
       }
-      broadcastLike(profile.id, gameId, !cur.liked, cur.liked ? -1 : +1);
+      // snap to DB result + notify other tabs/pages
+      setLikes(p => ({ ...p, [k]: { liked, count } }));
+      broadcastLike(profile.id, gameId, liked, liked ? 1 : -1);
     } catch (e) {
       setLikes(p => ({ ...p, [k]: cur }));
       console.error('toggleLike crashed:', e);
     } finally {
-      clearTimeout(timer);
       setTogglingLike(p => ({ ...p, [k]: false }));
     }
   }

@@ -27,7 +27,7 @@ type Profile = {
 };
 
 type ReviewRow = {
-  rating: number; // 1–100
+  rating: number;
   review: string | null;
   created_at: string;
   games: { id: number; name: string; cover_url: string | null } | null;
@@ -54,14 +54,13 @@ export default function PublicProfilePage() {
   const [counts, setCounts] = useState<{ followers: number; following: number }>({ followers: 0, following: 0 });
   const [isFollowing, setIsFollowing] = useState(false);
   const [togglingFollow, setTogglingFollow] = useState(false);
-  const isOwnProfile = viewerId && profile?.id ? viewerId === profile.id : false;
 
-  // ❤️ likes (per-game on this profile), with anti-flicker
+  // likes for this profile’s review list
   const [likes, setLikes] = useState<Record<string, LikeEntry>>({});
   const [likesReady, setLikesReady] = useState(false);
-  const [togglingLike, setTogglingLike] = useState<Record<string, boolean>>({});
+  const [busy, setBusy] = useState<Record<string, boolean>>({});
 
-  // cross-tab/same-tab like sync
+  // cross-tab updates (optional)
   useEffect(() => {
     const off = addLikeListener(({ reviewUserId, gameId, liked, delta }) => {
       const k = likeKey(reviewUserId, gameId);
@@ -85,7 +84,7 @@ export default function PublicProfilePage() {
     return () => { mounted = false; };
   }, [supabase]);
 
-  // 2) fetch profile + reviews + follow data + preload likes
+  // 2) fetch profile, reviews, follow data, likes
   useEffect(() => {
     if (!ready || !slug) return;
     let cancelled = false;
@@ -94,31 +93,24 @@ export default function PublicProfilePage() {
       setError(null);
       setLikesReady(false);
 
-      const uname = String(slug).toLowerCase();
-
       // profile
       const { data: prof, error: pErr } = await supabase
         .from('profiles')
         .select('id,username,display_name,bio,avatar_url')
-        .eq('username', uname)
+        .eq('username', String(slug).toLowerCase())
         .single();
-
       if (cancelled) return;
-      if (pErr || !prof) {
-        setError('Profile not found');
-        return;
-      }
+      if (pErr || !prof) { setError('Profile not found'); return; }
       const owner = prof as Profile;
       setProfile(owner);
 
-      // reviews by this profile
+      // reviews
       const { data: reviewsData, error: rErr } = await supabase
         .from('reviews')
         .select('rating, review, created_at, games:game_id (id,name,cover_url)')
         .eq('user_id', owner.id)
         .order('rating', { ascending: false })
         .order('created_at', { ascending: false });
-
       if (cancelled) return;
 
       if (rErr) {
@@ -128,37 +120,28 @@ export default function PublicProfilePage() {
           rating: typeof r?.rating === 'number' ? r.rating : 0,
           review: r?.review ?? null,
           created_at: r?.created_at ?? new Date(0).toISOString(),
-          games: r?.games
-            ? {
-                id: Number(r.games.id),
-                name: String(r.games.name ?? 'Unknown game'),
-                cover_url: r.games.cover_url ?? null,
-              }
-            : null,
+          games: r?.games ? {
+            id: Number(r.games.id),
+            name: String(r.games.name ?? 'Unknown game'),
+            cover_url: r.games.cover_url ?? null,
+          } : null,
         }));
         setRows(safe);
 
-        // preload likes for all (owner.id, gameId) pairs
-        const pairs = safe
-          .filter(r => r.games?.id)
-          .map(r => ({ reviewUserId: owner.id, gameId: r.games!.id }));
-        const viewer = viewerId ?? null;
-        const map = await fetchLikesBulk(supabase, viewer, pairs);
-        if (!cancelled) {
-          setLikes(map);
-          setLikesReady(true);
-        }
+        // preload likes for (owner.id, gameId) pairs
+        const pairs = safe.filter(r => r.games?.id).map(r => ({ reviewUserId: owner.id, gameId: r.games!.id }));
+        const map = await fetchLikesBulk(supabase, viewerId ?? null, pairs);
+        if (!cancelled) { setLikes(map); setLikesReady(true); }
       }
 
-      // follow counts + state
+      // follow counts + isFollowing
       const c = await getFollowCounts(supabase, owner.id);
       if (!cancelled) setCounts(c);
-
       if (viewerId && viewerId !== owner.id) {
         const f = await checkIsFollowing(supabase, owner.id);
         if (!cancelled) setIsFollowing(f);
-      } else {
-        if (!cancelled) setIsFollowing(false);
+      } else if (!cancelled) {
+        setIsFollowing(false);
       }
     })();
 
@@ -170,11 +153,9 @@ export default function PublicProfilePage() {
     [profile?.avatar_url]
   );
 
-  // follow toggle
   async function onToggleFollow() {
     if (!profile) return;
     if (!viewerId) return router.push('/login');
-    if (isOwnProfile) return;
 
     setTogglingFollow(true);
     const { error } = await toggleFollow(supabase, profile.id, isFollowing);
@@ -188,49 +169,36 @@ export default function PublicProfilePage() {
     }));
   }
 
-   /// like toggle for one row (reviewUserId = profile.id)
-async function onToggleLike(gameId: number) {
-  if (!profile || !gameId) return;
-  if (!viewerId) return router.push('/login');
+  // like toggle (allow liking own posts)
+  async function onToggleLike(gameId: number) {
+    if (!profile || !gameId) return;
+    if (!viewerId) return router.push('/login');
 
-  const k = likeKey(profile.id, gameId);
-  if (togglingLike[k]) return;
+    const k = likeKey(profile.id, gameId);
+    if (busy[k]) return;
 
-  const before = likes[k] ?? { liked: false, count: 0 };
+    const before = likes[k] ?? { liked: false, count: 0 };
+    const optimistic = { liked: !before.liked, count: before.count + (before.liked ? -1 : 1) };
 
-  // Optimistic flip (no extra fetch afterwards)
-  const optimistic = {
-    liked: !before.liked,
-    count: before.count + (before.liked ? -1 : 1),
-  };
-  setTogglingLike(p => ({ ...p, [k]: true }));
-  setLikes(p => ({ ...p, [k]: optimistic }));
+    setLikes(prev => ({ ...prev, [k]: optimistic }));
+    setBusy(prev => ({ ...prev, [k]: true }));
 
-  try {
-    // RPC returns authoritative { liked, count }
-    const { liked, count, error } = await toggleLike(supabase, profile.id, gameId);
-    if (error) {
-      // Revert on failure
-      setLikes(p => ({ ...p, [k]: before }));
-      return;
+    try {
+      const { liked, count, error } = await toggleLike(supabase, profile.id, gameId);
+      if (error) {
+        setLikes(prev => ({ ...prev, [k]: before })); // revert
+        return;
+      }
+      if (liked !== optimistic.liked || count !== optimistic.count) {
+        setLikes(prev => ({ ...prev, [k]: { liked, count } }));
+      }
+      const delta = liked === before.liked ? 0 : (liked ? 1 : -1);
+      if (delta !== 0) broadcastLike(profile.id, gameId, liked, delta);
+    } finally {
+      setBusy(prev => ({ ...prev, [k]: false }));
     }
-
-    // Only re-render if RPC disagrees with the optimistic value (kills the flicker)
-    if (liked !== optimistic.liked || count !== optimistic.count) {
-      setLikes(p => ({ ...p, [k]: { liked, count } }));
-    }
-
-    // Broadcast a delta only if the final state changed vs BEFORE (keeps other tabs in sync without over-bumping)
-    const delta = liked === before.liked ? 0 : (liked ? 1 : -1);
-    if (delta !== 0) {
-      broadcastLike(profile.id, gameId, liked, delta);
-    }
-  } finally {
-    setTogglingLike(p => ({ ...p, [k]: false }));
   }
-}
 
-  // branches
   if (error) return <main className="p-8 text-red-500">{error}</main>;
   if (!ready || !profile || !rows) return <main className="p-8">Loading…</main>;
 
@@ -239,18 +207,12 @@ async function onToggleLike(gameId: number) {
       {/* Header */}
       <section className="flex items-start justify-between gap-6">
         <div className="flex items-center gap-4">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={avatarSrc}
-            alt={`${profile.username} avatar`}
-            className="h-16 w-16 rounded-full object-cover border border-white/20"
-          />
+          <img src={avatarSrc} alt={`${profile.username} avatar`}
+               className="h-16 w-16 rounded-full object-cover border border-white/20" />
           <div>
             <h1 className="text-2xl font-bold">{profile.display_name || profile.username}</h1>
             {profile.display_name && <div className="text-white/60">@{profile.username}</div>}
             {profile.bio && <p className="text-white/70 mt-1">{profile.bio}</p>}
-
-            {/* clickable counts */}
             <div className="mt-2 text-sm text-white/60 flex items-center gap-4">
               <Link href={`/u/${profile.username}/followers`} className="hover:underline">
                 <strong className="text-white">{counts.followers}</strong> Followers
@@ -262,9 +224,8 @@ async function onToggleLike(gameId: number) {
           </div>
         </div>
 
-        {/* Follow / Edit */}
         <div className="shrink-0">
-          {isOwnProfile ? (
+          {viewerId === profile.id ? (
             <a href="/settings/profile" className="bg-white/10 px-3 py-2 rounded text-sm">Edit profile</a>
           ) : (
             <button
@@ -292,21 +253,15 @@ async function onToggleLike(gameId: number) {
             const k = gameId ? likeKey(profile.id, gameId) : '';
             const entry = gameId ? (likes[k] ?? { liked: false, count: 0 }) : { liked: false, count: 0 };
 
-            
-
             return (
               <li key={`${gameId ?? 'g'}-${i}`} className="flex items-start gap-4">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={cover}
                   alt={gameName}
                   className="h-16 w-12 object-cover rounded border border-white/10"
                 />
                 <div className="flex-1 min-w-0">
-                  <a
-                    href={gameId ? `/game/${gameId}` : '#'}
-                    className="font-medium hover:underline truncate block"
-                  >
+                  <a href={gameId ? `/game/${gameId}` : '#'} className="font-medium hover:underline truncate block">
                     {gameName}
                   </a>
                   <div className="mt-1 flex items-center gap-2 flex-wrap">
@@ -316,22 +271,22 @@ async function onToggleLike(gameId: number) {
                     <span className="text-xs text-white/40">{new Date(r.created_at).toLocaleDateString()}</span>
 
                     {gameId && (
-  likesReady ? (
-    <button
-      onClick={() => onToggleLike(gameId)}
-      aria-pressed={entry.liked}
-      aria-disabled={Boolean(togglingLike[k])}
-      className={`ml-2 text-xs px-2 py-1 rounded border border-white/10 ${
-        entry.liked ? 'bg-white/15' : 'bg-white/5'
-      } ${togglingLike[k] ? 'opacity-50' : ''}`}
-      title={entry.liked ? 'Unlike' : 'Like'}
-    >
-      ❤️ {entry.count}
-    </button>
-  ) : (
-    <span className="ml-2 text-xs text-white/40">❤️ …</span>
-  )
-)}
+                      likesReady ? (
+                        <button
+                          onClick={() => onToggleLike(gameId)}
+                          disabled={busy[k]}
+                          aria-pressed={entry.liked}
+                          className={`ml-2 text-xs px-2 py-1 rounded border border-white/10 ${
+                            entry.liked ? 'bg-white/15' : 'bg-white/5'
+                          } ${busy[k] ? 'opacity-50' : ''}`}
+                          title={entry.liked ? 'Unlike' : 'Like'}
+                        >
+                          ❤️ {entry.count}
+                        </button>
+                      ) : (
+                        <span className="ml-2 text-xs text-white/40">❤️ …</span>
+                      )
+                    )}
                   </div>
 
                   {r.review && r.review.trim() !== '' && (

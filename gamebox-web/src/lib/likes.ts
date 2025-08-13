@@ -2,74 +2,42 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export type LikeEntry = { liked: boolean; count: number };
-
 export function likeKey(reviewUserId: string, gameId: number) {
   return `${reviewUserId}:${gameId}`;
 }
 
 type Pair = { reviewUserId: string; gameId: number };
 
-// ---------------- safety helpers ----------------
+// ----- safe browser storage helpers (SSR-proof) -----
 const HAS_WINDOW = typeof window !== 'undefined';
 
-function safeSSGet(key: string): string | null {
-  try {
-    if (!HAS_WINDOW || !('sessionStorage' in window)) return null;
-    return window.sessionStorage.getItem(key);
-  } catch {
-    return null;
-  }
+function ssGet(key: string): string | null {
+  try { return HAS_WINDOW ? window.sessionStorage.getItem(key) : null; } catch { return null; }
 }
-function safeSSSet(key: string, val: string) {
-  try {
-    if (!HAS_WINDOW || !('sessionStorage' in window)) return;
-    window.sessionStorage.setItem(key, val);
-  } catch {}
+function ssSet(key: string, val: string) {
+  try { if (HAS_WINDOW) window.sessionStorage.setItem(key, val); } catch {}
 }
-function safeLSSet(key: string, val: string) {
-  try {
-    if (!HAS_WINDOW || !('localStorage' in window)) return;
-    window.localStorage.setItem(key, val);
-  } catch {}
-}
-function safeAddEventListener(
-  type: string,
-  handler: (e: any) => void
-) {
-  try {
-    if (!HAS_WINDOW) return;
-    window.addEventListener(type as any, handler as any);
-  } catch {}
-}
-function safeRemoveEventListener(
-  type: string,
-  handler: (e: any) => void
-) {
-  try {
-    if (!HAS_WINDOW) return;
-    window.removeEventListener(type as any, handler as any);
-  } catch {}
+function lsSet(key: string, val: string) {
+  try { if (HAS_WINDOW) window.localStorage.setItem(key, val); } catch {}
 }
 
-// ---- per-tab id so we can ignore our own broadcasts ----
+// per-tab id so we ignore our own broadcasts
 const TAB_KEY = 'gb-like-tab';
 function getTabId(): string {
   if (!HAS_WINDOW) return 'static-tab';
-  try {
-    let id = safeSSGet(TAB_KEY);
-    if (!id) {
-      const canUUID =
-        typeof crypto !== 'undefined' && 'randomUUID' in crypto;
-      id = canUUID ? crypto.randomUUID() : String(Math.random());
-      safeSSSet(TAB_KEY, id);
-    }
-    return id!;
-  } catch {
-    return 'static-tab';
+  let id = ssGet(TAB_KEY);
+  if (!id) {
+    try {
+      id = (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
+        ? crypto.randomUUID()
+        : String(Math.random());
+    } catch { id = String(Math.random()); }
+    ssSet(TAB_KEY, id);
   }
+  return id!;
 }
 
-// ---- bulk fetch current counts + whether viewer liked ----
+// ----- bulk preload for visible set -----
 export async function fetchLikesBulk(
   supabase: SupabaseClient,
   viewerId: string | null,
@@ -86,24 +54,22 @@ export async function fetchLikesBulk(
     .in('review_user_id', uniqUserIds);
   if (allErr) return {};
 
-  // Viewer’s likes within the same visible set
-let mine: { review_user_id: string; game_id: number }[] = [];
-if (viewerId) {
-  const { data: myLikes, error: myErr } = await supabase
-    .from('likes')
-    .select('review_user_id, game_id')
-    .eq('liker_id', viewerId)        // 👈 FIX (was user_id)
-    .in('game_id', uniqGameIds)
-    .in('review_user_id', uniqUserIds);
-  if (!myErr && Array.isArray(myLikes)) mine = myLikes as any[];
-}
+  let mine: { review_user_id: string; game_id: number }[] = [];
+  if (viewerId) {
+    const { data: myLikes } = await supabase
+      .from('likes')
+      .select('review_user_id, game_id')
+      .eq('liker_id', viewerId) // IMPORTANT: liker_id column
+      .in('game_id', uniqGameIds)
+      .in('review_user_id', uniqUserIds);
+    if (Array.isArray(myLikes)) mine = myLikes as any[];
+  }
 
   const counts = new Map<string, number>();
-  for (const row of allLikes ?? []) {
+  for (const row of (allLikes ?? [])) {
     const k = likeKey(String(row.review_user_id), Number(row.game_id));
     counts.set(k, (counts.get(k) ?? 0) + 1);
   }
-
   const mineSet = new Set(
     mine.map(r => likeKey(String(r.review_user_id), Number(r.game_id)))
   );
@@ -116,7 +82,7 @@ if (viewerId) {
   return out;
 }
 
-// ---- server-side toggle via RPC; returns authoritative {liked,count} ----
+// ----- RPC toggle (returns authoritative { liked, count }) -----
 export async function toggleLike(
   supabase: SupabaseClient,
   reviewUserId: string,
@@ -128,14 +94,10 @@ export async function toggleLike(
   });
   if (error) return { liked: false, count: 0, error };
   const row = Array.isArray(data) ? data[0] : data;
-  return {
-    liked: !!row?.liked,
-    count: Number(row?.count ?? 0),
-    error: null,
-  };
+  return { liked: !!row?.liked, count: Number(row?.count ?? 0), error: null };
 }
 
-// ---- cross-tab broadcast (now includes origin) ----
+// ----- cross-tab broadcast (optional, harmless) -----
 const LS_KEY = 'gb-like-sync';
 
 export function broadcastLike(
@@ -152,27 +114,22 @@ export function broadcastLike(
     liked,
     delta,
   };
-  // local (same tab)
   try {
     if (HAS_WINDOW) {
-      const ev = new CustomEvent(LS_KEY, { detail: payload });
-      window.dispatchEvent(ev);
+      window.dispatchEvent(new CustomEvent(LS_KEY, { detail: payload }));
     }
   } catch {}
-  // other tabs
-  safeLSSet(LS_KEY, JSON.stringify(payload));
+  lsSet(LS_KEY, JSON.stringify(payload));
 }
 
-// ---- listen for broadcasts (ignores events from same tab) ----
 export function addLikeListener(
   handler: (d: { reviewUserId: string; gameId: number; liked: boolean; delta: number }) => void
 ) {
   const localId = getTabId();
-
   const onLocal = (e: Event) => {
     const d = (e as CustomEvent).detail;
     if (!d || typeof d !== 'object') return;
-    if (d.origin === localId) return; // ignore our own tab
+    if ((d as any).origin === localId) return;
     handler(d);
   };
   const onStorage = (e: StorageEvent) => {
@@ -180,16 +137,18 @@ export function addLikeListener(
     try {
       const d = JSON.parse(e.newValue);
       if (!d || typeof d !== 'object') return;
-      if (d.origin === localId) return; // ignore our own tab
+      if (d.origin === localId) return;
       handler(d);
     } catch {}
   };
-
-  safeAddEventListener(LS_KEY, onLocal);
-  safeAddEventListener('storage', onStorage);
-
+  if (HAS_WINDOW) {
+    window.addEventListener(LS_KEY as any, onLocal as any);
+    window.addEventListener('storage', onStorage);
+  }
   return () => {
-    safeRemoveEventListener(LS_KEY, onLocal);
-    safeRemoveEventListener('storage', onStorage);
+    if (HAS_WINDOW) {
+      window.removeEventListener(LS_KEY as any, onLocal as any);
+      window.removeEventListener('storage', onStorage);
+    }
   };
 }

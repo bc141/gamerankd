@@ -43,12 +43,11 @@ export default function FeedPage() {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // likes for visible items: key -> { liked, count }
+  // likes state for visible rows
   const [likes, setLikes] = useState<Record<string, LikeEntry>>({});
-  // per-item busy guard to prevent double clicks
   const [busy, setBusy] = useState<Record<string, boolean>>({});
 
-  // Cross-tab / cross-page listener (game page, profile page, other tabs)
+  // cross-tab/same-tab like sync (applies updates coming from other pages/tabs)
   useEffect(() => {
     const off = addLikeListener(({ reviewUserId, gameId, liked, delta }) => {
       const k = likeKey(reviewUserId, gameId);
@@ -60,14 +59,12 @@ export default function FeedPage() {
     return off;
   }, []);
 
-  // Hydrate session and fetch feed + initial likes
+  // Load session then feed + initial likes
   useEffect(() => {
     let mounted = true;
-
     (async () => {
       const session = await waitForSession(supabase);
       if (!mounted) return;
-
       const user = session?.user ?? null;
       setMe(user ? { id: user.id } : null);
       setReady(true);
@@ -131,55 +128,51 @@ export default function FeedPage() {
 
       setRows(safe);
 
-      // 3) hydrate likes for visible set (so "liked" renders correctly)
+      // 3) hydrate likes for visible set
       const pairs = safe
         .filter(r => r.reviewer_id && r.games?.id)
         .map(r => ({ reviewUserId: r.reviewer_id, gameId: r.games!.id }));
-      if (pairs.length) {
-        const map = await fetchLikesBulk(supabase, user.id, pairs);
-        if (!mounted) return;
-        setLikes(map);
-      }
+      const map = await fetchLikesBulk(supabase, user.id, pairs);
+      setLikes(map);
     })();
 
     return () => { mounted = false; };
   }, [supabase]);
 
-  // Like/Unlike with optimistic UI + authoritative snap + cross-tab broadcast + tiny truth-sync
+  // Like/Unlike with optimistic UI + authoritative snap + broadcast
   async function onToggleLike(reviewUserId: string, gameId: number) {
-    if (!me) return; // Sign-in prompt already handled
+    if (!me) return; // page already asks to sign in
     const k = likeKey(reviewUserId, gameId);
     if (busy[k]) return;
 
     const before = likes[k] ?? { liked: false, count: 0 };
 
-    // Optimistic bump
-    setLikes(prev => ({
-      ...prev,
-      [k]: { liked: !before.liked, count: before.count + (before.liked ? -1 : 1) },
-    }));
+    // optimistic flip
+    const optimistic = {
+      liked: !before.liked,
+      count: before.count + (before.liked ? -1 : 1),
+    };
+    setLikes(prev => ({ ...prev, [k]: optimistic }));
     setBusy(prev => ({ ...prev, [k]: true }));
 
     try {
-      // RPC returns authoritative { liked, count }
+      // RPC returns authoritative {liked,count}
       const { liked, count, error } = await toggleLike(supabase, reviewUserId, gameId);
       if (error) {
-        // revert on failure
-        setLikes(prev => ({ ...prev, [k]: before }));
+        setLikes(prev => ({ ...prev, [k]: before })); // revert on error
         return;
       }
 
-      // Snap to DB truth
-      setLikes(prev => ({ ...prev, [k]: { liked, count } }));
+      // Snap to DB only if different from optimistic (no flicker)
+      if (liked !== optimistic.liked || count !== optimistic.count) {
+        setLikes(prev => ({ ...prev, [k]: { liked, count } }));
+      }
 
-      // Cross-tab/page notify (likes.ts ignores same-tab re-entry)
-      broadcastLike(reviewUserId, gameId, liked, liked ? 1 : -1);
-
-      // Tiny truth-sync for this single pair (defeats any stale race)
-      setTimeout(async () => {
-        const map = await fetchLikesBulk(supabase, me.id, [{ reviewUserId, gameId }]);
-        setLikes(prev => ({ ...prev, ...map }));
-      }, 120);
+      // Broadcast delta so profile/game tabs update instantly
+      const delta = liked === before.liked ? 0 : (liked ? 1 : -1);
+      if (delta !== 0) {
+        broadcastLike(reviewUserId, gameId, liked, delta);
+      }
     } finally {
       setBusy(prev => ({ ...prev, [k]: false }));
     }

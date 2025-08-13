@@ -10,8 +10,6 @@ import {
   likeKey,
   fetchLikesBulk,
   toggleLike,
-  addLikeListener,
-  broadcastLike,
   type LikeEntry,
 } from '@/lib/likes';
 
@@ -23,7 +21,7 @@ type Author = {
 };
 
 type Row = {
-  reviewer_id: string; // from reviews.user_id
+  reviewer_id: string; // reviews.user_id
   created_at: string;
   rating: number; // 1–100
   review: string | null;
@@ -31,51 +29,32 @@ type Row = {
   author: Author | null;
 };
 
-// If your FK name differs, update the alias below to match your DB:
-// e.g. 'profiles!reviews_user_id_fkey'
+// If your FK alias differs, update this:
 const AUTHOR_JOIN = 'profiles!reviews_user_id_profiles_fkey';
 
 export default function FeedPage() {
   const supabase = supabaseBrowser();
 
-  const [rows, setRows] = useState<Row[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
   const [ready, setReady] = useState(false);
   const [me, setMe] = useState<{ id: string } | null>(null);
 
-  // ❤️ likes state: key => { liked, count }
+  const [rows, setRows] = useState<Row[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // likes state for visible rows
   const [likes, setLikes] = useState<Record<string, LikeEntry>>({});
   const [busy, setBusy] = useState<Record<string, boolean>>({});
 
-  // keep all feed items in sync with likes from this/other tabs
-  useEffect(() => {
-    const off = addLikeListener(({ reviewUserId, gameId, liked, delta }) => {
-      const k = likeKey(reviewUserId, gameId);
-      setLikes(prev => {
-        const cur = prev[k] ?? { liked: false, count: 0 };
-        return {
-          ...prev,
-          [k]: { liked, count: Math.max(0, cur.count + delta) },
-        };
-      });
-    });
-    return off;
-  }, []);
-
-  // hydrate, load following, load feed, preload likes
+  // Load session first
   useEffect(() => {
     let mounted = true;
-
     (async () => {
       const session = await waitForSession(supabase);
       if (!mounted) return;
-
       const user = session?.user ?? null;
       setMe(user ? { id: user.id } : null);
       setReady(true);
 
-      // show suggestions even if logged out
       if (!user) {
         setRows([]);
         return;
@@ -93,7 +72,7 @@ export default function FeedPage() {
       const followingIds = (flw ?? []).map(r => String(r.followee_id));
       if (followingIds.length === 0) { setRows([]); return; }
 
-      // 2) recent reviews by those users (embed author + game + user_id)
+      // 2) recent reviews by those people
       const { data, error } = await supabase
         .from('reviews')
         .select(`
@@ -135,52 +114,47 @@ export default function FeedPage() {
 
       setRows(safe);
 
-      // 3) preload likes for what's visible so initial state is correct
+      // 3) hydrate likes for visible set (so "liked" renders correctly)
       const pairs = safe
         .filter(r => r.reviewer_id && r.games?.id)
         .map(r => ({ reviewUserId: r.reviewer_id, gameId: r.games!.id }));
-      const initial = await fetchLikesBulk(supabase, user.id, pairs);
-      if (!mounted) return;
-      setLikes(initial);
+      const map = await fetchLikesBulk(supabase, user.id, pairs);
+      setLikes(map);
     })();
 
     return () => { mounted = false; };
   }, [supabase]);
 
+  // Like/Unlike handler with optimistic UI + authoritative snap
   async function onToggleLike(reviewUserId: string, gameId: number) {
-    if (!me) return; // page already prompts to sign in
+    if (!me) return; // page already asks to sign in
     const k = likeKey(reviewUserId, gameId);
     if (busy[k]) return;
 
-    const cur = likes[k] ?? { liked: false, count: 0 };
+    const before = likes[k] ?? { liked: false, count: 0 };
 
     // optimistic flip
-    setBusy(p => ({ ...p, [k]: true }));
-    setLikes(p => ({
-      ...p,
-      [k]: { liked: !cur.liked, count: cur.count + (cur.liked ? -1 : 1) },
+    setLikes(prev => ({
+      ...prev,
+      [k]: { liked: !before.liked, count: before.count + (before.liked ? -1 : 1) },
     }));
+    setBusy(prev => ({ ...prev, [k]: true }));
 
     try {
-      // authoritative result from DB
       const { liked, count, error } = await toggleLike(supabase, reviewUserId, gameId);
-      if (error) throw error;
-
-      setLikes(p => ({ ...p, [k]: { liked, count } }));
-
-      // broadcast to other tabs
-      const delta = liked === cur.liked ? 0 : (liked ? +1 : -1);
-      if (delta !== 0) broadcastLike(reviewUserId, gameId, liked, delta);
-    } catch (e) {
-      // revert optimistic on failure
-      setLikes(p => ({ ...p, [k]: cur }));
-      console.error('toggleLike(feed) failed:', e);
+      if (error) {
+        // revert on error
+        setLikes(prev => ({ ...prev, [k]: before }));
+        return;
+      }
+      // authoritative state from DB (prevents flicker/desync)
+      setLikes(prev => ({ ...prev, [k]: { liked, count } }));
     } finally {
-      setBusy(p => ({ ...p, [k]: false }));
+      setBusy(prev => ({ ...prev, [k]: false }));
     }
   }
 
-  // Top-level loading / error branches
+  // Top-level branches
   if (!ready) return <main className="p-8">Loading…</main>;
   if (error) return <main className="p-8 text-red-500">{error}</main>;
 
@@ -197,9 +171,7 @@ export default function FeedPage() {
           ) : !rows ? (
             <p>Loading…</p>
           ) : rows.length === 0 ? (
-            <p className="text-white/70">
-              No activity yet. Follow players from search or their profiles.
-            </p>
+            <p className="text-white/70">No activity yet. Follow players from search or their profiles.</p>
           ) : (
             <ul className="space-y-6">
               {rows.map((r, i) => {
@@ -209,9 +181,7 @@ export default function FeedPage() {
 
                 const canLike = Boolean(r.reviewer_id && g?.id);
                 const k = canLike ? likeKey(r.reviewer_id, g!.id) : '';
-                const entry = canLike
-                  ? (likes[k] ?? { liked: false, count: 0 })
-                  : { liked: false, count: 0 };
+                const entry = canLike ? (likes[k] ?? { liked: false, count: 0 }) : { liked: false, count: 0 };
 
                 return (
                   <li key={`${r.created_at}-${i}`} className="flex items-start gap-3">
@@ -248,9 +218,10 @@ export default function FeedPage() {
                         {canLike && (
                           <button
                             onClick={() => onToggleLike(r.reviewer_id, g!.id)}
+                            disabled={busy[k]}
                             className={`ml-2 text-xs px-2 py-1 rounded border border-white/10 ${
                               entry.liked ? 'bg-white/15' : 'bg-white/5'
-                            } ${busy[k] ? 'opacity-50 pointer-events-none' : ''}`}
+                            } ${busy[k] ? 'opacity-50' : ''}`}
                             aria-pressed={entry.liked}
                             title={entry.liked ? 'Unlike' : 'Like'}
                           >
@@ -260,9 +231,7 @@ export default function FeedPage() {
                       </div>
 
                       {r.review && r.review.trim() !== '' && (
-                        <p className="mt-2 whitespace-pre-wrap text-white/80">
-                          {r.review.trim()}
-                        </p>
+                        <p className="mt-2 whitespace-pre-wrap text-white/80">{r.review.trim()}</p>
                       )}
                     </div>
 

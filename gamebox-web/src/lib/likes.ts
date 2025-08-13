@@ -86,16 +86,17 @@ export async function fetchLikesBulk(
     .in('review_user_id', uniqUserIds);
   if (allErr) return {};
 
-  let mine: { review_user_id: string; game_id: number }[] = [];
-  if (viewerId) {
-    const { data: myLikes, error: myErr } = await supabase
-      .from('likes')
-      .select('review_user_id, game_id')
-      .eq('user_id', viewerId)
-      .in('game_id', uniqGameIds)
-      .in('review_user_id', uniqUserIds);
-    if (!myErr && Array.isArray(myLikes)) mine = myLikes as any[];
-  }
+  // Viewer’s likes within the same visible set
+let mine: { review_user_id: string; game_id: number }[] = [];
+if (viewerId) {
+  const { data: myLikes, error: myErr } = await supabase
+    .from('likes')
+    .select('review_user_id, game_id')
+    .eq('liker_id', viewerId)        // 👈 FIX (was user_id)
+    .in('game_id', uniqGameIds)
+    .in('review_user_id', uniqUserIds);
+  if (!myErr && Array.isArray(myLikes)) mine = myLikes as any[];
+}
 
   const counts = new Map<string, number>();
   for (const row of allLikes ?? []) {

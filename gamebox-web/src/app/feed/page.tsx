@@ -1,4 +1,3 @@
-// src/app/feed/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -43,11 +42,11 @@ export default function FeedPage() {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // ❤️ likes for the visible feed items
+  // ❤️ likes for visible items
   const [likes, setLikes] = useState<Record<string, LikeEntry>>({});
-  const [busy, setBusy] = useState<Record<string, boolean>>({});
+  const [likeBusy, setLikeBusy] = useState<Record<string, boolean>>({});
 
-  // cross-tab/same-tab sync (feed listens so game/profile broadcasts are reflected)
+  // cross-tab/same-tab sync (reacts to broadcasts from profile/game)
   useEffect(() => {
     const off = addLikeListener(({ reviewUserId, gameId, liked, delta }) => {
       const k = likeKey(reviewUserId, gameId);
@@ -118,7 +117,7 @@ export default function FeedPage() {
 
       setRows(safe);
 
-      // preload likes for visible items
+      // preload likes for visible set
       const pairs = safe
         .filter(r => r.reviewer_id && r.games?.id)
         .map(r => ({ reviewUserId: r.reviewer_id, gameId: r.games!.id }));
@@ -130,31 +129,34 @@ export default function FeedPage() {
     return () => { mounted = false; };
   }, [supabase]);
 
-  // 2) like/unlike one item (optimistic → RPC → snap → broadcast)
+  // 2) Like/Unlike (optimistic → RPC → snap → tiny truth-sync → broadcast)
   async function onToggleLike(reviewUserId: string, gameId: number) {
-    if (!me) return; // page already suggests sign-in
+    if (!me) return; // page already suggests sign in
     const k = likeKey(reviewUserId, gameId);
-    if (busy[k]) return;
+    if (likeBusy[k]) return;
 
     const before = likes[k] ?? { liked: false, count: 0 };
 
-    // optimistic flip
-    setLikes(prev => ({ ...prev, [k]: { liked: !before.liked, count: before.count + (before.liked ? -1 : 1) } }));
-    setBusy(prev => ({ ...prev, [k]: true }));
+    // optimistic
+    setLikes(p => ({ ...p, [k]: { liked: !before.liked, count: before.count + (before.liked ? -1 : 1) } }));
+    setLikeBusy(p => ({ ...p, [k]: true }));
 
     try {
       const { liked, count, error } = await toggleLike(supabase, reviewUserId, gameId);
       if (error) {
-        // revert on failure
-        setLikes(prev => ({ ...prev, [k]: before }));
+        setLikes(p => ({ ...p, [k]: before })); // revert
         return;
       }
-      // authoritative snap
-      setLikes(prev => ({ ...prev, [k]: { liked, count } }));
-      // broadcast to other pages/tabs
+      setLikes(p => ({ ...p, [k]: { liked, count } })); // snap
       broadcastLike(reviewUserId, gameId, liked, liked ? 1 : -1);
+
+      // small truth-sync in case of races
+      setTimeout(async () => {
+        const map = await fetchLikesBulk(supabase, me.id, [{ reviewUserId, gameId }]);
+        setLikes(p => ({ ...p, ...map }));
+      }, 120);
     } finally {
-      setBusy(prev => ({ ...prev, [k]: false }));
+      setLikeBusy(p => ({ ...p, [k]: false }));
     }
   }
 
@@ -218,10 +220,10 @@ export default function FeedPage() {
                         {canLike && (
                           <button
                             onClick={() => onToggleLike(r.reviewer_id, g!.id)}
-                            disabled={busy[k]}
+                            disabled={likeBusy[k]}
                             className={`ml-2 text-xs px-2 py-1 rounded border border-white/10 ${
                               entry.liked ? 'bg-white/15' : 'bg-white/5'
-                            } ${busy[k] ? 'opacity-50' : ''}`}
+                            } ${likeBusy[k] ? 'opacity-50' : ''}`}
                             aria-pressed={entry.liked}
                             title={entry.liked ? 'Unlike' : 'Like'}
                           >

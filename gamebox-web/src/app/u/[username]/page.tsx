@@ -1,4 +1,3 @@
-// src/app/u/[username]/page.tsx
 'use client';
 
 import Link from 'next/link';
@@ -57,10 +56,10 @@ export default function PublicProfilePage() {
   const [togglingFollow, setTogglingFollow] = useState(false);
   const isOwnProfile = viewerId && profile?.id ? viewerId === profile.id : false;
 
-  // ❤️ likes on this profile's reviews
+  // ❤️ likes (owner.id, gameId)
   const [likes, setLikes] = useState<Record<string, LikeEntry>>({});
   const [likesReady, setLikesReady] = useState(false);
-  const [busy, setBusy] = useState<Record<string, boolean>>({});
+  const [likeBusy, setLikeBusy] = useState<Record<string, boolean>>({});
 
   // cross-tab/same-tab sync
   useEffect(() => {
@@ -86,7 +85,7 @@ export default function PublicProfilePage() {
     return () => { mounted = false; };
   }, [supabase]);
 
-  // 2) fetch profile + reviews + follow info + preload likes
+  // 2) load profile + reviews + likes + follow info
   useEffect(() => {
     if (!ready || !slug) return;
     let cancelled = false;
@@ -95,7 +94,6 @@ export default function PublicProfilePage() {
       setError(null);
       setLikesReady(false);
 
-      // whose profile
       const uname = String(slug).toLowerCase();
       const { data: prof, error: pErr } = await supabase
         .from('profiles')
@@ -124,11 +122,13 @@ export default function PublicProfilePage() {
           rating: typeof r?.rating === 'number' ? r.rating : 0,
           review: r?.review ?? null,
           created_at: r?.created_at ?? new Date(0).toISOString(),
-          games: r?.games ? { id: Number(r.games.id), name: String(r.games.name ?? 'Unknown'), cover_url: r.games.cover_url ?? null } : null,
+          games: r?.games
+            ? { id: Number(r.games.id), name: String(r.games.name ?? 'Unknown'), cover_url: r.games.cover_url ?? null }
+            : null,
         }));
         setRows(safe);
 
-        // preload likes for (owner.id, gameId)
+        // preload likes for (owner.id, gameId) pairs
         const pairs = safe.filter(r => r.games?.id).map(r => ({ reviewUserId: owner.id, gameId: r.games!.id }));
         const map = await fetchLikesBulk(supabase, viewerId ?? null, pairs);
         if (!cancelled) {
@@ -172,30 +172,36 @@ export default function PublicProfilePage() {
     setCounts(prev => ({ followers: prev.followers + (isFollowing ? -1 : 1), following: prev.following }));
   }
 
-  // like/unlike one of owner's reviews
+  // 3) Like/Unlike (optimistic → RPC → snap → tiny truth-sync → broadcast)
   async function onToggleLike(gameId: number) {
     if (!profile || !gameId) return;
     if (!viewerId) return router.push('/login');
 
     const k = likeKey(profile.id, gameId);
-    if (busy[k]) return;
+    if (likeBusy[k]) return;
 
     const before = likes[k] ?? { liked: false, count: 0 };
 
     // optimistic
-    setLikes(prev => ({ ...prev, [k]: { liked: !before.liked, count: before.count + (before.liked ? -1 : 1) } }));
-    setBusy(prev => ({ ...prev, [k]: true }));
+    setLikes(p => ({ ...p, [k]: { liked: !before.liked, count: before.count + (before.liked ? -1 : 1) } }));
+    setLikeBusy(p => ({ ...p, [k]: true }));
 
     try {
       const { liked, count, error } = await toggleLike(supabase, profile.id, gameId);
       if (error) {
-        setLikes(prev => ({ ...prev, [k]: before })); // revert
+        setLikes(p => ({ ...p, [k]: before })); // revert
         return;
       }
-      setLikes(prev => ({ ...prev, [k]: { liked, count } })); // snap
-      broadcastLike(profile.id, gameId, liked, liked ? 1 : -1); // inform feed/game
+      setLikes(p => ({ ...p, [k]: { liked, count } })); // snap
+      broadcastLike(profile.id, gameId, liked, liked ? 1 : -1);
+
+      // small truth-sync
+      setTimeout(async () => {
+        const map = await fetchLikesBulk(supabase, viewerId, [{ reviewUserId: profile.id, gameId }]);
+        setLikes(p => ({ ...p, ...map }));
+      }, 120);
     } finally {
-      setBusy(prev => ({ ...prev, [k]: false }));
+      setLikeBusy(p => ({ ...p, [k]: false }));
     }
   }
 
@@ -217,6 +223,7 @@ export default function PublicProfilePage() {
             <h1 className="text-2xl font-bold">{profile.display_name || profile.username}</h1>
             {profile.display_name && <div className="text-white/60">@{profile.username}</div>}
             {profile.bio && <p className="text-white/70 mt-1">{profile.bio}</p>}
+
             <div className="mt-2 text-sm text-white/60 flex items-center gap-4">
               <Link href={`/u/${profile.username}/followers`} className="hover:underline">
                 <strong className="text-white">{counts.followers}</strong> Followers
@@ -275,11 +282,11 @@ export default function PublicProfilePage() {
                       likesReady ? (
                         <button
                           onClick={() => onToggleLike(gameId)}
-                          disabled={busy[k]}
+                          disabled={likeBusy[k]}
                           aria-pressed={entry.liked}
                           className={`ml-2 text-xs px-2 py-1 rounded border border-white/10 ${
                             entry.liked ? 'bg-white/15' : 'bg-white/5'
-                          } ${busy[k] ? 'opacity-50' : ''}`}
+                          } ${likeBusy[k] ? 'opacity-50' : ''}`}
                           title={entry.liked ? 'Unlike' : 'Like'}
                         >
                           ❤️ {entry.count}

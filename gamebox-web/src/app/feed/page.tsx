@@ -1,4 +1,4 @@
-// gamebox-web/src/app/feed/page.tsx
+// src/app/feed/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -31,7 +31,7 @@ type Row = {
   author: Author | null;
 };
 
-// If your FK alias differs, update this:
+// If your FK alias differs, update this to match your DB
 const AUTHOR_JOIN = 'profiles!reviews_user_id_profiles_fkey';
 
 export default function FeedPage() {
@@ -43,11 +43,11 @@ export default function FeedPage() {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // likes state for visible rows
+  // ❤️ likes for the visible feed items
   const [likes, setLikes] = useState<Record<string, LikeEntry>>({});
   const [busy, setBusy] = useState<Record<string, boolean>>({});
 
-  // cross-tab/same-tab like sync (applies updates coming from other pages/tabs)
+  // cross-tab/same-tab sync (feed listens so game/profile broadcasts are reflected)
   useEffect(() => {
     const off = addLikeListener(({ reviewUserId, gameId, liked, delta }) => {
       const k = likeKey(reviewUserId, gameId);
@@ -59,12 +59,13 @@ export default function FeedPage() {
     return off;
   }, []);
 
-  // Load session then feed + initial likes
+  // 1) session + load feed + preload likes
   useEffect(() => {
     let mounted = true;
     (async () => {
       const session = await waitForSession(supabase);
       if (!mounted) return;
+
       const user = session?.user ?? null;
       setMe(user ? { id: user.id } : null);
       setReady(true);
@@ -74,19 +75,18 @@ export default function FeedPage() {
         return;
       }
 
-      // 1) who am I following?
+      // who am I following?
       const { data: flw, error: fErr } = await supabase
         .from('follows')
         .select('followee_id')
         .eq('follower_id', user.id);
-
       if (!mounted) return;
       if (fErr) { setError(fErr.message); return; }
 
       const followingIds = (flw ?? []).map(r => String(r.followee_id));
       if (followingIds.length === 0) { setRows([]); return; }
 
-      // 2) recent reviews by those people
+      // recent reviews from those users
       const { data, error } = await supabase
         .from('reviews')
         .select(`
@@ -100,7 +100,6 @@ export default function FeedPage() {
         .in('user_id', followingIds)
         .order('created_at', { ascending: false })
         .limit(50);
-
       if (!mounted) return;
       if (error) { setError(error.message); return; }
 
@@ -110,75 +109,55 @@ export default function FeedPage() {
         rating: typeof r?.rating === 'number' ? r.rating : 0,
         review: r?.review ?? null,
         games: r?.games
-          ? {
-              id: Number(r.games.id),
-              name: String(r.games.name ?? 'Unknown'),
-              cover_url: r.games.cover_url ?? null,
-            }
+          ? { id: Number(r.games.id), name: String(r.games.name ?? 'Unknown'), cover_url: r.games.cover_url ?? null }
           : null,
         author: r?.author
-          ? {
-              id: String(r.author.id),
-              username: r.author.username ?? null,
-              display_name: r.author.display_name ?? null,
-              avatar_url: r.author.avatar_url ?? null,
-            }
+          ? { id: String(r.author.id), username: r.author.username ?? null, display_name: r.author.display_name ?? null, avatar_url: r.author.avatar_url ?? null }
           : null,
       }));
 
       setRows(safe);
 
-      // 3) hydrate likes for visible set
+      // preload likes for visible items
       const pairs = safe
         .filter(r => r.reviewer_id && r.games?.id)
         .map(r => ({ reviewUserId: r.reviewer_id, gameId: r.games!.id }));
       const map = await fetchLikesBulk(supabase, user.id, pairs);
+      if (!mounted) return;
       setLikes(map);
     })();
 
     return () => { mounted = false; };
   }, [supabase]);
 
-  // Like/Unlike with optimistic UI + authoritative snap + broadcast
+  // 2) like/unlike one item (optimistic → RPC → snap → broadcast)
   async function onToggleLike(reviewUserId: string, gameId: number) {
-    if (!me) return; // page already asks to sign in
+    if (!me) return; // page already suggests sign-in
     const k = likeKey(reviewUserId, gameId);
     if (busy[k]) return;
 
     const before = likes[k] ?? { liked: false, count: 0 };
 
     // optimistic flip
-    const optimistic = {
-      liked: !before.liked,
-      count: before.count + (before.liked ? -1 : 1),
-    };
-    setLikes(prev => ({ ...prev, [k]: optimistic }));
+    setLikes(prev => ({ ...prev, [k]: { liked: !before.liked, count: before.count + (before.liked ? -1 : 1) } }));
     setBusy(prev => ({ ...prev, [k]: true }));
 
     try {
-      // RPC returns authoritative {liked,count}
       const { liked, count, error } = await toggleLike(supabase, reviewUserId, gameId);
       if (error) {
-        setLikes(prev => ({ ...prev, [k]: before })); // revert on error
+        // revert on failure
+        setLikes(prev => ({ ...prev, [k]: before }));
         return;
       }
-
-      // Snap to DB only if different from optimistic (no flicker)
-      if (liked !== optimistic.liked || count !== optimistic.count) {
-        setLikes(prev => ({ ...prev, [k]: { liked, count } }));
-      }
-
-      // Broadcast delta so profile/game tabs update instantly
-      const delta = liked === before.liked ? 0 : (liked ? 1 : -1);
-      if (delta !== 0) {
-        broadcastLike(reviewUserId, gameId, liked, delta);
-      }
+      // authoritative snap
+      setLikes(prev => ({ ...prev, [k]: { liked, count } }));
+      // broadcast to other pages/tabs
+      broadcastLike(reviewUserId, gameId, liked, liked ? 1 : -1);
     } finally {
       setBusy(prev => ({ ...prev, [k]: false }));
     }
   }
 
-  // Top-level branches
   if (!ready) return <main className="p-8">Loading…</main>;
   if (error) return <main className="p-8 text-red-500">{error}</main>;
 
@@ -220,10 +199,7 @@ export default function FeedPage() {
                     <div className="flex-1 min-w-0">
                       <div className="text-sm text-white/80 flex items-center gap-2 flex-wrap">
                         {a ? (
-                          <Link
-                            href={a.username ? `/u/${a.username}` : '#'}
-                            className="font-medium hover:underline"
-                          >
+                          <Link href={a.username ? `/u/${a.username}` : '#'} className="font-medium hover:underline">
                             {a.display_name || a.username || 'Player'}
                           </Link>
                         ) : 'Someone'}

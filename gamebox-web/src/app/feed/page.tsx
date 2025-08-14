@@ -1,6 +1,7 @@
+// gamebox-web/src/app/feed/page.tsx
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { waitForSession } from '@/lib/waitForSession';
@@ -45,6 +46,8 @@ export default function FeedPage() {
   // ❤️ likes for visible items
   const [likes, setLikes] = useState<Record<string, LikeEntry>>({});
   const [likeBusy, setLikeBusy] = useState<Record<string, boolean>>({});
+  // queue one extra toggle if user taps while request is in-flight
+  const queuedRef = useRef<Record<string, boolean>>({});
 
   // cross-tab/same-tab sync (reacts to broadcasts from profile/game)
   useEffect(() => {
@@ -129,16 +132,24 @@ export default function FeedPage() {
     return () => { mounted = false; };
   }, [supabase]);
 
-  // 2) Like/Unlike (optimistic → RPC → snap → tiny truth-sync → broadcast)
+  // 2) Like/Unlike (optimistic → RPC → snap (no flicker) → optional queued follow-up → broadcast)
   async function onToggleLike(reviewUserId: string, gameId: number) {
     if (!me) return; // page already suggests sign in
     const k = likeKey(reviewUserId, gameId);
-    if (likeBusy[k]) return;
+
+    // If a request is in-flight for this key, queue one follow-up toggle
+    if (likeBusy[k]) {
+      queuedRef.current[k] = true;
+      return;
+    }
 
     const before = likes[k] ?? { liked: false, count: 0 };
 
-    // optimistic
-    setLikes(p => ({ ...p, [k]: { liked: !before.liked, count: before.count + (before.liked ? -1 : 1) } }));
+    // optimistic (clamped to 0)
+    setLikes(p => ({
+      ...p,
+      [k]: { liked: !before.liked, count: Math.max(0, before.count + (before.liked ? -1 : 1)) },
+    }));
     setLikeBusy(p => ({ ...p, [k]: true }));
 
     try {
@@ -147,16 +158,29 @@ export default function FeedPage() {
         setLikes(p => ({ ...p, [k]: before })); // revert
         return;
       }
-      setLikes(p => ({ ...p, [k]: { liked, count } })); // snap
-      broadcastLike(reviewUserId, gameId, liked, liked ? 1 : -1);
 
-      // small truth-sync in case of races
-      setTimeout(async () => {
-        const map = await fetchLikesBulk(supabase, me.id, [{ reviewUserId, gameId }]);
-        setLikes(p => ({ ...p, ...map }));
-      }, 120);
+      // write only if different from optimistic to avoid flicker
+      setLikes(p => {
+        const cur = p[k] ?? { liked: false, count: 0 };
+        if (cur.liked === liked && cur.count === count) return p;
+        return { ...p, [k]: { liked, count } };
+      });
+
+      // notify other tabs/pages
+      broadcastLike(reviewUserId, gameId, liked, liked ? 1 : -1);
     } finally {
-      setLikeBusy(p => ({ ...p, [k]: false }));
+      // clear busy
+      setLikeBusy(p => {
+        const n = { ...p };
+        delete n[k];
+        return n;
+      });
+
+      // if user tapped again while busy, perform exactly one more toggle
+      if (queuedRef.current[k]) {
+        queuedRef.current[k] = false;
+        setTimeout(() => onToggleLike(reviewUserId, gameId), 0);
+      }
     }
   }
 

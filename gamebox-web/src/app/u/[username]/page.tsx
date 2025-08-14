@@ -15,6 +15,7 @@ import {
   addLikeListener,
   type LikeEntry,
 } from '@/lib/likes';
+import LikePill from '@/components/LikePill';
 
 const from100 = (n: number) => n / 20;
 
@@ -283,30 +284,18 @@ export default function PublicProfilePage() {
                     <span className="text-xs text-white/40">{new Date(r.created_at).toLocaleDateString()}</span>
 
                     {gameId && (
-                      likesReady ? (
-                        <button
-  onClick={() => onToggleLike(gameId)}
-  disabled={likeBusy[k]}
-  aria-pressed={entry.liked}
-  aria-busy={Boolean(likeBusy[k])}
-  title={entry.liked ? 'Unlike' : 'Like'}
-  className={`ml-2 text-xs px-2 py-1 rounded border border-white/10 inline-flex items-center gap-1.5
-              transition-colors [touch-action:manipulation] select-none leading-none
-              focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30
-              ${entry.liked ? 'bg-white/15' : 'bg-white/5'} ${likeBusy[k] ? 'opacity-50 cursor-not-allowed' : ''}`}
->
-  <span aria-hidden>❤️</span>
-  <span
-    className="inline-block text-center [font-variant-numeric:tabular-nums] min-w-[2ch]"
-    aria-live="off"
-  >
-    {entry.count}
-  </span>
-</button>
-                      ) : (
-                        <span className="ml-2 text-xs text-white/40">❤️ …</span>
-                      )
-                    )}
+  likesReady ? (
+    <LikePill
+      liked={entry.liked}
+      count={entry.count}
+      busy={likeBusy[k]}
+      onClick={() => onToggleLike(gameId)}
+      className="ml-2"
+    />
+  ) : (
+    <span className="ml-2 text-xs text-white/40">❤️ …</span>
+  )
+)}
                   </div>
 
                   {r.review && r.review.trim() !== '' && (

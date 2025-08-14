@@ -192,7 +192,11 @@ export default function PublicProfilePage() {
         setLikes(p => ({ ...p, [k]: before })); // revert
         return;
       }
-      setLikes(p => ({ ...p, [k]: { liked, count } })); // snap
+      setLikes(p => {
+        const cur = p[k] ?? { liked: false, count: 0 };
+        if (cur.liked === liked && cur.count === count) return p;
+        return { ...p, [k]: { liked, count } };
+      });
       broadcastLike(profile.id, gameId, liked, liked ? 1 : -1);
 
       // small truth-sync
@@ -281,16 +285,24 @@ export default function PublicProfilePage() {
                     {gameId && (
                       likesReady ? (
                         <button
-                          onClick={() => onToggleLike(gameId)}
-                          disabled={likeBusy[k]}
-                          aria-pressed={entry.liked}
-                          className={`ml-2 text-xs px-2 py-1 rounded border border-white/10 ${
-                            entry.liked ? 'bg-white/15' : 'bg-white/5'
-                          } ${likeBusy[k] ? 'opacity-50' : ''}`}
-                          title={entry.liked ? 'Unlike' : 'Like'}
-                        >
-                          ❤️ {entry.count}
-                        </button>
+  onClick={() => onToggleLike(gameId)}
+  disabled={likeBusy[k]}
+  aria-pressed={entry.liked}
+  aria-busy={Boolean(likeBusy[k])}
+  title={entry.liked ? 'Unlike' : 'Like'}
+  className={`ml-2 text-xs px-2 py-1 rounded border border-white/10 inline-flex items-center gap-1.5
+              transition-colors [touch-action:manipulation] select-none leading-none
+              focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30
+              ${entry.liked ? 'bg-white/15' : 'bg-white/5'} ${likeBusy[k] ? 'opacity-50 cursor-not-allowed' : ''}`}
+>
+  <span aria-hidden>❤️</span>
+  <span
+    className="inline-block text-center [font-variant-numeric:tabular-nums] min-w-[2ch]"
+    aria-live="off"
+  >
+    {entry.count}
+  </span>
+</button>
                       ) : (
                         <span className="ml-2 text-xs text-white/40">❤️ …</span>
                       )

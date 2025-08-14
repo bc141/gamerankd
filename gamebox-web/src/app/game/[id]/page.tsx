@@ -320,7 +320,11 @@ export default function GamePage() {
         return;
       }
       // authoritative snap + broadcast for other tabs/pages
-      setLikes(p => ({ ...p, [k]: { liked, count } }));
+      setLikes(p => {
+        const cur = p[k] ?? { liked: false, count: 0 };
+        if (cur.liked === liked && cur.count === count) return p;
+        return { ...p, [k]: { liked, count } };
+      });
       broadcastLike(reviewUserId, gameId, liked, liked ? 1 : -1);
 
       // small truth-sync in case of races
@@ -499,17 +503,25 @@ export default function GamePage() {
 
                       {canLike && (
                         <button
-                          onClick={() => onToggleLike(a!.id, gameId)}
-                          disabled={likeBusy[k]}
-                          className={`ml-2 text-xs px-2 py-1 rounded border border-white/10 ${
-                            entry.liked ? 'bg-white/15' : 'bg-white/5'
-                          } ${likeBusy[k] ? 'opacity-50' : ''}`}
-                          aria-pressed={entry.liked}
-                          aria-label={entry.liked ? 'Unlike review' : 'Like review'}
-                          title={entry.liked ? 'Unlike' : 'Like'}
+                        onClick={() => onToggleLike(a!.id, gameId)}
+                        disabled={likeBusy[k]}
+                        aria-pressed={entry.liked}
+                        aria-busy={Boolean(likeBusy[k])}
+                        aria-label={entry.liked ? 'Unlike review' : 'Like review'}
+                        title={entry.liked ? 'Unlike' : 'Like'}
+                        className={`ml-2 text-xs px-2 py-1 rounded border border-white/10 inline-flex items-center gap-1.5
+                                    transition-colors [touch-action:manipulation] select-none leading-none
+                                    focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30
+                                    ${entry.liked ? 'bg-white/15' : 'bg-white/5'} ${likeBusy[k] ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        <span aria-hidden>❤️</span>
+                        <span
+                          className="inline-block text-center [font-variant-numeric:tabular-nums] min-w-[2ch]"
+                          aria-live="off"
                         >
-                          ❤️ {entry.count}
-                        </button>
+                          {entry.count}
+                        </span>
+                      </button>
                       )}
                     </div>
 

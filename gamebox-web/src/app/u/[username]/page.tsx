@@ -1,8 +1,7 @@
-// gamebox-web/src/app/u/[username]/page.tsx
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import StarRating from '@/components/StarRating';
@@ -61,10 +60,8 @@ export default function PublicProfilePage() {
   const [likes, setLikes] = useState<Record<string, LikeEntry>>({});
   const [likesReady, setLikesReady] = useState(false);
   const [likeBusy, setLikeBusy] = useState<Record<string, boolean>>({});
-  // queue exactly one follow-up toggle per key while a request is in-flight
-  const queuedRef = useRef<Record<string, boolean>>({});
 
-  // cross-tab/same-tab sync (updates count/pressed state if another page changed it)
+  // cross-tab/same-tab sync
   useEffect(() => {
     const off = addLikeListener(({ reviewUserId, gameId, liked, delta }) => {
       const k = likeKey(reviewUserId, gameId);
@@ -175,56 +172,36 @@ export default function PublicProfilePage() {
     setCounts(prev => ({ followers: prev.followers + (isFollowing ? -1 : 1), following: prev.following }));
   }
 
-  // 3) Like/Unlike (optimistic → RPC → snap-if-different → optional queued follow-up → broadcast)
+  // 3) Like/Unlike (optimistic → RPC → snap → tiny truth-sync → broadcast)
   async function onToggleLike(gameId: number) {
     if (!profile || !gameId) return;
     if (!viewerId) return router.push('/login');
 
     const k = likeKey(profile.id, gameId);
-
-    // If a request is in-flight for this key, queue one extra toggle intent
-    if (likeBusy[k]) {
-      queuedRef.current[k] = true;
-      return;
-    }
+    if (likeBusy[k]) return;
 
     const before = likes[k] ?? { liked: false, count: 0 };
 
-    // optimistic (clamped)
-    setLikes(p => ({
-      ...p,
-      [k]: { liked: !before.liked, count: Math.max(0, before.count + (before.liked ? -1 : 1)) },
-    }));
+    // optimistic
+    setLikes(p => ({ ...p, [k]: { liked: !before.liked, count: before.count + (before.liked ? -1 : 1) } }));
     setLikeBusy(p => ({ ...p, [k]: true }));
 
     try {
       const { liked, count, error } = await toggleLike(supabase, profile.id, gameId);
       if (error) {
-        setLikes(p => ({ ...p, [k]: before })); // revert on failure
+        setLikes(p => ({ ...p, [k]: before })); // revert
         return;
       }
-
-      // only write if it differs from optimistic (prevents visible flicker)
-      setLikes(p => {
-        const cur = p[k] ?? { liked: false, count: 0 };
-        if (cur.liked === liked && cur.count === count) return p;
-        return { ...p, [k]: { liked, count } };
-      });
-
+      setLikes(p => ({ ...p, [k]: { liked, count } })); // snap
       broadcastLike(profile.id, gameId, liked, liked ? 1 : -1);
-    } finally {
-      // clear busy flag
-      setLikeBusy(p => {
-        const n = { ...p };
-        delete n[k];
-        return n;
-      });
 
-      // process one queued toggle if user tapped again while busy
-      if (queuedRef.current[k]) {
-        queuedRef.current[k] = false;
-        setTimeout(() => onToggleLike(gameId), 0);
-      }
+      // small truth-sync
+      setTimeout(async () => {
+        const map = await fetchLikesBulk(supabase, viewerId, [{ reviewUserId: profile.id, gameId }]);
+        setLikes(p => ({ ...p, ...map }));
+      }, 120);
+    } finally {
+      setLikeBusy(p => ({ ...p, [k]: false }));
     }
   }
 
@@ -305,7 +282,7 @@ export default function PublicProfilePage() {
                       likesReady ? (
                         <button
                           onClick={() => onToggleLike(gameId)}
-                          disabled={Boolean(likeBusy[k])}
+                          disabled={likeBusy[k]}
                           aria-pressed={entry.liked}
                           className={`ml-2 text-xs px-2 py-1 rounded border border-white/10 ${
                             entry.liked ? 'bg-white/15' : 'bg-white/5'

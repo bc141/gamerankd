@@ -16,6 +16,13 @@ import {
 } from '@/lib/likes';
 import LikePill from '@/components/LikePill';
 
+import CommentThread from '@/components/CommentThread';
+import {
+  commentKey,
+  fetchCommentCountsBulk,
+  addCommentListener,
+} from '@/lib/comments';
+
 // ---------- helpers ----------
 const to100 = (stars: number) => Math.round(stars * 20);
 const from100 = (score: number) => score / 20;
@@ -90,9 +97,13 @@ export default function GamePage() {
   const [recent, setRecent] = useState<RecentItem[]>([]);
   const [recentErr, setRecentErr] = useState<string | null>(null);
 
-  // likes (for recent list)
+  // ❤️ likes (for recent list)
   const [likes, setLikes] = useState<Record<string, LikeEntry>>({});
   const [likeBusy, setLikeBusy] = useState<Record<string, boolean>>({});
+
+  // 💬 comments (badge counts per review)
+  const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
+  const [openThread, setOpenThread] = useState<{ reviewUserId: string; gameId: number } | null>(null);
 
   // cross-tab / same-tab like sync
   useEffect(() => {
@@ -102,6 +113,15 @@ export default function GamePage() {
         const cur = prev[k] ?? { liked: false, count: 0 };
         return { ...prev, [k]: { liked, count: Math.max(0, cur.count + delta) } };
       });
+    });
+    return off;
+  }, []);
+
+  // cross-tab / same-tab comment count sync
+  useEffect(() => {
+    const off = addCommentListener(({ reviewUserId, gameId, delta }) => {
+      const k = commentKey(reviewUserId, gameId);
+      setCommentCounts(prev => ({ ...prev, [k]: Math.max(0, (prev[k] ?? 0) + delta) }));
     });
     return off;
   }, []);
@@ -156,7 +176,7 @@ export default function GamePage() {
         setTempText('');
       }
 
-      await refetchRecent(user ? user.id : null); // also preloads likes
+      await refetchRecent(user ? user.id : null); // also preloads likes + comment counts
     })();
 
     return () => { mounted = false; };
@@ -214,12 +234,18 @@ export default function GamePage() {
 
     setRecent(normalized);
 
-    // Preload likes for the visible set
+    // Preload likes + comment counts for the visible set
     const pairs = normalized
       .filter(r => r.author?.id)
       .map(r => ({ reviewUserId: r.author!.id, gameId }));
-    const map = await fetchLikesBulk(supabase, viewerId, pairs);
-    setLikes(map);
+
+    const [likesMap, commentsMap] = await Promise.all([
+      fetchLikesBulk(supabase, viewerId, pairs),
+      fetchCommentCountsBulk(supabase, pairs),
+    ]);
+
+    setLikes(likesMap ?? {});
+    setCommentCounts(commentsMap ?? {});
   };
 
   const avgStars = useMemo(() => {
@@ -408,10 +434,7 @@ export default function GamePage() {
             ) : (
               <>
                 <div className="flex items-center gap-3">
-                  <StarRating
-                    value={tempStars ?? 0}
-                    onChange={setTempStars}
-                  />
+                  <StarRating value={tempStars ?? 0} onChange={setTempStars} />
                   <button
                     onClick={saveRating}
                     disabled={saving || tempStars == null}
@@ -473,9 +496,14 @@ export default function GamePage() {
             {recent.map((r, i) => {
               const stars = (r.rating / 20).toFixed(1);
               const a = r.author;
+
               const canLike = Boolean(a?.id);
-              const k = canLike ? likeKey(a!.id, gameId) : '';
-              const entry = canLike ? (likes[k] ?? { liked: false, count: 0 }) : { liked: false, count: 0 };
+              const likeK = canLike ? likeKey(a!.id, gameId) : '';
+              const entry = canLike ? (likes[likeK] ?? { liked: false, count: 0 }) : { liked: false, count: 0 };
+
+              const canComment = Boolean(a?.id);
+              const cKey = canComment ? commentKey(a!.id, gameId) : '';
+              const cCount = canComment ? (commentCounts[cKey] ?? 0) : 0;
 
               return (
                 <li key={`${r.created_at}-${i}`} className="flex items-start gap-3">
@@ -503,14 +531,24 @@ export default function GamePage() {
                       <span className="text-white/40">{new Date(r.created_at).toLocaleDateString()}</span>
 
                       {canLike && (
-  <LikePill
-    liked={entry.liked}
-    count={entry.count}
-    busy={likeBusy[k]}
-    onClick={() => onToggleLike(a!.id, gameId)}
-    className="ml-2"
-  />
-)}
+                        <LikePill
+                          liked={entry.liked}
+                          count={entry.count}
+                          busy={likeBusy[likeK]}
+                          onClick={() => onToggleLike(a!.id, gameId)}
+                          className="ml-2"
+                        />
+                      )}
+
+                      {canComment && (
+                        <button
+                          onClick={() => setOpenThread({ reviewUserId: a!.id, gameId })}
+                          className="ml-2 text-xs px-2 py-1 rounded border border-white/10 bg-white/5 hover:bg-white/10"
+                          title="View comments"
+                        >
+                          💬 {cCount}
+                        </button>
+                      )}
                     </div>
 
                     {r.review && r.review.trim() !== '' && (
@@ -523,6 +561,23 @@ export default function GamePage() {
           </ul>
         )}
       </section>
+
+      {/* Comment modal */}
+      {openThread && (
+        <CommentThread
+          supabase={supabase}
+          viewerId={me?.id ?? null}
+          reviewUserId={openThread.reviewUserId}
+          gameId={openThread.gameId}
+          onClose={async () => {
+            const map = await fetchCommentCountsBulk(supabase, [
+              { reviewUserId: openThread.reviewUserId, gameId: openThread.gameId },
+            ]);
+            setCommentCounts(p => ({ ...p, ...map }));
+            setOpenThread(null);
+          }}
+        />
+      )}
     </main>
   );
 }

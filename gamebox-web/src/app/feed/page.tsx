@@ -1,3 +1,4 @@
+// gamebox-web/src/app/feed/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -14,6 +15,12 @@ import {
   type LikeEntry,
 } from '@/lib/likes';
 import LikePill from '@/components/LikePill';
+import CommentThread from '@/components/CommentThread';
+import {
+  commentKey,
+  fetchCommentCountsBulk,
+  addCommentListener,
+} from '@/lib/comments';
 
 type Author = {
   id: string;
@@ -47,7 +54,11 @@ export default function FeedPage() {
   const [likes, setLikes] = useState<Record<string, LikeEntry>>({});
   const [likeBusy, setLikeBusy] = useState<Record<string, boolean>>({});
 
-  // cross-tab/same-tab sync (reacts to broadcasts from profile/game)
+  // 💬 comment counts + which thread is open
+  const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
+  const [openThread, setOpenThread] = useState<{ reviewUserId: string; gameId: number } | null>(null);
+
+  // cross-tab/same-tab LIKE sync
   useEffect(() => {
     const off = addLikeListener(({ reviewUserId, gameId, liked, delta }) => {
       const k = likeKey(reviewUserId, gameId);
@@ -59,7 +70,16 @@ export default function FeedPage() {
     return off;
   }, []);
 
-  // 1) session + load feed + preload likes
+  // cross-tab/same-tab COMMENT count sync
+  useEffect(() => {
+    const off = addCommentListener(({ reviewUserId, gameId, delta }) => {
+      const k = commentKey(reviewUserId, gameId);
+      setCommentCounts(prev => ({ ...prev, [k]: Math.max(0, (prev[k] ?? 0) + delta) }));
+    });
+    return off;
+  }, []);
+
+  // 1) session + load feed + preload likes & comment counts
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -86,7 +106,7 @@ export default function FeedPage() {
       const followingIds = (flw ?? []).map(r => String(r.followee_id));
       if (followingIds.length === 0) { setRows([]); return; }
 
-      // recent reviews from those users
+      // recent reviews
       const { data, error } = await supabase
         .from('reviews')
         .select(`
@@ -118,13 +138,19 @@ export default function FeedPage() {
 
       setRows(safe);
 
-      // preload likes for visible set
+      // preload likes & comment counts for the visible set
       const pairs = safe
         .filter(r => r.reviewer_id && r.games?.id)
         .map(r => ({ reviewUserId: r.reviewer_id, gameId: r.games!.id }));
-      const map = await fetchLikesBulk(supabase, user.id, pairs);
+
+      const [likesMap, commentsMap] = await Promise.all([
+        fetchLikesBulk(supabase, user.id, pairs),
+        fetchCommentCountsBulk(supabase, pairs),
+      ] as const);
+
       if (!mounted) return;
-      setLikes(map);
+      setLikes(likesMap ?? {});
+      setCommentCounts(commentsMap ?? {});
     })();
 
     return () => { mounted = false; };
@@ -157,7 +183,7 @@ export default function FeedPage() {
 
       // small truth-sync in case of races
       setTimeout(async () => {
-        const map = await fetchLikesBulk(supabase, me.id, [{ reviewUserId, gameId }]);
+        const map = await fetchLikesBulk(supabase, me!.id, [{ reviewUserId, gameId }]);
         setLikes(p => ({ ...p, ...map }));
       }, 120);
     } finally {
@@ -190,8 +216,12 @@ export default function FeedPage() {
                 const stars = (r.rating / 20).toFixed(1);
 
                 const canLike = Boolean(r.reviewer_id && g?.id);
-                const k = canLike ? likeKey(r.reviewer_id, g!.id) : '';
-                const entry = canLike ? (likes[k] ?? { liked: false, count: 0 }) : { liked: false, count: 0 };
+                const likeK = canLike ? likeKey(r.reviewer_id, g!.id) : '';
+                const entry = canLike ? (likes[likeK] ?? { liked: false, count: 0 }) : { liked: false, count: 0 };
+
+                const canComment = Boolean(r.reviewer_id && g?.id);
+                const cKey = canComment ? commentKey(r.reviewer_id, g!.id) : '';
+                const cCount = canComment ? (commentCounts[cKey] ?? 0) : 0;
 
                 return (
                   <li key={`${r.created_at}-${i}`} className="flex items-start gap-3">
@@ -223,14 +253,24 @@ export default function FeedPage() {
                         <span className="text-white/40">{new Date(r.created_at).toLocaleDateString()}</span>
 
                         {canLike && (
-  <LikePill
-    liked={entry.liked}
-    count={entry.count}
-    busy={likeBusy[k]}
-    onClick={() => onToggleLike(r.reviewer_id, g!.id)}
-    className="ml-2"
-  />
-)}
+                          <LikePill
+                            liked={entry.liked}
+                            count={entry.count}
+                            busy={likeBusy[likeK]}
+                            onClick={() => onToggleLike(r.reviewer_id, g!.id)}
+                            className="ml-2"
+                          />
+                        )}
+
+                        {canComment && (
+                          <button
+                            onClick={() => setOpenThread({ reviewUserId: r.reviewer_id, gameId: g!.id })}
+                            className="ml-2 text-xs px-2 py-1 rounded border border-white/10 bg-white/5 hover:bg-white/10"
+                            title="View comments"
+                          >
+                            💬 {cCount}
+                          </button>
+                        )}
                       </div>
 
                       {r.review && r.review.trim() !== '' && (
@@ -264,6 +304,24 @@ export default function FeedPage() {
           <WhoToFollow limit={6} />
         </aside>
       </div>
+
+      {/* Comment modal */}
+      {openThread && (
+        <CommentThread
+          supabase={supabase}
+          viewerId={me?.id ?? null}
+          reviewUserId={openThread.reviewUserId}
+          gameId={openThread.gameId}
+          onClose={async () => {
+            // single-pair refresh to ensure accuracy after close
+            const map = await fetchCommentCountsBulk(supabase, [
+              { reviewUserId: openThread.reviewUserId, gameId: openThread.gameId },
+            ]);
+            setCommentCounts(p => ({ ...p, ...map }));
+            setOpenThread(null);
+          }}
+        />
+      )}
     </main>
   );
 }

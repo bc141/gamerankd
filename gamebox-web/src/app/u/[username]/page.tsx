@@ -15,7 +15,13 @@ import {
   addLikeListener,
   type LikeEntry,
 } from '@/lib/likes';
-import LikePill from '@/components/LikePill';
+
+import CommentThread from '@/components/CommentThread';
+import {
+  commentKey,
+  fetchCommentCountsBulk,
+  addCommentListener,
+} from '@/lib/comments';
 
 const from100 = (n: number) => n / 20;
 
@@ -57,12 +63,16 @@ export default function PublicProfilePage() {
   const [togglingFollow, setTogglingFollow] = useState(false);
   const isOwnProfile = viewerId && profile?.id ? viewerId === profile.id : false;
 
-  // ❤️ likes (owner.id, gameId)
+  // ❤️ likes (per-game on this profile)
   const [likes, setLikes] = useState<Record<string, LikeEntry>>({});
   const [likesReady, setLikesReady] = useState(false);
-  const [likeBusy, setLikeBusy] = useState<Record<string, boolean>>({});
+  const [togglingLike, setTogglingLike] = useState<Record<string, boolean>>({});
 
-  // cross-tab/same-tab sync
+  // 💬 comments
+  const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
+  const [openThread, setOpenThread] = useState<{ reviewUserId: string; gameId: number } | null>(null);
+
+  // cross-tab/same-tab like sync
   useEffect(() => {
     const off = addLikeListener(({ reviewUserId, gameId, liked, delta }) => {
       const k = likeKey(reviewUserId, gameId);
@@ -70,6 +80,15 @@ export default function PublicProfilePage() {
         const cur = prev[k] ?? { liked: false, count: 0 };
         return { ...prev, [k]: { liked, count: Math.max(0, cur.count + delta) } };
       });
+    });
+    return off;
+  }, []);
+
+  // cross-tab/same-tab comment count sync
+  useEffect(() => {
+    const off = addCommentListener(({ reviewUserId, gameId, delta }) => {
+      const k = commentKey(reviewUserId, gameId);
+      setCommentCounts(prev => ({ ...prev, [k]: Math.max(0, (prev[k] ?? 0) + delta) }));
     });
     return off;
   }, []);
@@ -86,7 +105,7 @@ export default function PublicProfilePage() {
     return () => { mounted = false; };
   }, [supabase]);
 
-  // 2) load profile + reviews + likes + follow info
+  // 2) fetch profile + reviews + follow data + preload likes & comment counts
   useEffect(() => {
     if (!ready || !slug) return;
     let cancelled = false;
@@ -96,24 +115,30 @@ export default function PublicProfilePage() {
       setLikesReady(false);
 
       const uname = String(slug).toLowerCase();
+
+      // profile
       const { data: prof, error: pErr } = await supabase
         .from('profiles')
         .select('id,username,display_name,bio,avatar_url')
         .eq('username', uname)
         .single();
-      if (cancelled) return;
-      if (pErr || !prof) { setError('Profile not found'); return; }
 
+      if (cancelled) return;
+      if (pErr || !prof) {
+        setError('Profile not found');
+        return;
+      }
       const owner = prof as Profile;
       setProfile(owner);
 
-      // their reviews
+      // reviews by this profile
       const { data: reviewsData, error: rErr } = await supabase
         .from('reviews')
         .select('rating, review, created_at, games:game_id (id,name,cover_url)')
         .eq('user_id', owner.id)
         .order('rating', { ascending: false })
         .order('created_at', { ascending: false });
+
       if (cancelled) return;
 
       if (rErr) {
@@ -124,21 +149,34 @@ export default function PublicProfilePage() {
           review: r?.review ?? null,
           created_at: r?.created_at ?? new Date(0).toISOString(),
           games: r?.games
-            ? { id: Number(r.games.id), name: String(r.games.name ?? 'Unknown'), cover_url: r.games.cover_url ?? null }
+            ? {
+                id: Number(r.games.id),
+                name: String(r.games.name ?? 'Unknown game'),
+                cover_url: r.games.cover_url ?? null,
+              }
             : null,
         }));
         setRows(safe);
 
-        // preload likes for (owner.id, gameId) pairs
-        const pairs = safe.filter(r => r.games?.id).map(r => ({ reviewUserId: owner.id, gameId: r.games!.id }));
-        const map = await fetchLikesBulk(supabase, viewerId ?? null, pairs);
+        // preload likes & comment counts for all (owner.id, gameId) pairs
+        const pairs = safe
+          .filter(r => r.games?.id)
+          .map(r => ({ reviewUserId: owner.id, gameId: r.games!.id }));
+
+        const viewer = viewerId ?? null;
+        const [likeMap, commentMap] = await Promise.all([
+          fetchLikesBulk(supabase, viewer, pairs),
+          fetchCommentCountsBulk(supabase, pairs),
+        ]);
+
         if (!cancelled) {
-          setLikes(map);
+          setLikes(likeMap ?? {});
+          setCommentCounts(commentMap ?? {});
           setLikesReady(true);
         }
       }
 
-      // follow counts/state
+      // follow counts + state
       const c = await getFollowCounts(supabase, owner.id);
       if (!cancelled) setCounts(c);
 
@@ -170,46 +208,45 @@ export default function PublicProfilePage() {
     if (error) return alert(error.message);
 
     setIsFollowing(!isFollowing);
-    setCounts(prev => ({ followers: prev.followers + (isFollowing ? -1 : 1), following: prev.following }));
+    setCounts(prev => ({
+      followers: prev.followers + (isFollowing ? -1 : 1),
+      following: prev.following,
+    }));
   }
 
-  // 3) Like/Unlike (optimistic → RPC → snap → tiny truth-sync → broadcast)
+  // like toggle for one row (reviewUserId = profile.id)
   async function onToggleLike(gameId: number) {
     if (!profile || !gameId) return;
     if (!viewerId) return router.push('/login');
 
     const k = likeKey(profile.id, gameId);
-    if (likeBusy[k]) return;
+    if (togglingLike[k]) return;
 
-    const before = likes[k] ?? { liked: false, count: 0 };
+    const cur = likes[k] ?? { liked: false, count: 0 };
 
-    // optimistic
-    setLikes(p => ({ ...p, [k]: { liked: !before.liked, count: before.count + (before.liked ? -1 : 1) } }));
-    setLikeBusy(p => ({ ...p, [k]: true }));
+    // optimistic + throttle
+    setTogglingLike(p => ({ ...p, [k]: true }));
+    setLikes(p => ({ ...p, [k]: { liked: !cur.liked, count: cur.count + (cur.liked ? -1 : 1) } }));
 
     try {
       const { liked, count, error } = await toggleLike(supabase, profile.id, gameId);
       if (error) {
-        setLikes(p => ({ ...p, [k]: before })); // revert
+        setLikes(p => ({ ...p, [k]: cur })); // revert on error
         return;
       }
+      // snap to RPC result (no flicker)
       setLikes(p => {
-        const cur = p[k] ?? { liked: false, count: 0 };
-        if (cur.liked === liked && cur.count === count) return p;
+        const cur2 = p[k] ?? { liked: false, count: 0 };
+        if (cur2.liked === liked && cur2.count === count) return p;
         return { ...p, [k]: { liked, count } };
       });
       broadcastLike(profile.id, gameId, liked, liked ? 1 : -1);
-
-      // small truth-sync
-      setTimeout(async () => {
-        const map = await fetchLikesBulk(supabase, viewerId, [{ reviewUserId: profile.id, gameId }]);
-        setLikes(p => ({ ...p, ...map }));
-      }, 120);
     } finally {
-      setLikeBusy(p => ({ ...p, [k]: false }));
+      setTogglingLike(p => ({ ...p, [k]: false }));
     }
   }
 
+  // branches
   if (error) return <main className="p-8 text-red-500">{error}</main>;
   if (!ready || !profile || !rows) return <main className="p-8">Loading…</main>;
 
@@ -229,6 +266,7 @@ export default function PublicProfilePage() {
             {profile.display_name && <div className="text-white/60">@{profile.username}</div>}
             {profile.bio && <p className="text-white/70 mt-1">{profile.bio}</p>}
 
+            {/* clickable counts */}
             <div className="mt-2 text-sm text-white/60 flex items-center gap-4">
               <Link href={`/u/${profile.username}/followers`} className="hover:underline">
                 <strong className="text-white">{counts.followers}</strong> Followers
@@ -240,6 +278,7 @@ export default function PublicProfilePage() {
           </div>
         </div>
 
+        {/* Follow / Edit */}
         <div className="shrink-0">
           {isOwnProfile ? (
             <a href="/settings/profile" className="bg-white/10 px-3 py-2 rounded text-sm">Edit profile</a>
@@ -266,15 +305,25 @@ export default function PublicProfilePage() {
             const gameName = r.games?.name ?? 'Unknown game';
             const cover = r.games?.cover_url ?? '';
 
-            const k = gameId ? likeKey(profile.id, gameId) : '';
-            const entry = gameId ? (likes[k] ?? { liked: false, count: 0 }) : { liked: false, count: 0 };
+            const likeK = gameId ? likeKey(profile.id, gameId) : '';
+            const entry = gameId ? (likes[likeK] ?? { liked: false, count: 0 }) : { liked: false, count: 0 };
+
+            const cKey = gameId ? commentKey(profile.id, gameId) : '';
+            const cCount = gameId ? (commentCounts[cKey] ?? 0) : 0;
 
             return (
               <li key={`${gameId ?? 'g'}-${i}`} className="flex items-start gap-4">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={cover} alt={gameName} className="h-16 w-12 object-cover rounded border border-white/10" />
+                <img
+                  src={cover}
+                  alt={gameName}
+                  className="h-16 w-12 object-cover rounded border border-white/10"
+                />
                 <div className="flex-1 min-w-0">
-                  <a href={gameId ? `/game/${gameId}` : '#'} className="font-medium hover:underline truncate block">
+                  <a
+                    href={gameId ? `/game/${gameId}` : '#'}
+                    className="font-medium hover:underline truncate block"
+                  >
                     {gameName}
                   </a>
                   <div className="mt-1 flex items-center gap-2 flex-wrap">
@@ -284,18 +333,28 @@ export default function PublicProfilePage() {
                     <span className="text-xs text-white/40">{new Date(r.created_at).toLocaleDateString()}</span>
 
                     {gameId && (
-  likesReady ? (
-    <LikePill
-      liked={entry.liked}
-      count={entry.count}
-      busy={likeBusy[k]}
-      onClick={() => onToggleLike(gameId)}
-      className="ml-2"
-    />
-  ) : (
-    <span className="ml-2 text-xs text-white/40">❤️ …</span>
-  )
-)}
+                      <>
+                        <button
+                          onClick={() => onToggleLike(gameId)}
+                          disabled={togglingLike[likeK]}
+                          aria-pressed={entry.liked}
+                          className={`ml-2 text-xs px-2 py-1 rounded border border-white/10 ${
+                            entry.liked ? 'bg-white/15' : 'bg-white/5'
+                          } ${togglingLike[likeK] ? 'opacity-50' : ''}`}
+                          title={entry.liked ? 'Unlike' : 'Like'}
+                        >
+                          ❤️ {entry.count}
+                        </button>
+
+                        <button
+                          onClick={() => setOpenThread({ reviewUserId: profile.id, gameId })}
+                          className="ml-2 text-xs px-2 py-1 rounded border border-white/10 bg-white/5 hover:bg-white/10"
+                          title="View comments"
+                        >
+                          💬 {cCount}
+                        </button>
+                      </>
+                    )}
                   </div>
 
                   {r.review && r.review.trim() !== '' && (
@@ -308,6 +367,23 @@ export default function PublicProfilePage() {
             );
           })}
         </ul>
+      )}
+
+      {/* Comment modal */}
+      {openThread && (
+        <CommentThread
+          supabase={supabase}
+          viewerId={viewerId}
+          reviewUserId={openThread.reviewUserId}
+          gameId={openThread.gameId}
+          onClose={async () => {
+            const map = await fetchCommentCountsBulk(supabase, [
+              { reviewUserId: openThread.reviewUserId, gameId: openThread.gameId },
+            ]);
+            setCommentCounts(p => ({ ...p, ...map }));
+            setOpenThread(null);
+          }}
+        />
       )}
     </main>
   );

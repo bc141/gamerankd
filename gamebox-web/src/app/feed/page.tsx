@@ -1,6 +1,7 @@
 // gamebox-web/src/app/feed/page.tsx
 'use client';
 
+import { Suspense } from 'react';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -23,6 +24,9 @@ import {
   addCommentListener,
 } from '@/lib/comments';
 
+// If your FK alias differs, update this to match your DB
+const AUTHOR_JOIN = 'profiles!reviews_user_id_profiles_fkey';
+
 type Author = {
   id: string;
   username: string | null;
@@ -39,20 +43,17 @@ type Row = {
   author: Author | null;
 };
 
-// If your FK alias differs, update this to match your DB
-const AUTHOR_JOIN = 'profiles!reviews_user_id_profiles_fkey';
-
-export default function FeedPage() {
+// --- Inner client component with all logic ---
+function FeedPageInner() {
   const supabase = supabaseBrowser();
   const router = useRouter();
   const searchParams = useSearchParams();
 
   const tabParam = searchParams.get('tab');
-  const tab: 'following' | 'foryou' =
-    tabParam === 'foryou' ? 'foryou' : 'following';
+  const tab: 'following' | 'foryou' = tabParam === 'foryou' ? 'foryou' : 'following';
 
   function setTab(next: 'following' | 'foryou') {
-    const sp = new URLSearchParams(searchParams ?? undefined);
+    const sp = new URLSearchParams(searchParams as any);
     sp.set('tab', next);
     router.push(`/feed?${sp.toString()}`, { scroll: false });
   }
@@ -259,7 +260,8 @@ export default function FeedPage() {
     return () => {
       mounted = false;
     };
-  }, [supabase, tab, searchParams]);
+    // NOTE: depend on `tab` only (not the `searchParams` object) to avoid unnecessary re-runs
+  }, [supabase, tab]);
 
   // 2) Like/Unlike (optimistic → RPC → snap → tiny truth-sync → broadcast)
   async function onToggleLike(reviewUserId: string, gameId: number) {
@@ -300,9 +302,7 @@ export default function FeedPage() {
 
   if (!ready) return <main className="p-8">Loading…</main>;
   if (error && rows?.length) {
-    // Show error but keep feed visible if we still have rows
-    // (helps when RPC returns partial failures)
-    // eslint-disable-next-line no-console
+    // keep feed visible if we still have rows
     console.warn('Feed error:', error);
   }
 
@@ -333,12 +333,10 @@ export default function FeedPage() {
             </button>
           </nav>
 
-          {!me ? (
-            <p className="text-white/70">
-              <Link className="underline" href="/login">Sign in</Link> to see your personalized feed.
-            </p>
-          ) : loading ? (
-            <p>Loading…</p>
+          {(!me || loading) ? (
+            <p className="text-white/70">{!me ? (
+              <> <Link className="underline" href="/login">Sign in</Link> to see your personalized feed.</>
+            ) : 'Loading…'}</p>
           ) : rows && rows.length === 0 ? (
             <p className="text-white/70">
               {tab === 'foryou'
@@ -460,5 +458,14 @@ export default function FeedPage() {
         />
       )}
     </main>
+  );
+}
+
+// --- Default export wrapped in Suspense (fixes useSearchParams build error) ---
+export default function FeedPage() {
+  return (
+    <Suspense fallback={<main className="p-8">Loading…</main>}>
+      <FeedPageInner />
+    </Suspense>
   );
 }

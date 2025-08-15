@@ -23,6 +23,7 @@ import {
   fetchCommentCountsBulk,
   addCommentListener,
 } from '@/lib/comments';
+import { timeAgo } from '@/lib/timeAgo';
 
 // If your FK alias differs, update this to match your DB
 const AUTHOR_JOIN = 'profiles!reviews_user_id_profiles_fkey';
@@ -65,6 +66,12 @@ function FeedPageInner() {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // cache rows per tab to avoid flicker on tab switch
+  const [cache, setCache] = useState<{ following: Row[] | null; foryou: Row[] | null}>({
+    following: null,
+    foryou: null,
+  });
+
   // ❤️ likes for visible items
   const [likes, setLikes] = useState<Record<string, LikeEntry>>({});
   const [likeBusy, setLikeBusy] = useState<Record<string, boolean>>({});
@@ -103,10 +110,8 @@ function FeedPageInner() {
       setLoading(true);
       setError(null);
 
-      // Clear lists when switching tabs so we don't flash stale data
-      setRows(null);
-      setLikes({});
-      setCommentCounts({});
+      // show cached rows immediately to avoid a blank state on tab switch
+      setRows(cache[tab] ?? null);
 
       const session = await waitForSession(supabase);
       if (!mounted) return;
@@ -140,6 +145,7 @@ function FeedPageInner() {
         const followingIds = (flw ?? []).map(r => String(r.followee_id));
         if (followingIds.length === 0) {
           setRows([]);
+          setCache(prev => ({ ...prev, following: [] }));
           setLoading(false);
           return;
         }
@@ -185,6 +191,7 @@ function FeedPageInner() {
         }));
 
         setRows(safe);
+        setCache(prev => ({ ...prev, following: safe }));
 
         const pairs = safe
           .filter(r => r.reviewer_id && r.games?.id)
@@ -240,6 +247,7 @@ function FeedPageInner() {
         }));
 
         setRows(safe);
+        setCache(prev => ({ ...prev, foryou: safe }));
 
         const pairs = safe
           .filter(r => r.reviewer_id && r.games?.id)
@@ -261,7 +269,7 @@ function FeedPageInner() {
       mounted = false;
     };
     // NOTE: depend on `tab` only (not the `searchParams` object) to avoid unnecessary re-runs
-  }, [supabase, tab]);
+  }, [supabase, tab, cache]);
 
   // 2) Like/Unlike (optimistic → RPC → snap → tiny truth-sync → broadcast)
   async function onToggleLike(reviewUserId: string, gameId: number) {
@@ -340,7 +348,7 @@ function FeedPageInner() {
           ) : rows && rows.length === 0 ? (
             <p className="text-white/70">
               {tab === 'foryou'
-                ? 'No recommendations yet. Rate a few games and follow some players to train your feed.'
+                ? 'Nothing here yet — follow a few players and rate some games to tune recommendations.'
                 : 'No activity yet. Follow players from search or their profiles.'}
             </p>
           ) : (
@@ -364,7 +372,7 @@ function FeedPageInner() {
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={a?.avatar_url || '/avatar-placeholder.svg'}
-                      alt="avatar"
+                      alt={a?.username ? `${a.username} avatar` : 'Player avatar'}
                       className="h-10 w-10 rounded-full object-cover border border-white/15"
                     />
 
@@ -385,7 +393,11 @@ function FeedPageInner() {
                         )}
                         <span className="text-white/60">· {stars} / 5</span>
                         <span className="text-white/30">·</span>
-                        <span className="text-white/40">{new Date(r.created_at).toLocaleDateString()}</span>
+                        <span className="text-white/40">
+                          <time title={new Date(r.created_at).toLocaleString()}>
+                            {timeAgo(r.created_at)}
+                          </time>
+                        </span>
 
                         {canLike && (
                           <LikePill
@@ -400,10 +412,11 @@ function FeedPageInner() {
                         {canComment && (
                           <button
                             onClick={() => setOpenThread({ reviewUserId: r.reviewer_id, gameId: g!.id })}
-                            className="ml-2 text-xs px-2 py-1 rounded border border-white/10 bg-white/5 hover:bg-white/10"
+                            className="ml-2 text-xs px-2 py-1 rounded border border-white/10 bg-white/5 hover:bg-white/10 inline-flex items-center gap-1"
                             title="View comments"
                           >
-                            💬 {cCount}
+                            <span aria-hidden>💬</span>
+                            {cCount > 0 && <span>{cCount}</span>}
                           </button>
                         )}
                       </div>
@@ -414,13 +427,15 @@ function FeedPageInner() {
                     </div>
 
                     {/* cover */}
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     {g?.cover_url && (
-                      <img
-                        src={g.cover_url}
-                        alt={g.name}
-                        className="h-16 w-12 rounded object-cover border border-white/10"
-                      />
+                      <Link href={`/game/${g.id}`} className="shrink-0">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={g.cover_url}
+                          alt={g.name}
+                          className="h-16 w-12 rounded object-cover border border-white/10"
+                        />
+                      </Link>
                     )}
                   </li>
                 );

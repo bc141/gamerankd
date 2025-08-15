@@ -53,9 +53,10 @@ function FeedPageInner() {
   const tab: 'following' | 'foryou' = tabParam === 'foryou' ? 'foryou' : 'following';
 
   function setTab(next: 'following' | 'foryou') {
+    if (next === tab) return; // no-op
     const sp = new URLSearchParams(searchParams as any);
     sp.set('tab', next);
-    router.push(`/feed?${sp.toString()}`, { scroll: false });
+    router.replace(`/feed?${sp.toString()}`, { scroll: false });
   }
 
   const [ready, setReady] = useState(false);
@@ -256,7 +257,7 @@ function FeedPageInner() {
 
     load();
     return () => {
-      cancelled = false;
+      cancelled = true;
     };
   }, [supabase, tab]);
 
@@ -334,7 +335,7 @@ function FeedPageInner() {
                 : 'No activity yet. Follow players from search or their profiles.'}
             </p>
           ) : (
-            <ul className="space-y-6">
+            <ul className="divide-y divide-white/10">
               {rows!.map((r, i) => {
                 const a = r.author;
                 const g = r.games;
@@ -349,70 +350,93 @@ function FeedPageInner() {
                 const cCount = canComment ? (commentCounts[cKey] ?? 0) : 0;
 
                 return (
-                  <li key={`${r.created_at}-${i}`} className="flex items-start gap-3">
-                    {/* avatar */}
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={a?.avatar_url || '/avatar-placeholder.svg'}
-                      alt="avatar"
-                      className="h-10 w-10 rounded-full object-cover border border-white/15"
-                    />
+                  <li
+  key={`${r.created_at}-${i}`}
+  className="grid grid-cols-[40px_1fr_auto] gap-3 py-5"
+>
+  {/* avatar */}
+  {/* eslint-disable-next-line @next/next/no-img-element */}
+  <img
+    src={a?.avatar_url || '/avatar-placeholder.svg'}
+    alt=""
+    className="h-10 w-10 rounded-full object-cover border border-white/15 mt-1"
+  />
 
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm text-white/80 flex items-center gap-2 flex-wrap">
-                        {a ? (
-                          <Link href={a.username ? `/u/${a.username}` : '#'} className="font-medium hover:underline">
-                            {a.display_name || a.username || 'Player'}
-                          </Link>
-                        ) : 'Someone'}
-                        <span>rated</span>
-                        {g ? (
-                          <Link href={`/game/${g.id}`} className="hover:underline font-medium">
-                            {g.name}
-                          </Link>
-                        ) : (
-                          <span>a game</span>
-                        )}
-                        <span className="text-white/60">· {stars} / 5</span>
-                        <span className="text-white/30">·</span>
-                        <span className="text-white/40">{timeAgo(r.created_at)}</span>
+  {/* middle column */}
+  <div className="min-w-0">
+    {/* header: author, action, game, stars, time */}
+    <div className="text-sm text-white/80 flex items-center gap-2 flex-wrap">
+      {a ? (
+        <Link
+          href={a.username ? `/u/${a.username}` : '#'}
+          className="font-medium hover:underline"
+        >
+          {a.display_name || a.username || 'Player'}
+        </Link>
+      ) : (
+        'Someone'
+      )}
 
-                        {canLike && (
-                          <LikePill
-                            liked={entry.liked}
-                            count={entry.count}
-                            busy={likeBusy[likeK]}
-                            onClick={() => onToggleLike(r.reviewer_id, g!.id)}
-                            className="ml-2"
-                          />
-                        )}
+      <span>rated</span>
 
-                        {canComment && (
-                          <button
-                            onClick={() => setOpenThread({ reviewUserId: r.reviewer_id, gameId: g!.id })}
-                            className="ml-2 text-xs px-2 py-1 rounded border border-white/10 bg-white/5 hover:bg-white/10"
-                            title="View comments"
-                          >
-                            💬 {cCount}
-                          </button>
-                        )}
-                      </div>
+      {g ? (
+        <Link href={`/game/${g.id}`} className="hover:underline font-medium">
+          {g.name}
+        </Link>
+      ) : (
+        <span>a game</span>
+      )}
 
-                      {r.review && r.review.trim() !== '' && (
-                        <p className="mt-2 whitespace-pre-wrap text-white/80">{r.review.trim()}</p>
-                      )}
-                    </div>
+      <span className="text-white/60">· {(r.rating / 20).toFixed(1)} / 5</span>
+      <span className="text-white/30">·</span>
+      <span className="text-white/40">{timeAgo(r.created_at)}</span>
+    </div>
 
-                    {/* cover */}
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    {g?.cover_url && (
-                      <img
-                        src={g.cover_url}
-                        alt={g.name}
-                        className="h-16 w-12 rounded object-cover border border-white/10"
-                      />
-                    )}
-                  </li>
+    {/* body: review text */}
+    {r.review && r.review.trim() !== '' && (
+      <p className="mt-2 whitespace-pre-wrap text-white/80 break-words">
+        {r.review.trim()}
+      </p>
+    )}
+
+    {/* footer: actions are always here -> no bouncing */}
+    <div className="mt-3 flex items-center gap-2">
+      {canLike && (
+        <LikePill
+          liked={entry.liked}
+          count={entry.count}
+          busy={likeBusy[likeK]}
+          onClick={() => onToggleLike(r.reviewer_id, g!.id)}
+        />
+      )}
+
+      {canComment && (
+        <button
+          onClick={() =>
+            setOpenThread({ reviewUserId: r.reviewer_id, gameId: g!.id })
+          }
+          className="text-xs px-2 py-1 rounded border border-white/10 bg-white/5 hover:bg-white/10"
+          title="View comments"
+          aria-label="View comments"
+        >
+          💬 {cCount}
+        </button>
+      )}
+    </div>
+  </div>
+
+  {/* cover art (fixed spot) */}
+  {g?.cover_url ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={g.cover_url}
+      alt={g.name}
+      className="h-16 w-12 rounded object-cover border border-white/10"
+    />
+  ) : (
+    <div className="h-16 w-12" />
+  )}
+</li>
                 );
               })}
             </ul>

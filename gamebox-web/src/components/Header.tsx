@@ -128,7 +128,7 @@ export default function Header() {
     <header className="border-b border-white/10 sticky top-0 z-40 bg-black/60 backdrop-blur supports-[backdrop-filter]:bg-black/40">
       <div className="mx-auto max-w-5xl px-4 h-14 flex items-center justify-between">
         <div className="flex items-center gap-6">
-          <Link href="/" className="font-semibold">Gamebox</Link>
+          <Link href="/" className="font-semibold">GameRankd</Link>
           {/* Primary nav */}
           <nav className="hidden sm:flex items-center gap-5">
             {navLink('/', 'Home')}

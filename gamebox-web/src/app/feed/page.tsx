@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { waitForSession } from '@/lib/waitForSession';
 import WhoToFollow from '@/components/WhoToFollow';
@@ -15,7 +16,7 @@ import {
   type LikeEntry,
 } from '@/lib/likes';
 import LikePill from '@/components/LikePill';
-import CommentThread from '@/components/CommentThread';
+import CommentThread from '@/components/comments/CommentThread';
 import {
   commentKey,
   fetchCommentCountsBulk,
@@ -43,8 +44,21 @@ const AUTHOR_JOIN = 'profiles!reviews_user_id_profiles_fkey';
 
 export default function FeedPage() {
   const supabase = supabaseBrowser();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const tabParam = searchParams.get('tab');
+  const tab: 'following' | 'foryou' =
+    tabParam === 'foryou' ? 'foryou' : 'following';
+
+  function setTab(next: 'following' | 'foryou') {
+    const sp = new URLSearchParams(searchParams ?? undefined);
+    sp.set('tab', next);
+    router.push(`/feed?${sp.toString()}`, { scroll: false });
+  }
 
   const [ready, setReady] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [me, setMe] = useState<{ id: string } | null>(null);
 
   const [rows, setRows] = useState<Row[] | null>(null);
@@ -56,7 +70,8 @@ export default function FeedPage() {
 
   // 💬 comment counts + which thread is open
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
-  const [openThread, setOpenThread] = useState<{ reviewUserId: string; gameId: number } | null>(null);
+  const [openThread, setOpenThread] =
+    useState<{ reviewUserId: string; gameId: number } | null>(null);
 
   // cross-tab/same-tab LIKE sync
   useEffect(() => {
@@ -82,7 +97,16 @@ export default function FeedPage() {
   // 1) session + load feed + preload likes & comment counts
   useEffect(() => {
     let mounted = true;
+
     (async () => {
+      setLoading(true);
+      setError(null);
+
+      // Clear lists when switching tabs so we don't flash stale data
+      setRows(null);
+      setLikes({});
+      setCommentCounts({});
+
       const session = await waitForSession(supabase);
       if (!mounted) return;
 
@@ -90,71 +114,152 @@ export default function FeedPage() {
       setMe(user ? { id: user.id } : null);
       setReady(true);
 
+      // Not signed in? Show empty state for both tabs
       if (!user) {
         setRows([]);
+        setLoading(false);
         return;
       }
 
-      // who am I following?
-      const { data: flw, error: fErr } = await supabase
-        .from('follows')
-        .select('followee_id')
-        .eq('follower_id', user.id);
-      if (!mounted) return;
-      if (fErr) { setError(fErr.message); return; }
+      // --- Following tab (existing behavior)
+      if (tab === 'following') {
+        const { data: flw, error: fErr } = await supabase
+          .from('follows')
+          .select('followee_id')
+          .eq('follower_id', user.id);
 
-      const followingIds = (flw ?? []).map(r => String(r.followee_id));
-      if (followingIds.length === 0) { setRows([]); return; }
+        if (!mounted) return;
+        if (fErr) {
+          setError(fErr.message);
+          setRows([]);
+          setLoading(false);
+          return;
+        }
 
-      // recent reviews
-      const { data, error } = await supabase
-        .from('reviews')
-        .select(`
-          user_id,
-          created_at,
-          rating,
-          review,
-          games:game_id ( id, name, cover_url ),
-          author:${AUTHOR_JOIN} ( id, username, display_name, avatar_url )
-        `)
-        .in('user_id', followingIds)
-        .order('created_at', { ascending: false })
-        .limit(50);
-      if (!mounted) return;
-      if (error) { setError(error.message); return; }
+        const followingIds = (flw ?? []).map(r => String(r.followee_id));
+        if (followingIds.length === 0) {
+          setRows([]);
+          setLoading(false);
+          return;
+        }
 
-      const safe: Row[] = (data ?? []).map((r: any) => ({
-        reviewer_id: String(r?.user_id ?? r?.author?.id ?? ''),
-        created_at: r?.created_at ?? new Date(0).toISOString(),
-        rating: typeof r?.rating === 'number' ? r.rating : 0,
-        review: r?.review ?? null,
-        games: r?.games
-          ? { id: Number(r.games.id), name: String(r.games.name ?? 'Unknown'), cover_url: r.games.cover_url ?? null }
-          : null,
-        author: r?.author
-          ? { id: String(r.author.id), username: r.author.username ?? null, display_name: r.author.display_name ?? null, avatar_url: r.author.avatar_url ?? null }
-          : null,
-      }));
+        const { data, error } = await supabase
+          .from('reviews')
+          .select(`
+            user_id,
+            created_at,
+            rating,
+            review,
+            games:game_id ( id, name, cover_url ),
+            author:${AUTHOR_JOIN} ( id, username, display_name, avatar_url )
+          `)
+          .in('user_id', followingIds)
+          .order('created_at', { ascending: false })
+          .limit(50);
 
-      setRows(safe);
+        if (!mounted) return;
+        if (error) {
+          setError(error.message);
+          setRows([]);
+          setLoading(false);
+          return;
+        }
 
-      // preload likes & comment counts for the visible set
-      const pairs = safe
-        .filter(r => r.reviewer_id && r.games?.id)
-        .map(r => ({ reviewUserId: r.reviewer_id, gameId: r.games!.id }));
+        const safe: Row[] = (data ?? []).map((r: any) => ({
+          reviewer_id: String(r?.user_id ?? r?.author?.id ?? ''),
+          created_at: r?.created_at ?? new Date(0).toISOString(),
+          rating: typeof r?.rating === 'number' ? r.rating : 0,
+          review: r?.review ?? null,
+          games: r?.games
+            ? { id: Number(r.games.id), name: String(r.games.name ?? 'Unknown'), cover_url: r.games.cover_url ?? null }
+            : null,
+          author: r?.author
+            ? {
+                id: String(r.author.id),
+                username: r.author.username ?? null,
+                display_name: r.author.display_name ?? null,
+                avatar_url: r.author.avatar_url ?? null,
+              }
+            : null,
+        }));
 
-      const [likesMap, commentsMap] = await Promise.all([
-        fetchLikesBulk(supabase, user.id, pairs),
-        fetchCommentCountsBulk(supabase, pairs),
-      ] as const);
+        setRows(safe);
 
-      if (!mounted) return;
-      setLikes(likesMap ?? {});
-      setCommentCounts(commentsMap ?? {});
+        const pairs = safe
+          .filter(r => r.reviewer_id && r.games?.id)
+          .map(r => ({ reviewUserId: r.reviewer_id, gameId: r.games!.id }));
+
+        const [likesMap, commentsMap] = await Promise.all([
+          fetchLikesBulk(supabase, user.id, pairs),
+          fetchCommentCountsBulk(supabase, pairs),
+        ] as const);
+
+        if (!mounted) return;
+        setLikes(likesMap ?? {});
+        setCommentCounts(commentsMap ?? {});
+        setLoading(false);
+        return;
+      }
+
+      // --- For You tab (RPC)
+      if (tab === 'foryou') {
+        const { data, error } = await supabase.rpc('get_for_you_feed', {
+          p_viewer_id: user.id,
+          p_limit: 50,
+        });
+
+        if (!mounted) return;
+        if (error) {
+          // Surface error but keep UI usable
+          setError(error.message);
+          setRows([]);
+          setLoading(false);
+          return;
+        }
+
+        // Map RPC rows -> existing Row shape
+        const safe: Row[] = (data ?? []).map((r: any) => ({
+          reviewer_id: String(r?.user_id ?? r?.author_id ?? ''),
+          created_at: r?.created_at ?? new Date(0).toISOString(),
+          rating: typeof r?.rating === 'number' ? r.rating : 0,
+          review: r?.review ?? null,
+          games: r?.game_id
+            ? {
+                id: Number(r.game_id),
+                name: String(r.game_name ?? 'Unknown'),
+                cover_url: r.game_cover_url ?? null,
+              }
+            : null,
+          author: {
+            id: String(r?.author_id ?? r?.user_id ?? ''),
+            username: r?.username ?? null,
+            display_name: r?.display_name ?? null,
+            avatar_url: r?.avatar_url ?? null,
+          },
+        }));
+
+        setRows(safe);
+
+        const pairs = safe
+          .filter(r => r.reviewer_id && r.games?.id)
+          .map(r => ({ reviewUserId: r.reviewer_id, gameId: r.games!.id }));
+
+        const [likesMap, commentsMap] = await Promise.all([
+          fetchLikesBulk(supabase, user.id, pairs),
+          fetchCommentCountsBulk(supabase, pairs),
+        ] as const);
+
+        if (!mounted) return;
+        setLikes(likesMap ?? {});
+        setCommentCounts(commentsMap ?? {});
+        setLoading(false);
+      }
     })();
 
-    return () => { mounted = false; };
-  }, [supabase]);
+    return () => {
+      mounted = false;
+    };
+  }, [supabase, tab, searchParams]);
 
   // 2) Like/Unlike (optimistic → RPC → snap → tiny truth-sync → broadcast)
   async function onToggleLike(reviewUserId: string, gameId: number) {
@@ -182,17 +287,24 @@ export default function FeedPage() {
       broadcastLike(reviewUserId, gameId, liked, liked ? 1 : -1);
 
       // small truth-sync in case of races
-      setTimeout(async () => {
-        const map = await fetchLikesBulk(supabase, me!.id, [{ reviewUserId, gameId }]);
-        setLikes(p => ({ ...p, ...map }));
-      }, 120);
+      if (me?.id) {
+        setTimeout(async () => {
+          const map = await fetchLikesBulk(supabase, me.id, [{ reviewUserId, gameId }]);
+          setLikes(p => ({ ...p, ...map }));
+        }, 120);
+      }
     } finally {
       setLikeBusy(p => ({ ...p, [k]: false }));
     }
   }
 
   if (!ready) return <main className="p-8">Loading…</main>;
-  if (error) return <main className="p-8 text-red-500">{error}</main>;
+  if (error && rows?.length) {
+    // Show error but keep feed visible if we still have rows
+    // (helps when RPC returns partial failures)
+    // eslint-disable-next-line no-console
+    console.warn('Feed error:', error);
+  }
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-6">
@@ -200,17 +312,42 @@ export default function FeedPage() {
         <section className="min-w-0">
           <h1 className="text-2xl font-bold mb-4">Your feed</h1>
 
+          <nav className="mb-4 flex gap-2 border-b border-white/10" aria-label="Feed tabs">
+            <button
+              onClick={() => setTab('following')}
+              aria-pressed={tab === 'following'}
+              className={`px-3 py-1.5 rounded-t ${
+                tab === 'following' ? 'bg-white/10 text-white' : 'text-white/70 hover:text-white'
+              }`}
+            >
+              Following
+            </button>
+            <button
+              onClick={() => setTab('foryou')}
+              aria-pressed={tab === 'foryou'}
+              className={`px-3 py-1.5 rounded-t ${
+                tab === 'foryou' ? 'bg-white/10 text-white' : 'text-white/70 hover:text-white'
+              }`}
+            >
+              For You
+            </button>
+          </nav>
+
           {!me ? (
             <p className="text-white/70">
-              <Link className="underline" href="/login">Sign in</Link> to see activity from people you follow.
+              <Link className="underline" href="/login">Sign in</Link> to see your personalized feed.
             </p>
-          ) : !rows ? (
+          ) : loading ? (
             <p>Loading…</p>
-          ) : rows.length === 0 ? (
-            <p className="text-white/70">No activity yet. Follow players from search or their profiles.</p>
+          ) : rows && rows.length === 0 ? (
+            <p className="text-white/70">
+              {tab === 'foryou'
+                ? 'No recommendations yet. Rate a few games and follow some players to train your feed.'
+                : 'No activity yet. Follow players from search or their profiles.'}
+            </p>
           ) : (
             <ul className="space-y-6">
-              {rows.map((r, i) => {
+              {rows!.map((r, i) => {
                 const a = r.author;
                 const g = r.games;
                 const stars = (r.rating / 20).toFixed(1);

@@ -16,7 +16,7 @@ import {
 } from '@/lib/likes';
 import LikePill from '@/components/LikePill';
 
-import CommentThread from '@/components/CommentThread';
+import CommentThread from '@/components/comments/CommentThread';
 import {
   commentKey,
   fetchCommentCountsBulk,

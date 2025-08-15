@@ -25,7 +25,6 @@ import {
 } from '@/lib/comments';
 import { timeAgo } from '@/lib/timeAgo';
 
-// If your FK alias differs, update this to match your DB
 const AUTHOR_JOIN = 'profiles!reviews_user_id_profiles_fkey';
 
 type Author = {
@@ -44,7 +43,7 @@ type Row = {
   author: Author | null;
 };
 
-// --- Inner client component with all logic ---
+// ------------- Inner client component -------------
 function FeedPageInner() {
   const supabase = supabaseBrowser();
   const router = useRouter();
@@ -65,12 +64,6 @@ function FeedPageInner() {
 
   const [rows, setRows] = useState<Row[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  // cache rows per tab to avoid flicker on tab switch
-  const [cache, setCache] = useState<{ following: Row[] | null; foryou: Row[] | null}>({
-    following: null,
-    foryou: null,
-  });
 
   // ❤️ likes for visible items
   const [likes, setLikes] = useState<Record<string, LikeEntry>>({});
@@ -104,139 +97,129 @@ function FeedPageInner() {
 
   // 1) session + load feed + preload likes & comment counts
   useEffect(() => {
-    let mounted = true;
+    let cancelled = false;
 
-    (async () => {
+    async function load() {
       setLoading(true);
       setError(null);
+      setRows(null);
+      setLikes({});
+      setCommentCounts({});
 
-      // show cached rows immediately to avoid a blank state on tab switch
-      setRows(cache[tab] ?? null);
+      try {
+        // session (with a gentle timeout so we never hang the UI)
+        const session = await Promise.race([
+          waitForSession(supabase),
+          new Promise<null>(res => setTimeout(() => res(null), 4000)),
+        ]);
+        if (cancelled) return;
 
-      const session = await waitForSession(supabase);
-      if (!mounted) return;
+        const user = (session as any)?.user ?? null;
+        setMe(user ? { id: user.id } : null);
+        setReady(true);
 
-      const user = session?.user ?? null;
-      setMe(user ? { id: user.id } : null);
-      setReady(true);
-
-      // Not signed in? Show empty state for both tabs
-      if (!user) {
-        setRows([]);
-        setLoading(false);
-        return;
-      }
-
-      // --- Following tab (existing behavior)
-      if (tab === 'following') {
-        const { data: flw, error: fErr } = await supabase
-          .from('follows')
-          .select('followee_id')
-          .eq('follower_id', user.id);
-
-        if (!mounted) return;
-        if (fErr) {
-          setError(fErr.message);
+        if (!user) {
           setRows([]);
-          setLoading(false);
           return;
         }
 
-        const followingIds = (flw ?? []).map(r => String(r.followee_id));
-        if (followingIds.length === 0) {
-          setRows([]);
-          setCache(prev => ({ ...prev, following: [] }));
-          setLoading(false);
+        if (tab === 'following') {
+          // who am I following?
+          const { data: flw, error: fErr } = await supabase
+            .from('follows')
+            .select('followee_id')
+            .eq('follower_id', user.id);
+
+          if (cancelled) return;
+          if (fErr) {
+            setError(fErr.message);
+            setRows([]);
+            return;
+          }
+
+          const followingIds = (flw ?? []).map(r => String(r.followee_id));
+          if (followingIds.length === 0) {
+            setRows([]);
+            return;
+          }
+
+          // recent reviews from people I follow
+          const { data, error } = await supabase
+            .from('reviews')
+            .select(`
+              user_id,
+              created_at,
+              rating,
+              review,
+              games:game_id ( id, name, cover_url ),
+              author:${AUTHOR_JOIN} ( id, username, display_name, avatar_url )
+            `)
+            .in('user_id', followingIds)
+            .order('created_at', { ascending: false })
+            .limit(50);
+
+          if (cancelled) return;
+          if (error) {
+            setError(error.message);
+            setRows([]);
+            return;
+          }
+
+          const safe: Row[] = (data ?? []).map((r: any) => ({
+            reviewer_id: String(r?.user_id ?? r?.author?.id ?? ''),
+            created_at: r?.created_at ?? new Date(0).toISOString(),
+            rating: typeof r?.rating === 'number' ? r.rating : 0,
+            review: r?.review ?? null,
+            games: r?.games
+              ? { id: Number(r.games.id), name: String(r.games.name ?? 'Unknown'), cover_url: r.games.cover_url ?? null }
+              : null,
+            author: r?.author
+              ? {
+                  id: String(r.author.id),
+                  username: r.author.username ?? null,
+                  display_name: r.author.display_name ?? null,
+                  avatar_url: r.author.avatar_url ?? null,
+                }
+              : null,
+          }));
+
+          setRows(safe);
+
+          const pairs = safe
+            .filter(r => r.reviewer_id && r.games?.id)
+            .map(r => ({ reviewUserId: r.reviewer_id, gameId: r.games!.id }));
+
+          const [likesMap, commentsMap] = await Promise.all([
+            fetchLikesBulk(supabase, user.id, pairs),
+            fetchCommentCountsBulk(supabase, pairs),
+          ] as const);
+
+          if (cancelled) return;
+          setLikes(likesMap ?? {});
+          setCommentCounts(commentsMap ?? {});
           return;
         }
 
-        const { data, error } = await supabase
-          .from('reviews')
-          .select(`
-            user_id,
-            created_at,
-            rating,
-            review,
-            games:game_id ( id, name, cover_url ),
-            author:${AUTHOR_JOIN} ( id, username, display_name, avatar_url )
-          `)
-          .in('user_id', followingIds)
-          .order('created_at', { ascending: false })
-          .limit(50);
-
-        if (!mounted) return;
-        if (error) {
-          setError(error.message);
-          setRows([]);
-          setLoading(false);
-          return;
-        }
-
-        const safe: Row[] = (data ?? []).map((r: any) => ({
-          reviewer_id: String(r?.user_id ?? r?.author?.id ?? ''),
-          created_at: r?.created_at ?? new Date(0).toISOString(),
-          rating: typeof r?.rating === 'number' ? r.rating : 0,
-          review: r?.review ?? null,
-          games: r?.games
-            ? { id: Number(r.games.id), name: String(r.games.name ?? 'Unknown'), cover_url: r.games.cover_url ?? null }
-            : null,
-          author: r?.author
-            ? {
-                id: String(r.author.id),
-                username: r.author.username ?? null,
-                display_name: r.author.display_name ?? null,
-                avatar_url: r.author.avatar_url ?? null,
-              }
-            : null,
-        }));
-
-        setRows(safe);
-        setCache(prev => ({ ...prev, following: safe }));
-
-        const pairs = safe
-          .filter(r => r.reviewer_id && r.games?.id)
-          .map(r => ({ reviewUserId: r.reviewer_id, gameId: r.games!.id }));
-
-        const [likesMap, commentsMap] = await Promise.all([
-          fetchLikesBulk(supabase, user.id, pairs),
-          fetchCommentCountsBulk(supabase, pairs),
-        ] as const);
-
-        if (!mounted) return;
-        setLikes(likesMap ?? {});
-        setCommentCounts(commentsMap ?? {});
-        setLoading(false);
-        return;
-      }
-
-      // --- For You tab (RPC)
-      if (tab === 'foryou') {
+        // --- For You ---
         const { data, error } = await supabase.rpc('get_for_you_feed', {
           p_viewer_id: user.id,
           p_limit: 50,
         });
 
-        if (!mounted) return;
+        if (cancelled) return;
         if (error) {
-          // Surface error but keep UI usable
           setError(error.message);
           setRows([]);
-          setLoading(false);
           return;
         }
 
-        // Map RPC rows -> existing Row shape
         const safe: Row[] = (data ?? []).map((r: any) => ({
           reviewer_id: String(r?.user_id ?? r?.author_id ?? ''),
           created_at: r?.created_at ?? new Date(0).toISOString(),
           rating: typeof r?.rating === 'number' ? r.rating : 0,
           review: r?.review ?? null,
           games: r?.game_id
-            ? {
-                id: Number(r.game_id),
-                name: String(r.game_name ?? 'Unknown'),
-                cover_url: r.game_cover_url ?? null,
-              }
+            ? { id: Number(r.game_id), name: String(r.game_name ?? 'Unknown'), cover_url: r.game_cover_url ?? null }
             : null,
           author: {
             id: String(r?.author_id ?? r?.user_id ?? ''),
@@ -247,7 +230,6 @@ function FeedPageInner() {
         }));
 
         setRows(safe);
-        setCache(prev => ({ ...prev, foryou: safe }));
 
         const pairs = safe
           .filter(r => r.reviewer_id && r.games?.id)
@@ -258,45 +240,50 @@ function FeedPageInner() {
           fetchCommentCountsBulk(supabase, pairs),
         ] as const);
 
-        if (!mounted) return;
+        if (cancelled) return;
         setLikes(likesMap ?? {});
         setCommentCounts(commentsMap ?? {});
-        setLoading(false);
+      } catch (e: any) {
+        if (!cancelled) {
+          console.error('Feed load failed:', e);
+          setError(e?.message ?? String(e));
+          setRows([]);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-    })();
+    }
 
+    load();
     return () => {
-      mounted = false;
+      cancelled = false;
     };
-    // NOTE: depend on `tab` only (not the `searchParams` object) to avoid unnecessary re-runs
-  }, [supabase, tab, cache]);
+  }, [supabase, tab]);
 
-  // 2) Like/Unlike (optimistic → RPC → snap → tiny truth-sync → broadcast)
+  // 2) Like/Unlike
   async function onToggleLike(reviewUserId: string, gameId: number) {
-    if (!me) return; // page already suggests sign in
+    if (!me) return;
     const k = likeKey(reviewUserId, gameId);
     if (likeBusy[k]) return;
 
     const before = likes[k] ?? { liked: false, count: 0 };
 
-    // optimistic
     setLikes(p => ({ ...p, [k]: { liked: !before.liked, count: before.count + (before.liked ? -1 : 1) } }));
     setLikeBusy(p => ({ ...p, [k]: true }));
 
     try {
       const { liked, count, error } = await toggleLike(supabase, reviewUserId, gameId);
       if (error) {
-        setLikes(p => ({ ...p, [k]: before })); // revert
+        setLikes(p => ({ ...p, [k]: before }));
         return;
       }
       setLikes(p => {
         const cur = p[k] ?? { liked: false, count: 0 };
-        if (cur.liked === liked && cur.count === count) return p; // no-op -> no flicker
+        if (cur.liked === liked && cur.count === count) return p;
         return { ...p, [k]: { liked, count } };
       });
       broadcastLike(reviewUserId, gameId, liked, liked ? 1 : -1);
 
-      // small truth-sync in case of races
       if (me?.id) {
         setTimeout(async () => {
           const map = await fetchLikesBulk(supabase, me.id, [{ reviewUserId, gameId }]);
@@ -310,7 +297,6 @@ function FeedPageInner() {
 
   if (!ready) return <main className="p-8">Loading…</main>;
   if (error && rows?.length) {
-    // keep feed visible if we still have rows
     console.warn('Feed error:', error);
   }
 
@@ -324,31 +310,27 @@ function FeedPageInner() {
             <button
               onClick={() => setTab('following')}
               aria-pressed={tab === 'following'}
-              className={`px-3 py-1.5 rounded-t ${
-                tab === 'following' ? 'bg-white/10 text-white' : 'text-white/70 hover:text-white'
-              }`}
+              className={`px-3 py-1.5 rounded-t ${tab === 'following' ? 'bg-white/10 text-white' : 'text-white/70 hover:text-white'}`}
             >
               Following
             </button>
             <button
               onClick={() => setTab('foryou')}
               aria-pressed={tab === 'foryou'}
-              className={`px-3 py-1.5 rounded-t ${
-                tab === 'foryou' ? 'bg-white/10 text-white' : 'text-white/70 hover:text-white'
-              }`}
+              className={`px-3 py-1.5 rounded-t ${tab === 'foryou' ? 'bg-white/10 text-white' : 'text-white/70 hover:text-white'}`}
             >
               For You
             </button>
           </nav>
 
           {(!me || loading) ? (
-            <p className="text-white/70">{!me ? (
-              <> <Link className="underline" href="/login">Sign in</Link> to see your personalized feed.</>
-            ) : 'Loading…'}</p>
+            <p className="text-white/70">
+              {!me ? (<><Link className="underline" href="/login">Sign in</Link> to see your personalized feed.</>) : 'Loading…'}
+            </p>
           ) : rows && rows.length === 0 ? (
             <p className="text-white/70">
               {tab === 'foryou'
-                ? 'Nothing here yet — follow a few players and rate some games to tune recommendations.'
+                ? 'No recommendations yet. Rate a few games and follow some players to train your feed.'
                 : 'No activity yet. Follow players from search or their profiles.'}
             </p>
           ) : (
@@ -372,7 +354,7 @@ function FeedPageInner() {
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={a?.avatar_url || '/avatar-placeholder.svg'}
-                      alt={a?.username ? `${a.username} avatar` : 'Player avatar'}
+                      alt="avatar"
                       className="h-10 w-10 rounded-full object-cover border border-white/15"
                     />
 
@@ -393,11 +375,7 @@ function FeedPageInner() {
                         )}
                         <span className="text-white/60">· {stars} / 5</span>
                         <span className="text-white/30">·</span>
-                        <span className="text-white/40">
-                          <time title={new Date(r.created_at).toLocaleString()}>
-                            {timeAgo(r.created_at)}
-                          </time>
-                        </span>
+                        <span className="text-white/40">{timeAgo(r.created_at)}</span>
 
                         {canLike && (
                           <LikePill
@@ -412,11 +390,10 @@ function FeedPageInner() {
                         {canComment && (
                           <button
                             onClick={() => setOpenThread({ reviewUserId: r.reviewer_id, gameId: g!.id })}
-                            className="ml-2 text-xs px-2 py-1 rounded border border-white/10 bg-white/5 hover:bg-white/10 inline-flex items-center gap-1"
+                            className="ml-2 text-xs px-2 py-1 rounded border border-white/10 bg-white/5 hover:bg-white/10"
                             title="View comments"
                           >
-                            <span aria-hidden>💬</span>
-                            {cCount > 0 && <span>{cCount}</span>}
+                            💬 {cCount}
                           </button>
                         )}
                       </div>
@@ -427,15 +404,13 @@ function FeedPageInner() {
                     </div>
 
                     {/* cover */}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     {g?.cover_url && (
-                      <Link href={`/game/${g.id}`} className="shrink-0">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={g.cover_url}
-                          alt={g.name}
-                          className="h-16 w-12 rounded object-cover border border-white/10"
-                        />
-                      </Link>
+                      <img
+                        src={g.cover_url}
+                        alt={g.name}
+                        className="h-16 w-12 rounded object-cover border border-white/10"
+                      />
                     )}
                   </li>
                 );
@@ -476,7 +451,7 @@ function FeedPageInner() {
   );
 }
 
-// --- Default export wrapped in Suspense (fixes useSearchParams build error) ---
+// ------------- Default export wrapped in Suspense -------------
 export default function FeedPage() {
   return (
     <Suspense fallback={<main className="p-8">Loading…</main>}>

@@ -15,6 +15,7 @@ import {
   addLikeListener,
   type LikeEntry,
 } from '@/lib/likes';
+import LikePill from '@/components/LikePill';
 
 import CommentThread from '@/components/CommentThread';
 import {
@@ -63,10 +64,10 @@ export default function PublicProfilePage() {
   const [togglingFollow, setTogglingFollow] = useState(false);
   const isOwnProfile = viewerId && profile?.id ? viewerId === profile.id : false;
 
-  // ❤️ likes (per-game on this profile)
-  const [likes, setLikes] = useState<Record<string, LikeEntry>>({});
-  const [likesReady, setLikesReady] = useState(false);
-  const [togglingLike, setTogglingLike] = useState<Record<string, boolean>>({});
+// ❤️ likes (owner.id, gameId)
+const [likes, setLikes] = useState<Record<string, LikeEntry>>({});
+const [likesReady, setLikesReady] = useState(false);
+const [likeBusy, setLikeBusy] = useState<Record<string, boolean>>({});
 
   // 💬 comments
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
@@ -218,31 +219,43 @@ export default function PublicProfilePage() {
   async function onToggleLike(gameId: number) {
     if (!profile || !gameId) return;
     if (!viewerId) return router.push('/login');
-
-    const k = likeKey(profile.id, gameId);
-    if (togglingLike[k]) return;
-
-    const cur = likes[k] ?? { liked: false, count: 0 };
-
-    // optimistic + throttle
-    setTogglingLike(p => ({ ...p, [k]: true }));
-    setLikes(p => ({ ...p, [k]: { liked: !cur.liked, count: cur.count + (cur.liked ? -1 : 1) } }));
-
+  
+    const reviewUserId = profile.id; // likes are keyed by (profile.id, gameId)
+    const k = likeKey(reviewUserId, gameId);
+    if (likeBusy[k]) return;
+  
+    const before = likes[k] ?? { liked: false, count: 0 };
+  
+    // optimistic
+    setLikes(p => ({
+      ...p,
+      [k]: { liked: !before.liked, count: before.count + (before.liked ? -1 : 1) },
+    }));
+    setLikeBusy(p => ({ ...p, [k]: true }));
+  
     try {
-      const { liked, count, error } = await toggleLike(supabase, profile.id, gameId);
+      const { liked, count, error } = await toggleLike(supabase, reviewUserId, gameId);
       if (error) {
-        setLikes(p => ({ ...p, [k]: cur })); // revert on error
+        // revert on failure
+        setLikes(p => ({ ...p, [k]: before }));
         return;
       }
-      // snap to RPC result (no flicker)
+      // snap only if different -> avoids flicker
       setLikes(p => {
-        const cur2 = p[k] ?? { liked: false, count: 0 };
-        if (cur2.liked === liked && cur2.count === count) return p;
+        const cur = p[k] ?? { liked: false, count: 0 };
+        if (cur.liked === liked && cur.count === count) return p;
         return { ...p, [k]: { liked, count } };
       });
-      broadcastLike(profile.id, gameId, liked, liked ? 1 : -1);
+  
+      broadcastLike(reviewUserId, gameId, liked, liked ? 1 : -1);
+  
+      // tiny truth-sync in case of races
+      setTimeout(async () => {
+        const map = await fetchLikesBulk(supabase, viewerId, [{ reviewUserId, gameId }]);
+        setLikes(p => ({ ...p, ...map }));
+      }, 120);
     } finally {
-      setTogglingLike(p => ({ ...p, [k]: false }));
+      setLikeBusy(p => ({ ...p, [k]: false }));
     }
   }
 
@@ -334,17 +347,19 @@ export default function PublicProfilePage() {
 
                     {gameId && (
                       <>
-                        <button
-                          onClick={() => onToggleLike(gameId)}
-                          disabled={togglingLike[likeK]}
-                          aria-pressed={entry.liked}
-                          className={`ml-2 text-xs px-2 py-1 rounded border border-white/10 ${
-                            entry.liked ? 'bg-white/15' : 'bg-white/5'
-                          } ${togglingLike[likeK] ? 'opacity-50' : ''}`}
-                          title={entry.liked ? 'Unlike' : 'Like'}
-                        >
-                          ❤️ {entry.count}
-                        </button>
+                        {gameId && (
+  likesReady ? (
+    <LikePill
+      liked={entry.liked}
+      count={entry.count}
+      busy={likeBusy[likeKey(profile.id, gameId)]}
+      onClick={() => onToggleLike(gameId)}
+      className="ml-2"
+    />
+  ) : (
+    <span className="ml-2 text-xs text-white/40">❤️ …</span>
+  )
+)}
 
                         <button
                           onClick={() => setOpenThread({ reviewUserId: profile.id, gameId })}
@@ -371,20 +386,24 @@ export default function PublicProfilePage() {
 
       {/* Comment modal */}
       {openThread && (
-        <CommentThread
-          supabase={supabase}
-          viewerId={viewerId}
-          reviewUserId={openThread.reviewUserId}
-          gameId={openThread.gameId}
-          onClose={async () => {
-            const map = await fetchCommentCountsBulk(supabase, [
-              { reviewUserId: openThread.reviewUserId, gameId: openThread.gameId },
-            ]);
-            setCommentCounts(p => ({ ...p, ...map }));
-            setOpenThread(null);
-          }}
-        />
-      )}
+  <CommentThread
+    supabase={supabase}
+    viewerId={viewerId}
+    reviewUserId={openThread.reviewUserId}
+    gameId={openThread.gameId}
+    onCountChange={(next) => {
+      const k = commentKey(openThread.reviewUserId, openThread.gameId);
+      setCommentCounts(p => ({ ...p, [k]: next }));
+    }}
+    onClose={async () => {
+      const map = await fetchCommentCountsBulk(supabase, [
+        { reviewUserId: openThread.reviewUserId, gameId: openThread.gameId },
+      ]);
+      setCommentCounts(p => ({ ...p, ...map }));
+      setOpenThread(null);
+    }}
+  />
+)}
     </main>
   );
 }

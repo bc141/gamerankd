@@ -193,6 +193,7 @@ export default function ReviewContextModal({
               gameId={gameId}
               onCountChange={() => {}}
               onClose={onClose}
+              embed
             />
           </div>
         )}

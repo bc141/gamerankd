@@ -19,6 +19,8 @@ type Props = {
   gameId: number;
   onClose: () => void | Promise<void>;
   onCountChange?: (nextCount: number) => void;
+  /** Render inline (embedded) instead of as a modal overlay */
+  embed?: boolean;
 };
 
 export default function CommentThread({
@@ -28,6 +30,7 @@ export default function CommentThread({
   gameId,
   onClose,
   onCountChange,
+  embed = false,
 }: Props) {
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<CommentRow[]>([]);
@@ -57,19 +60,26 @@ export default function CommentThread({
       setLoading(false);
     })();
 
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') safeClose();
-    };
-    try {
-      window.addEventListener('keydown', onKey);
-    } catch {}
+    // Only add ESC-to-close when we're in modal mode
+    if (!embed) {
+      const onKey = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') safeClose();
+      };
+      try {
+        window.addEventListener('keydown', onKey);
+      } catch {}
+      return () => {
+        mounted = false;
+        try {
+          window.removeEventListener('keydown', onKey);
+        } catch {}
+      };
+    }
+
     return () => {
       mounted = false;
-      try {
-        window.removeEventListener('keydown', onKey);
-      } catch {}
     };
-  }, [supabase, reviewUserId, gameId]);
+  }, [supabase, reviewUserId, gameId, embed]);
 
   // auto focus when opened (if signed in)
   useEffect(() => {
@@ -192,6 +202,92 @@ export default function CommentThread({
   const headerTitle = useMemo(() => 'Comments', []);
   const canPost = Boolean(viewerId);
 
+  // ---------- INLINE (embed) ----------
+  if (embed) {
+    return (
+      <div className="flex flex-col max-h-[65vh]">
+        {/* Header (no close; parent modal has one) */}
+        <div className="flex items-center justify-between p-3 border-b border-white/10">
+          <h2 className="text-lg font-semibold text-white">{headerTitle}</h2>
+        </div>
+
+        {/* List */}
+        <div ref={boxRef} className="flex-1 overflow-y-auto p-3 space-y-3" aria-live="polite">
+          {loading ? (
+            <div className="text-white/60 text-sm">Loading…</div>
+          ) : rows.length === 0 ? (
+            <div className="text-white/60 text-sm">No comments yet.</div>
+          ) : (
+            rows.map((c) => {
+              const name = c.commenter?.display_name || c.commenter?.username || 'Player';
+              const avatar = c.commenter?.avatar_url || '/avatar-placeholder.svg';
+              const canDelete = viewerId && c.commenter?.id === viewerId;
+
+              return (
+                <div key={c.id} className="flex items-start gap-3">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={avatar}
+                    alt=""
+                    className="h-8 w-8 rounded-full object-cover border border-white/10"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-white font-medium text-sm">{name}</span>
+                      <span className="text-white/40 text-xs">{timeAgo(c.created_at)}</span>
+                      {canDelete && (
+                        <button
+                          onClick={() => remove(c.id)}
+                          className="ml-auto text-xs px-2 py-0.5 rounded bg-white/10 hover:bg-white/15 text-white/80"
+                          title="Delete"
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-white/90 whitespace-pre-wrap break-words text-sm">
+                      {c.body}
+                    </p>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Composer */}
+        <div className="p-3 border-t border-white/10">
+          <div className="flex items-end gap-2">
+            <textarea
+              ref={inputRef}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => {
+                if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && !posting && text.trim()) {
+                  e.preventDefault();
+                  submit();
+                }
+              }}
+              rows={2}
+              placeholder={canPost ? 'Write a comment…' : 'Sign in to comment'}
+              disabled={!canPost || posting}
+              className="flex-1 resize-none rounded-lg border border-white/15 bg-neutral-900 text-white px-3 py-2 disabled:opacity-60"
+              maxLength={800}
+            />
+            <button
+              onClick={submit}
+              disabled={!canPost || posting || text.trim() === ''}
+              className="shrink-0 px-3 py-2 rounded-lg bg-indigo-600 text-white disabled:opacity-50"
+            >
+              {posting ? 'Posting…' : 'Post'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ---------- MODAL (default) ----------
   return (
     <div
       className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4"

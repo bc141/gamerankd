@@ -43,16 +43,17 @@ export default function CommentThread({
   // initial fetch
   useEffect(() => {
     let mounted = true;
+
     (async () => {
       setLoading(true);
-      const { rows: list, error } = await listComments(
+      const { rows: initial, error } = await listComments(
         supabase,
         reviewUserId,
         gameId,
         200
       );
       if (!mounted) return;
-      if (!error) setRows(list);
+      if (!error) setRows(initial);
       setLoading(false);
     })();
 
@@ -102,12 +103,10 @@ export default function CommentThread({
     // optimistic (temp id so we can distinguish)
     const tempId = `temp_${Date.now()}`;
     const temp: CommentRow = {
-      id: tempId as any, // CommentRow.id is string; temp is fine
+      id: tempId, // temp marker
       body,
       created_at: new Date().toISOString(),
-      commenter: viewerId
-        ? { id: viewerId, username: null, display_name: 'You', avatar_url: null }
-        : null,
+      commenter: { id: viewerId, username: null, display_name: 'You', avatar_url: null },
     };
     setRows((p) => [...p, temp]);
     setText('');
@@ -133,9 +132,9 @@ export default function CommentThread({
       // update badges immediately
       broadcastCommentDelta(reviewUserId, gameId, +1);
 
-      // 🔔 Fire-and-forget notification (UUID id)
+      // 🔔 Fire-and-forget notification (row.id is UUID string)
       try {
-        const commentIdStr = String(row.id); // row.id is uuid
+        const commentIdStr = String(row.id);
         const preview = body.slice(0, 140);
         notifyComment(supabase, reviewUserId, gameId, commentIdStr, preview).catch(() => {});
       } catch {
@@ -216,19 +215,15 @@ export default function CommentThread({
         </div>
 
         {/* List */}
-        <div ref={boxRef} className="max-h-[60vh] overflow-y-auto p-3 space-y-3">
+        <div ref={boxRef} className="max-h-[60vh] overflow-y-auto p-3 space-y-3" aria-live="polite">
           {loading ? (
             <div className="text-white/60 text-sm">Loading…</div>
           ) : rows.length === 0 ? (
             <div className="text-white/60 text-sm">No comments yet.</div>
           ) : (
             rows.map((c) => {
-              const name =
-                c.commenter?.display_name ||
-                c.commenter?.username ||
-                'Player';
-              const avatar =
-                c.commenter?.avatar_url || '/avatar-placeholder.svg';
+              const name = c.commenter?.display_name || c.commenter?.username || 'Player';
+              const avatar = c.commenter?.avatar_url || '/avatar-placeholder.svg';
               const canDelete = viewerId && c.commenter?.id === viewerId;
 
               return (
@@ -241,12 +236,8 @@ export default function CommentThread({
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="text-white font-medium text-sm">
-                        {name}
-                      </span>
-                      <span className="text-white/40 text-xs">
-                        {timeAgo(c.created_at)}
-                      </span>
+                      <span className="text-white font-medium text-sm">{name}</span>
+                      <span className="text-white/40 text-xs">{timeAgo(c.created_at)}</span>
                       {canDelete && (
                         <button
                           onClick={() => remove(c.id)}

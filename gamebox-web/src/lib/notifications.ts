@@ -6,10 +6,22 @@ type NotifType = 'like' | 'comment' | 'follow';
 const isUniqueViolation = (e: any) => e?.code === '23505'; // duplicate
 const isNil = (v: unknown) => v === null || v === undefined;
 
-function toNumOrNull(v: unknown): number | null {
+// --- coercers ---------------------------------------------------------------
+function toIntOrNull(v: unknown): number | null {
   if (isNil(v)) return null;
   const n = Number(v);
-  return Number.isFinite(n) ? n : null;
+  if (!Number.isFinite(n)) return null;
+  const i = Math.trunc(n);
+  return Number.isFinite(i) ? i : null;
+}
+
+const UUID_RE =
+  /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+
+function toUuidOrNull(v: unknown): string | null {
+  if (isNil(v)) return null;
+  const s = String(v).trim();
+  return UUID_RE.test(s) ? s : null;
 }
 
 async function getMeId(supabase: SupabaseClient): Promise<string | null> {
@@ -26,10 +38,10 @@ async function insertNotif(
   supabase: SupabaseClient,
   payload: {
     type: NotifType;
-    user_id: string;          // recipient
-    actor_id: string;         // sender
-    game_id?: number | null;
-    comment_id?: string | null;
+    user_id: string;            // recipient
+    actor_id: string;           // sender
+    game_id?: number | null;    // int
+    comment_id?: string | null; // uuid
     meta?: Record<string, any> | null;
   }
 ) {
@@ -37,8 +49,8 @@ async function insertNotif(
     type: payload.type,
     user_id: payload.user_id,
     actor_id: payload.actor_id,
-    game_id: toNumOrNull(payload.game_id),
-    comment_id: toNumOrNull(payload.comment_id),
+    game_id: toIntOrNull(payload.game_id),
+    comment_id: toUuidOrNull(payload.comment_id),
     meta: payload.meta ?? null,
   };
 
@@ -60,8 +72,8 @@ async function deleteNotif(
     comment_id?: string | null;
   }
 ) {
-  const gameId = toNumOrNull(where.game_id);
-  const commentId = toNumOrNull(where.comment_id);
+  const gameId = toIntOrNull(where.game_id);
+  const commentId = toUuidOrNull(where.comment_id);
 
   let q = supabase
     .from('notifications')
@@ -95,7 +107,7 @@ export async function notifyLike(
     type: 'like',
     user_id: reviewUserId,
     actor_id: me,
-    game_id: gameId,
+    game_id: gameId,        // <-- map camelCase -> snake_case
     comment_id: null,
   });
 }
@@ -111,7 +123,7 @@ export async function clearLike(
     type: 'like',
     user_id: reviewUserId,
     actor_id: me,
-    game_id: gameId,
+    game_id: gameId,        // <-- map camelCase -> snake_case
     comment_id: null,
   });
 }
@@ -124,7 +136,7 @@ export async function notifyComment(
   supabase: SupabaseClient,
   reviewUserId: string,
   gameId: number,
-  commentId: string,
+  commentId: string,          // uuid string
   preview?: string
 ) {
   const me = await getMeId(supabase);
@@ -134,7 +146,7 @@ export async function notifyComment(
     type: 'comment',
     user_id: reviewUserId,
     actor_id: me,
-    game_id: gameId,
+    game_id: gameId,         // <-- map camelCase -> snake_case
     comment_id: commentId,
     meta: trimmed ? { preview: trimmed } : null,
   });
@@ -144,7 +156,7 @@ export async function clearComment(
   supabase: SupabaseClient,
   reviewUserId: string,
   gameId: number,
-  commentId: string
+  commentId: string          // uuid string
 ) {
   const me = await getMeId(supabase);
   if (!me) return;
@@ -152,7 +164,7 @@ export async function clearComment(
     type: 'comment',
     user_id: reviewUserId,
     actor_id: me,
-    game_id: gameId,
+    game_id: gameId,         // <-- map camelCase -> snake_case
     comment_id: commentId,
   });
 }

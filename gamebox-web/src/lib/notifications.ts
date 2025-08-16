@@ -15,6 +15,13 @@ function toIntOrNull(v: unknown): number | null {
   return Number.isFinite(i) ? i : null;
 }
 
+export async function markReadById(supabase: SupabaseClient, id: number) {
+  await supabase.from('notifications')
+    .update({ read_at: new Date().toISOString() })
+    .eq('id', id)
+    .is('read_at', null);
+}
+
 const UUID_RE =
   /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 

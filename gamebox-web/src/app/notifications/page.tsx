@@ -1,3 +1,4 @@
+// src/app/notifications/page.tsx
 'use client';
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
@@ -37,16 +38,16 @@ export default function NotificationsPage() {
   const [actors, setActors] = useState<Record<string, Profile>>({});
   const [games, setGames] = useState<Record<number, Game>>({});
   const [error, setError] = useState<string | null>(null);
-  const [me, setMe] = useState<string | null>(null); // ✨ keep user id for refresh
+  const [me, setMe] = useState<string | null>(null);
 
-  // ✨ tiny helper to ping other tabs (bell listens for this)
+  // cross-tab ping so the bell stays in sync
   const broadcastNotifSync = () => {
     try {
-      window.localStorage.setItem('gb-notif-sync', String(Date.now()));
+      localStorage.setItem('gb-notif-sync', String(Date.now()));
     } catch {}
   };
 
-  // ✨ refetch function so we can also refresh on focus
+  // fetch everything for this page
   const fetchAll = async () => {
     setLoading(true);
     setError(null);
@@ -64,7 +65,6 @@ export default function NotificationsPage() {
       return;
     }
 
-    // Fetch notifications (narrow select)
     const { data, error } = await supabase
       .from('notifications')
       .select('id,type,user_id,actor_id,game_id,comment_id,meta,read_at,created_at')
@@ -82,18 +82,24 @@ export default function NotificationsPage() {
     const list = (data ?? []) as Notif[];
     setRows(list);
 
-    // Hydrate profiles & games in parallel
-    const actorIds = Array.from(new Set(list.map(n => n.actor_id)));
+    // hydrate related rows (profiles + games)
+    const actorIds = Array.from(new Set(list.map((n) => n.actor_id)));
     const gameIds = Array.from(
-      new Set(list.map(n => n.game_id).filter((x): x is number => typeof x === 'number'))
+      new Set(list.map((n) => n.game_id).filter((x): x is number => typeof x === 'number'))
     );
 
     const [profsRes, gamesRes] = await Promise.all([
       actorIds.length
-        ? supabase.from('profiles').select('id,username,display_name,avatar_url').in('id', actorIds)
+        ? supabase
+            .from('profiles')
+            .select('id,username,display_name,avatar_url')
+            .in('id', actorIds)
         : Promise.resolve({ data: [] as any[] }),
       gameIds.length
-        ? supabase.from('games').select('id,name,cover_url').in('id', gameIds)
+        ? supabase
+            .from('games')
+            .select('id,name,cover_url')
+            .in('id', gameIds)
         : Promise.resolve({ data: [] as any[] }),
     ]);
 
@@ -112,16 +118,19 @@ export default function NotificationsPage() {
     setLoading(false);
   };
 
+  // initial load
   useEffect(() => {
     let cancelled = false;
     (async () => {
       if (!cancelled) await fetchAll();
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase]);
 
-  // ✨ refresh on window focus (covers long-lived tabs)
+  // refresh on window focus (long-lived tabs)
   useEffect(() => {
     const onFocus = () => fetchAll();
     window.addEventListener('focus', onFocus);
@@ -129,11 +138,11 @@ export default function NotificationsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [me]);
 
-  // Optimistically mark a single row as read and persist (with revert on failure) + ✨ broadcast
+  // mark one row read (optimistic) and notify other tabs
   async function handleRowClick(n: Notif) {
     if (n.read_at) return;
     const now = new Date().toISOString();
-    setRows(prev => prev.map(x => (x.id === n.id ? { ...x, read_at: now } : x)));
+    setRows((prev) => prev.map((x) => (x.id === n.id ? { ...x, read_at: now } : x)));
     const { error } = await supabase
       .from('notifications')
       .update({ read_at: now })
@@ -141,34 +150,30 @@ export default function NotificationsPage() {
       .is('read_at', null);
 
     if (error) {
-      // revert optimistic
-      setRows(prev => prev.map(x => (x.id === n.id ? { ...x, read_at: null } : x)));
-      // optional toast: alert(error.message);
+      setRows((prev) => prev.map((x) => (x.id === n.id ? { ...x, read_at: null } : x)));
       return;
     }
-    broadcastNotifSync(); // ✨ keep bell in sync
+    broadcastNotifSync();
   }
 
-  // Optimistically mark all as read and persist (with revert on failure) + ✨ broadcast
+  // mark all read (optimistic) and notify other tabs
   async function handleMarkAll() {
-    const unreadIds = rows.filter(r => !r.read_at).map(r => r.id);
-    if (unreadIds.length === 0) return;
-
+    if (!rows.some((r) => !r.read_at)) return;
     const now = new Date().toISOString();
     const before = rows;
-    setRows(prev => prev.map(x => (x.read_at ? x : { ...x, read_at: now })));
+    setRows((prev) => prev.map((x) => (x.read_at ? x : { ...x, read_at: now })));
 
     const { error } = await supabase
       .from('notifications')
       .update({ read_at: now })
+      .eq('user_id', me)
       .is('read_at', null);
 
     if (error) {
-      setRows(before); // revert optimistic
-      // optional toast: alert(error.message);
+      setRows(before);
       return;
     }
-    broadcastNotifSync(); // ✨ keep bell in sync
+    broadcastNotifSync();
   }
 
   const title = useMemo(() => 'Notifications', []);
@@ -179,7 +184,7 @@ export default function NotificationsPage() {
     <main className="mx-auto max-w-3xl px-4 py-6">
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">{title}</h1>
-        {rows.length > 0 && rows.some(r => !r.read_at) && (
+        {rows.length > 0 && rows.some((r) => !r.read_at) && (
           <button
             onClick={handleMarkAll}
             className="text-sm rounded px-3 py-1.5 bg-white/10 hover:bg-white/15"
@@ -197,7 +202,7 @@ export default function NotificationsPage() {
         <p className="text-white/70">You’re all caught up.</p>
       ) : (
         <ul className="divide-y divide-white/10">
-          {rows.map(n => {
+          {rows.map((n) => {
             const actor = actors[n.actor_id];
             const actorName = actor?.display_name || actor?.username || 'Someone';
             const actorHref = actor?.username ? `/u/${actor.username}` : null;
@@ -207,24 +212,22 @@ export default function NotificationsPage() {
             const gameHref = game ? `/game/${game.id}` : null;
 
             const ActorName = actorHref ? (
-              <Link href={actorHref} className="font-medium hover:underline" prefetch={false}>
+              <Link href={actorHref} prefetch={false} className="font-medium hover:underline">
                 {actorName}
               </Link>
             ) : (
               <span className="font-medium">{actorName}</span>
             );
 
-            const GameName =
-              gameHref && game ? (
-                <Link href={gameHref} className="font-medium hover:underline" prefetch={false}>
-                  {game.name}
-                </Link>
-              ) : game ? (
-                <span className="font-medium">{game.name}</span>
-              ) : null;
+            const GameName = gameHref && game ? (
+              <Link href={gameHref} prefetch={false} className="font-medium hover:underline">
+                {game.name}
+              </Link>
+            ) : game ? (
+              <span className="font-medium">{game.name}</span>
+            ) : null;
 
             let text: ReactNode = null;
-
             if (n.type === 'like') {
               text = (
                 <>
@@ -280,12 +283,19 @@ export default function NotificationsPage() {
                   </div>
                 </div>
                 {game?.cover_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={game.cover_url}
-                    alt={game.name}
-                    className="h-14 w-10 rounded object-cover border border-white/10"
-                  />
+                  <Link
+                    href={`/game/${game.id}`}
+                    prefetch={false}
+                    aria-label={`Open ${game.name}`}
+                    className="shrink-0"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={game.cover_url}
+                      alt={game.name}
+                      className="h-14 w-10 rounded object-cover border border-white/10"
+                    />
+                  </Link>
                 ) : null}
               </li>
             );

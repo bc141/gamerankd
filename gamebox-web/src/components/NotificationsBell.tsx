@@ -12,38 +12,51 @@ export default function NotificationsBell() {
   const [ready, setReady] = useState(false);
   const mounted = useRef(true);
 
-  // helper to refresh unread count safely
-  const refreshCount = async () => {
-    if (!me) return;
+  const clampUp = (n: number) => Math.min(99, n);
+  const clampDown = (n: number) => Math.max(0, n);
+
+  // Read auth + (re)compute count
+  const refreshAuthAndCount = async () => {
+    const { data } = await supabase.auth.getUser();
+    if (!mounted.current) return;
+
+    const uid = data.user?.id ?? null;
+    setMe(uid);
+    setReady(true);
+
+    if (!uid) {
+      setCount(0);
+      return;
+    }
     const c = await getUnreadCount(supabase);
     if (mounted.current) setCount(c);
   };
 
-  // Load user + initial unread count
+  // Initial load + auth changes + visibility/focus refresh
   useEffect(() => {
     mounted.current = true;
-    (async () => {
-      const { data: auth } = await supabase.auth.getUser();
-      const uid = auth.user?.id ?? null;
-      if (!mounted.current) return;
+    (async () => { await refreshAuthAndCount(); })();
 
-      setMe(uid);
-      setReady(true);
+    const { data: authSub } = supabase.auth.onAuthStateChange(() => {
+      // if you sign in/out or session refreshes, recompute
+      refreshAuthAndCount();
+    });
 
-      if (!uid) {
-        setCount(0);
-        return;
-      }
-      await refreshCount();
-    })();
+    const onFocus = () => { if (me) refreshAuthAndCount(); };
+    const onVis = () => { if (!document.hidden && me) refreshAuthAndCount(); };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVis);
 
     return () => {
       mounted.current = false;
+      authSub.subscription.unsubscribe();
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVis);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabase]);
+  }, [supabase, me]);
 
-  // Realtime updates (INSERT -> +1, UPDATE read_at -> -1, DELETE of unread -> -1)
+  // Realtime updates (INSERT -> +1, UPDATE read_at -> -1, DELETE unread -> -1)
   useEffect(() => {
     if (!me) return;
 
@@ -52,15 +65,15 @@ export default function NotificationsBell() {
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${me}` },
-        () => setCount((c) => Math.min(99, c + 1))
+        () => setCount(c => clampUp(c + 1))
       )
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'notifications', filter: `user_id=eq.${me}` },
         (payload: any) => {
           const wasUnread = !payload?.old?.read_at;
-          const nowRead = !!payload?.new?.read_at;
-          if (wasUnread && nowRead) setCount((c) => Math.max(0, c - 1));
+          const nowRead   = !!payload?.new?.read_at;
+          if (wasUnread && nowRead) setCount(c => clampDown(c - 1));
         }
       )
       .on(
@@ -68,29 +81,21 @@ export default function NotificationsBell() {
         { event: 'DELETE', schema: 'public', table: 'notifications', filter: `user_id=eq.${me}` },
         (payload: any) => {
           const wasUnread = !payload?.old?.read_at;
-          if (wasUnread) setCount((c) => Math.max(0, c - 1));
+          if (wasUnread) setCount(c => clampDown(c - 1));
         }
       )
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [supabase, me]);
 
   // Cross-tab sync: auth + notif read/mark-all signals
   useEffect(() => {
+    const refreshIfNeeded = () => { if (me) refreshAuthAndCount(); };
+
     const onStorage = (e: StorageEvent) => {
-      if (e.key === 'gb-auth-sync') {
-        supabase.auth.getUser().then(({ data }) => {
-          const uid = data.user?.id ?? null;
-          setMe(uid);
-          if (!uid) setCount(0);
-          else refreshCount();
-        });
-      } else if (e.key === 'gb-notif-sync') {
-        // another tab changed notifications (read/mark all/read)
-        refreshCount();
+      if (e.key === 'gb-auth-sync' || e.key === 'gb-notif-sync') {
+        refreshIfNeeded();
       }
     };
     window.addEventListener('storage', onStorage);
@@ -98,20 +103,11 @@ export default function NotificationsBell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase, me]);
 
-  // Refresh on window focus (covers long-lived tabs)
-  useEffect(() => {
-    const onFocus = () => refreshCount();
-    window.addEventListener('focus', onFocus);
-    return () => window.removeEventListener('focus', onFocus);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [me]);
-
   if (!ready) {
     return <div className="relative h-8 w-8 rounded-full bg-white/10 animate-pulse" aria-hidden />;
   }
 
   if (!me) {
-    // Not signed in: show a simple link to login or hide entirely
     return (
       <Link
         href="/login"

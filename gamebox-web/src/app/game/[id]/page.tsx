@@ -1,3 +1,4 @@
+// app/game/[id]/page.tsx
 'use client';
 
 import Link from 'next/link';
@@ -15,13 +16,15 @@ import {
   type LikeEntry,
 } from '@/lib/likes';
 import LikePill from '@/components/LikePill';
-
 import CommentThread from '@/components/comments/CommentThread';
 import {
   commentKey,
   fetchCommentCountsBulk,
   addCommentListener,
 } from '@/lib/comments';
+import { timeAgo } from '@/lib/timeAgo';
+import { useReviewContextModal } from '@/components/ReviewContext/useReviewContextModal';
+import ViewInContextButton from '@/components/ReviewContext/ViewInContextButton';
 
 // ---------- helpers ----------
 const to100 = (stars: number) => Math.round(stars * 20);
@@ -103,7 +106,14 @@ export default function GamePage() {
 
   // 💬 comments (badge counts per review)
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
-  const [openThread, setOpenThread] = useState<{ reviewUserId: string; gameId: number } | null>(null);
+  const [openThread, setOpenThread] =
+    useState<{ reviewUserId: string; gameId: number } | null>(null);
+
+  // 🔎 View-in-context modal hook
+  const { open: openContext, modal: contextModal } = useReviewContextModal(
+    supabase,
+    me?.id ?? null
+  );
 
   // cross-tab / same-tab like sync
   useEffect(() => {
@@ -528,7 +538,7 @@ export default function GamePage() {
                       <span>rated</span>
                       <span className="text-white/60">{stars} / 5</span>
                       <span className="text-white/30">·</span>
-                      <span className="text-white/40">{new Date(r.created_at).toLocaleDateString()}</span>
+                      <span className="text-white/40">{timeAgo(r.created_at)}</span>
 
                       {canLike && (
                         <LikePill
@@ -548,6 +558,14 @@ export default function GamePage() {
                         >
                           💬 {cCount}
                         </button>
+                      )}
+
+                      {/* 🔎 View-in-context sits with actions */}
+                      {canComment && (
+                        <ViewInContextButton
+                          className="ml-2"
+                          onClick={() => openContext(a!.id, gameId)}
+                        />
                       )}
                     </div>
 
@@ -578,6 +596,9 @@ export default function GamePage() {
           }}
         />
       )}
+
+      {/* 🔎 Mount the context modal once */}
+      {contextModal}
     </main>
   );
 }

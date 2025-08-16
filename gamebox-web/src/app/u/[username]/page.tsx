@@ -23,6 +23,8 @@ import {
   addCommentListener,
 } from '@/lib/comments';
 import { timeAgo } from '@/lib/timeAgo';
+import { useReviewContextModal } from '@/components/ReviewContext/useReviewContextModal';
+import ViewInContextButton from '@/components/ReviewContext/ViewInContextButton';
 
 const from100 = (n: number) => n / 20;
 
@@ -49,6 +51,7 @@ export default function PublicProfilePage() {
     ? (params as any).username[0]
     : (params as any)?.username;
 
+    
   // auth
   const [ready, setReady] = useState(false);
   const [viewerId, setViewerId] = useState<string | null>(null);
@@ -72,6 +75,11 @@ export default function PublicProfilePage() {
   // 💬 comments
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
   const [openThread, setOpenThread] = useState<{ reviewUserId: string; gameId: number } | null>(null);
+
+  const { open: openContext, modal: contextModal } = useReviewContextModal(
+    supabase,
+    viewerId ?? null
+  );
 
   // cross-tab/same-tab like sync
   useEffect(() => {
@@ -374,6 +382,10 @@ export default function PublicProfilePage() {
                         >
                           💬 {cCount}
                         </button>
+                        <ViewInContextButton
+      className="ml-2"
+      onClick={() => openContext(profile.id, gameId)}
+    />
                       </>
                     )}
                   </div>
@@ -408,8 +420,11 @@ export default function PublicProfilePage() {
             setCommentCounts(p => ({ ...p, ...map }));
             setOpenThread(null);
           }}
+          
         />
+        
       )}
+      {contextModal}
     </main>
   );
 }

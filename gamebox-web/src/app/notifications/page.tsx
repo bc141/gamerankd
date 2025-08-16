@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { waitForSession } from '@/lib/waitForSession';
 import { timeAgo } from '@/lib/timeAgo';
+import { useReviewContextModal } from '@/components/ReviewContext/useReviewContextModal';
+import ViewInContextButton from '@/components/ReviewContext/ViewInContextButton';
 
 type NotifMeta = { preview?: string } | null;
 
@@ -40,6 +42,12 @@ export default function NotificationsPage() {
   const [error, setError] = useState<string | null>(null);
   const [me, setMe] = useState<string | null>(null);
 
+  // 🎯 context modal controller (safe to pass null initially)
+  const { open: openContext, modal: contextModal } = useReviewContextModal(
+    supabase,
+    me
+  );
+
   // cross-tab ping so the bell stays in sync
   const broadcastNotifSync = () => {
     try {
@@ -67,7 +75,9 @@ export default function NotificationsPage() {
 
     const { data, error } = await supabase
       .from('notifications')
-      .select('id,type,user_id,actor_id,game_id,comment_id,meta,read_at,created_at')
+      .select(
+        'id,type,user_id,actor_id,game_id,comment_id,meta,read_at,created_at'
+      )
       .eq('user_id', uid)
       .order('created_at', { ascending: false })
       .limit(50);
@@ -85,7 +95,9 @@ export default function NotificationsPage() {
     // hydrate related rows (profiles + games)
     const actorIds = Array.from(new Set(list.map((n) => n.actor_id)));
     const gameIds = Array.from(
-      new Set(list.map((n) => n.game_id).filter((x): x is number => typeof x === 'number'))
+      new Set(
+        list.map((n) => n.game_id).filter((x): x is number => typeof x === 'number')
+      )
     );
 
     const [profsRes, gamesRes] = await Promise.all([
@@ -219,13 +231,14 @@ export default function NotificationsPage() {
               <span className="font-medium">{actorName}</span>
             );
 
-            const GameName = gameHref && game ? (
-              <Link href={gameHref} prefetch={false} className="font-medium hover:underline">
-                {game.name}
-              </Link>
-            ) : game ? (
-              <span className="font-medium">{game.name}</span>
-            ) : null;
+            const GameName =
+              gameHref && game ? (
+                <Link href={gameHref} prefetch={false} className="font-medium hover:underline">
+                  {game.name}
+                </Link>
+              ) : game ? (
+                <span className="font-medium">{game.name}</span>
+              ) : null;
 
             let text: ReactNode = null;
             if (n.type === 'like') {
@@ -253,6 +266,10 @@ export default function NotificationsPage() {
             }
 
             const unread = !n.read_at;
+            const canView =
+              (n.type === 'like' || n.type === 'comment') &&
+              typeof n.game_id === 'number' &&
+              !!me;
 
             return (
               <li
@@ -270,38 +287,57 @@ export default function NotificationsPage() {
                   unread ? 'bg-white/5 hover:bg-white/10' : 'hover:bg-white/5'
                 }`}
               >
+                {/* avatar */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={avatar}
                   alt=""
                   className="h-9 w-9 rounded-full object-cover border border-white/10 mt-0.5"
                 />
+
+                {/* body */}
                 <div className="flex-1 min-w-0">
                   <div className="text-sm text-white/90">{text}</div>
                   <div className={`text-xs mt-0.5 ${unread ? 'text-white/60' : 'text-white/40'}`}>
                     {timeAgo(n.created_at)}
                   </div>
                 </div>
-                {game?.cover_url ? (
-                  <Link
-                    href={`/game/${game.id}`}
-                    prefetch={false}
-                    aria-label={`Open ${game.name}`}
-                    className="shrink-0"
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={game.cover_url}
-                      alt={game.name}
-                      className="h-14 w-10 rounded object-cover border border-white/10"
-                    />
-                  </Link>
-                ) : null}
+
+                {/* actions / cover */}
+                <div className="flex items-center gap-2">
+                  {canView ? (
+                    // prevent the parent <li> click from marking read when opening the modal
+                    <span onClick={(e) => e.stopPropagation()}>
+                      <ViewInContextButton
+                        onClick={() => openContext(me!, n.game_id!)}
+                      />
+                    </span>
+                  ) : null}
+                  {game?.cover_url ? (
+                    <Link
+                      href={`/game/${game.id}`}
+                      prefetch={false}
+                      aria-label={`Open ${game.name}`}
+                      className="shrink-0"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={game.cover_url}
+                        alt={game.name}
+                        className="h-14 w-10 rounded object-cover border border-white/10"
+                      />
+                    </Link>
+                  ) : null}
+                </div>
               </li>
             );
           })}
         </ul>
       )}
+
+      {/* context modal lives once per page */}
+      {contextModal}
     </main>
   );
 }

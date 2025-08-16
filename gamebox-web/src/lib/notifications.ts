@@ -1,0 +1,225 @@
+// src/lib/notifications.ts
+import type { SupabaseClient } from '@supabase/supabase-js';
+
+type NotifType = 'like' | 'comment' | 'follow';
+
+const isUniqueViolation = (e: any) => e?.code === '23505'; // duplicate
+const isNil = (v: unknown) => v === null || v === undefined;
+
+function toNumOrNull(v: unknown): number | null {
+  if (isNil(v)) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+async function getMeId(supabase: SupabaseClient): Promise<string | null> {
+  try {
+    const { data } = await supabase.auth.getUser();
+    return data.user?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Insert a notification (DB unique index handles dedupe). */
+async function insertNotif(
+  supabase: SupabaseClient,
+  payload: {
+    type: NotifType;
+    user_id: string;          // recipient
+    actor_id: string;         // sender
+    game_id?: number | null;
+    comment_id?: number | null;
+    meta?: Record<string, any> | null;
+  }
+) {
+  const record = {
+    type: payload.type,
+    user_id: payload.user_id,
+    actor_id: payload.actor_id,
+    game_id: toNumOrNull(payload.game_id),
+    comment_id: toNumOrNull(payload.comment_id),
+    meta: payload.meta ?? null,
+  };
+
+  const { error } = await supabase.from('notifications').insert([record]);
+  if (error && !isUniqueViolation(error)) {
+    // 23503 = FK fail, 42501 = RLS denied, etc.
+    // eslint-disable-next-line no-console
+    console.warn('insertNotif error', { code: (error as any)?.code, error });
+  }
+}
+
+async function deleteNotif(
+  supabase: SupabaseClient,
+  where: {
+    type: NotifType;
+    user_id: string;
+    actor_id: string;
+    game_id?: number | null;
+    comment_id?: number | null;
+  }
+) {
+  const gameId = toNumOrNull(where.game_id);
+  const commentId = toNumOrNull(where.comment_id);
+
+  let q = supabase
+    .from('notifications')
+    .delete()
+    .eq('type', where.type)
+    .eq('user_id', where.user_id)
+    .eq('actor_id', where.actor_id);
+
+  q = isNil(gameId) ? q.is('game_id', null) : q.eq('game_id', gameId);
+  q = isNil(commentId) ? q.is('comment_id', null) : q.eq('comment_id', commentId);
+
+  const { error } = await q;
+  if (error) {
+    // eslint-disable-next-line no-console
+    console.warn('deleteNotif error', { code: (error as any)?.code, error });
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Likes                                                               */
+/* ------------------------------------------------------------------ */
+
+export async function notifyLike(
+  supabase: SupabaseClient,
+  reviewUserId: string,
+  gameId: number
+) {
+  const me = await getMeId(supabase);
+  if (!me || me === reviewUserId) return; // no self-notifs
+  await insertNotif(supabase, {
+    type: 'like',
+    user_id: reviewUserId,
+    actor_id: me,
+    game_id: gameId,
+    comment_id: null,
+  });
+}
+
+export async function clearLike(
+  supabase: SupabaseClient,
+  reviewUserId: string,
+  gameId: number
+) {
+  const me = await getMeId(supabase);
+  if (!me) return;
+  await deleteNotif(supabase, {
+    type: 'like',
+    user_id: reviewUserId,
+    actor_id: me,
+    game_id: gameId,
+    comment_id: null,
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* Comments                                                            */
+/* ------------------------------------------------------------------ */
+
+export async function notifyComment(
+  supabase: SupabaseClient,
+  reviewUserId: string,
+  gameId: number,
+  commentId: number,
+  preview?: string
+) {
+  const me = await getMeId(supabase);
+  if (!me || me === reviewUserId) return; // no self-notifs
+  const trimmed = preview?.slice(0, 160); // light safety trim
+  await insertNotif(supabase, {
+    type: 'comment',
+    user_id: reviewUserId,
+    actor_id: me,
+    game_id: gameId,
+    comment_id: commentId,
+    meta: trimmed ? { preview: trimmed } : null,
+  });
+}
+
+export async function clearComment(
+  supabase: SupabaseClient,
+  reviewUserId: string,
+  gameId: number,
+  commentId: number
+) {
+  const me = await getMeId(supabase);
+  if (!me) return;
+  await deleteNotif(supabase, {
+    type: 'comment',
+    user_id: reviewUserId,
+    actor_id: me,
+    game_id: gameId,
+    comment_id: commentId,
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* Follows                                                             */
+/* ------------------------------------------------------------------ */
+
+export async function notifyFollow(
+  supabase: SupabaseClient,
+  targetUserId: string
+) {
+  const me = await getMeId(supabase);
+  if (!me || me === targetUserId) return;
+  await insertNotif(supabase, {
+    type: 'follow',
+    user_id: targetUserId,
+    actor_id: me,
+    game_id: null,
+    comment_id: null,
+  });
+}
+
+export async function clearFollow(
+  supabase: SupabaseClient,
+  targetUserId: string
+) {
+  const me = await getMeId(supabase);
+  if (!me) return;
+  await deleteNotif(supabase, {
+    type: 'follow',
+    user_id: targetUserId,
+    actor_id: me,
+    game_id: null,
+    comment_id: null,
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* Optional helpers (for badge later)                                  */
+/* ------------------------------------------------------------------ */
+
+export async function getUnreadCount(supabase: SupabaseClient) {
+  const me = await getMeId(supabase);
+  if (!me) return 0;
+  const { count, error } = await supabase
+    .from('notifications')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', me)
+    .is('read_at', null);
+  if (error) {
+    // eslint-disable-next-line no-console
+    console.warn('getUnreadCount error', { code: (error as any)?.code, error });
+  }
+  return count ?? 0;
+}
+
+export async function markAllRead(supabase: SupabaseClient) {
+  const me = await getMeId(supabase);
+  if (!me) return;
+  const { error } = await supabase
+    .from('notifications')
+    .update({ read_at: new Date().toISOString() })
+    .eq('user_id', me)
+    .is('read_at', null);
+  if (error) {
+    // eslint-disable-next-line no-console
+    console.warn('markAllRead error', { code: (error as any)?.code, error });
+  }
+}

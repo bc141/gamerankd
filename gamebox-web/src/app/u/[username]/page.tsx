@@ -10,19 +10,19 @@ import { getFollowCounts, checkIsFollowing, toggleFollow } from '@/lib/follows';
 import {
   likeKey,
   fetchLikesBulk,
-  toggleLike,
+  toggleLike as toggleLikeRPC,
   broadcastLike,
   addLikeListener,
   type LikeEntry,
 } from '@/lib/likes';
 import LikePill from '@/components/LikePill';
-
 import CommentThread from '@/components/comments/CommentThread';
 import {
   commentKey,
   fetchCommentCountsBulk,
   addCommentListener,
 } from '@/lib/comments';
+import { timeAgo } from '@/lib/timeAgo';
 
 const from100 = (n: number) => n / 20;
 
@@ -64,10 +64,10 @@ export default function PublicProfilePage() {
   const [togglingFollow, setTogglingFollow] = useState(false);
   const isOwnProfile = viewerId && profile?.id ? viewerId === profile.id : false;
 
-// ❤️ likes (owner.id, gameId)
-const [likes, setLikes] = useState<Record<string, LikeEntry>>({});
-const [likesReady, setLikesReady] = useState(false);
-const [likeBusy, setLikeBusy] = useState<Record<string, boolean>>({});
+  // ❤️ likes (owner.id, gameId)
+  const [likes, setLikes] = useState<Record<string, LikeEntry>>({});
+  const [likesReady, setLikesReady] = useState(false);
+  const [likeBusy, setLikeBusy] = useState<Record<string, boolean>>({});
 
   // 💬 comments
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
@@ -197,44 +197,47 @@ const [likeBusy, setLikeBusy] = useState<Record<string, boolean>>({});
     [profile?.avatar_url]
   );
 
-  // follow toggle
+  // follow toggle (uses helper; no 3rd arg)
   async function onToggleFollow() {
     if (!profile) return;
     if (!viewerId) return router.push('/login');
     if (isOwnProfile) return;
 
     setTogglingFollow(true);
-    const { error } = await toggleFollow(supabase, profile.id, isFollowing);
-    setTogglingFollow(false);
-    if (error) return alert(error.message);
+    try {
+      const { error } = await toggleFollow(supabase, profile.id);
+      if (error) return alert(error.message);
 
-    setIsFollowing(!isFollowing);
-    setCounts(prev => ({
-      followers: prev.followers + (isFollowing ? -1 : 1),
-      following: prev.following,
-    }));
+      setIsFollowing(prev => !prev);
+      setCounts(prev => ({
+        followers: prev.followers + (isFollowing ? -1 : 1),
+        following: prev.following,
+      }));
+    } finally {
+      setTogglingFollow(false);
+    }
   }
 
   // like toggle for one row (reviewUserId = profile.id)
   async function onToggleLike(gameId: number) {
     if (!profile || !gameId) return;
     if (!viewerId) return router.push('/login');
-  
-    const reviewUserId = profile.id; // likes are keyed by (profile.id, gameId)
+
+    const reviewUserId = profile.id;
     const k = likeKey(reviewUserId, gameId);
     if (likeBusy[k]) return;
-  
+
     const before = likes[k] ?? { liked: false, count: 0 };
-  
+
     // optimistic
     setLikes(p => ({
       ...p,
       [k]: { liked: !before.liked, count: before.count + (before.liked ? -1 : 1) },
     }));
     setLikeBusy(p => ({ ...p, [k]: true }));
-  
+
     try {
-      const { liked, count, error } = await toggleLike(supabase, reviewUserId, gameId);
+      const { liked, count, error } = await toggleLikeRPC(supabase, reviewUserId, gameId);
       if (error) {
         // revert on failure
         setLikes(p => ({ ...p, [k]: before }));
@@ -246,9 +249,9 @@ const [likeBusy, setLikeBusy] = useState<Record<string, boolean>>({});
         if (cur.liked === liked && cur.count === count) return p;
         return { ...p, [k]: { liked, count } };
       });
-  
+
       broadcastLike(reviewUserId, gameId, liked, liked ? 1 : -1);
-  
+
       // tiny truth-sync in case of races
       setTimeout(async () => {
         const map = await fetchLikesBulk(supabase, viewerId, [{ reviewUserId, gameId }]);
@@ -294,12 +297,17 @@ const [likeBusy, setLikeBusy] = useState<Record<string, boolean>>({});
         {/* Follow / Edit */}
         <div className="shrink-0">
           {isOwnProfile ? (
-            <a href="/settings/profile" className="bg-white/10 px-3 py-2 rounded text-sm">Edit profile</a>
+            <Link href="/settings/profile" className="bg-white/10 px-3 py-2 rounded text-sm hover:bg-white/15">
+              Edit profile
+            </Link>
           ) : (
             <button
               onClick={onToggleFollow}
               disabled={togglingFollow}
-              className={`px-3 py-2 rounded text-sm ${isFollowing ? 'bg-white/10' : 'bg-indigo-600 text-white'} disabled:opacity-50`}
+              aria-pressed={isFollowing}
+              className={`px-3 py-2 rounded text-sm disabled:opacity-50 ${
+                isFollowing ? 'bg-white/10 hover:bg-white/15' : 'bg-indigo-600 hover:bg-indigo-500 text-white'
+              }`}
             >
               {togglingFollow ? '…' : isFollowing ? 'Following' : 'Follow'}
             </button>
@@ -328,38 +336,36 @@ const [likeBusy, setLikeBusy] = useState<Record<string, boolean>>({});
               <li key={`${gameId ?? 'g'}-${i}`} className="flex items-start gap-4">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={cover}
+                  src={cover || '/cover-fallback.png'}
                   alt={gameName}
                   className="h-16 w-12 object-cover rounded border border-white/10"
                 />
                 <div className="flex-1 min-w-0">
-                  <a
+                  <Link
                     href={gameId ? `/game/${gameId}` : '#'}
                     className="font-medium hover:underline truncate block"
                   >
                     {gameName}
-                  </a>
+                  </Link>
                   <div className="mt-1 flex items-center gap-2 flex-wrap">
                     <StarRating value={stars} readOnly size={18} />
                     <span className="text-sm text-white/60">{stars.toFixed(1)} / 5</span>
                     <span className="text-white/30">·</span>
-                    <span className="text-xs text-white/40">{new Date(r.created_at).toLocaleDateString()}</span>
+                    <span className="text-xs text-white/40">{timeAgo(r.created_at)}</span>
 
                     {gameId && (
                       <>
-                        {gameId && (
-  likesReady ? (
-    <LikePill
-      liked={entry.liked}
-      count={entry.count}
-      busy={likeBusy[likeKey(profile.id, gameId)]}
-      onClick={() => onToggleLike(gameId)}
-      className="ml-2"
-    />
-  ) : (
-    <span className="ml-2 text-xs text-white/40">❤️ …</span>
-  )
-)}
+                        {likesReady ? (
+                          <LikePill
+                            liked={entry.liked}
+                            count={entry.count}
+                            busy={likeBusy[likeKey(profile.id, gameId)]}
+                            onClick={() => onToggleLike(gameId)}
+                            className="ml-2"
+                          />
+                        ) : (
+                          <span className="ml-2 text-xs text-white/40">❤️ …</span>
+                        )}
 
                         <button
                           onClick={() => setOpenThread({ reviewUserId: profile.id, gameId })}
@@ -386,24 +392,24 @@ const [likeBusy, setLikeBusy] = useState<Record<string, boolean>>({});
 
       {/* Comment modal */}
       {openThread && (
-  <CommentThread
-    supabase={supabase}
-    viewerId={viewerId}
-    reviewUserId={openThread.reviewUserId}
-    gameId={openThread.gameId}
-    onCountChange={(next) => {
-      const k = commentKey(openThread.reviewUserId, openThread.gameId);
-      setCommentCounts(p => ({ ...p, [k]: next }));
-    }}
-    onClose={async () => {
-      const map = await fetchCommentCountsBulk(supabase, [
-        { reviewUserId: openThread.reviewUserId, gameId: openThread.gameId },
-      ]);
-      setCommentCounts(p => ({ ...p, ...map }));
-      setOpenThread(null);
-    }}
-  />
-)}
+        <CommentThread
+          supabase={supabase}
+          viewerId={viewerId}
+          reviewUserId={openThread.reviewUserId}
+          gameId={openThread.gameId}
+          onCountChange={(next) => {
+            const k = commentKey(openThread.reviewUserId, openThread.gameId);
+            setCommentCounts(p => ({ ...p, [k]: next }));
+          }}
+          onClose={async () => {
+            const map = await fetchCommentCountsBulk(supabase, [
+              { reviewUserId: openThread.reviewUserId, gameId: openThread.gameId },
+            ]);
+            setCommentCounts(p => ({ ...p, ...map }));
+            setOpenThread(null);
+          }}
+        />
+      )}
     </main>
   );
 }

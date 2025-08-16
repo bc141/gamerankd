@@ -1,5 +1,6 @@
 // src/lib/likes.ts
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { notifyLike, clearLike } from './notifications';
 
 export type LikeEntry = { liked: boolean; count: number };
 
@@ -117,6 +118,7 @@ if (viewerId) {
 }
 
 // ---- server-side toggle via RPC; returns authoritative {liked,count} ----
+// ---- server-side toggle via RPC; returns authoritative {liked,count} ----
 export async function toggleLike(
   supabase: SupabaseClient,
   reviewUserId: string,
@@ -126,13 +128,25 @@ export async function toggleLike(
     p_review_user_id: reviewUserId,
     p_game_id: gameId,
   });
+
   if (error) return { liked: false, count: 0, error };
+
   const row = Array.isArray(data) ? data[0] : data;
-  return {
-    liked: !!row?.liked,
-    count: Number(row?.count ?? 0),
-    error: null,
-  };
+  const liked = !!row?.liked;
+  const count = Number(row?.count ?? 0);
+
+  // 🔔 Fire-and-forget notifications (DB dedupe + self-guard handle safety)
+  try {
+    if (liked) {
+      notifyLike(supabase, reviewUserId, gameId).catch(() => {});
+    } else {
+      clearLike(supabase, reviewUserId, gameId).catch(() => {});
+    }
+  } catch {
+    // never block the UI on notif errors
+  }
+
+  return { liked, count, error: null };
 }
 
 // ---- cross-tab broadcast (now includes origin) ----

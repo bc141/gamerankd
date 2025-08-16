@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
+import NotificationsBell from '@/components/NotificationsBell';
 
 type Me = { id: string; email?: string };
 type MiniProfile = { username: string | null; avatar_url: string | null };
@@ -54,12 +55,12 @@ export default function Header() {
     });
 
     return () => {
-      sub.subscription.unsubscribe();
+      sub?.subscription?.unsubscribe();
       cancelled = true;
     };
   }, [supabase]);
 
-  // STEP 4: Cross-tab auth sync (other tab sets localStorage 'gb-auth-sync')
+  // Cross-tab auth sync
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
       if (e.key === 'gb-auth-sync') loadSession();
@@ -68,12 +69,11 @@ export default function Header() {
     return () => window.removeEventListener('storage', onStorage);
   }, []);
 
-  // When route changes and we're signed in, refresh username/avatar in case they changed
+  // Refresh mini-profile on route change; close menu
   useEffect(() => {
     if (user) fetchMiniProfile(user.id);
-    // also close the menu on navigation
     setOpen(false);
-  }, [pathname]); // (user) captured; fine for our use
+  }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // close menu on outside click / Escape
   useEffect(() => {
@@ -128,7 +128,9 @@ export default function Header() {
     <header className="border-b border-white/10 sticky top-0 z-40 bg-black/60 backdrop-blur supports-[backdrop-filter]:bg-black/40">
       <div className="mx-auto max-w-5xl px-4 h-14 flex items-center justify-between">
         <div className="flex items-center gap-6">
-          <Link href="/" className="font-semibold">GameRankd</Link>
+          <Link href="/" className="font-semibold" aria-label="Home">
+            GameRankd
+          </Link>
           {/* Primary nav */}
           <nav className="hidden sm:flex items-center gap-5">
             {navLink('/', 'Home')}
@@ -140,62 +142,69 @@ export default function Header() {
         {!user ? (
           <Link href="/login" className="text-sm underline">Sign in</Link>
         ) : (
-          <div className="relative">
-            <button
-              ref={btnRef}
-              type="button"
-              onClick={() => setOpen(v => !v)}
-              aria-haspopup="menu"
-              aria-expanded={open}
-              className="flex items-center gap-2 rounded-full focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={avatarSrc}
-                alt="Your avatar"
-                className="h-8 w-8 rounded-full object-cover border border-white/20"
-              />
-              <span className="hidden md:inline text-sm text-white/90">My profile</span>
-              <svg
-                className={`hidden md:inline h-4 w-4 opacity-70 transition-transform ${open ? 'rotate-180' : ''}`}
-                viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"
-              >
-                <path d="M5.23 7.21a.75.75 0 011.06.02L10 10.585l3.71-3.354a.75.75 0 111.02 1.1l-4.2 3.79a.75.75 0 01-1.02 0l-4.2-3.79a.75.75 0 01.02-1.1z" />
-              </svg>
-            </button>
+          <div className="flex items-center gap-3">
+            {/* Notifications */}
+            <NotificationsBell />
 
-            {open && (
-              <div
-                ref={menuRef}
-                role="menu"
-                aria-label="Account menu"
-                className="absolute right-0 mt-2 w-48 rounded-lg border border-white/10 bg-neutral-900/95 shadow-lg backdrop-blur p-1"
+            {/* Profile dropdown */}
+            <div className="relative">
+              <button
+                ref={btnRef}
+                type="button"
+                onClick={() => setOpen(v => !v)}
+                aria-haspopup="menu"
+                aria-expanded={open}
+                aria-label="Open profile menu"
+                className="flex items-center gap-2 rounded-full focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
-                <Link
-                  href={profileHref}
-                  role="menuitem"
-                  onClick={() => setOpen(false)}
-                  className="block px-3 py-2 rounded text-sm hover:bg-white/10"
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={avatarSrc}
+                  alt="Your avatar"
+                  className="h-8 w-8 rounded-full object-cover border border-white/20"
+                />
+                <span className="hidden md:inline text-sm text-white/90">My profile</span>
+                <svg
+                  className={`hidden md:inline h-4 w-4 opacity-70 transition-transform ${open ? 'rotate-180' : ''}`}
+                  viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"
                 >
-                  View profile
-                </Link>
-                <Link
-                  href="/settings/profile"
-                  role="menuitem"
-                  onClick={() => setOpen(false)}
-                  className="block px-3 py-2 rounded text-sm hover:bg-white/10"
+                  <path d="M5.23 7.21a.75.75 0 011.06.02L10 10.585l3.71-3.354a.75.75 0 111.02 1.1l-4.2 3.79a.75.75 0 01-1.02 0l-4.2-3.79a.75.75 0 01.02-1.1z" />
+                </svg>
+              </button>
+
+              {open && (
+                <div
+                  ref={menuRef}
+                  role="menu"
+                  aria-label="Account menu"
+                  className="absolute right-0 mt-2 w-48 rounded-lg border border-white/10 bg-neutral-900/95 shadow-lg backdrop-blur p-1"
                 >
-                  Edit profile
-                </Link>
-                <button
-                  role="menuitem"
-                  onClick={signOut}
-                  className="w-full text-left px-3 py-2 rounded text-sm hover:bg-white/10"
-                >
-                  Sign out
-                </button>
-              </div>
-            )}
+                  <Link
+                    href={profileHref}
+                    role="menuitem"
+                    onClick={() => setOpen(false)}
+                    className="block px-3 py-2 rounded text-sm hover:bg-white/10"
+                  >
+                    View profile
+                  </Link>
+                  <Link
+                    href="/settings/profile"
+                    role="menuitem"
+                    onClick={() => setOpen(false)}
+                    className="block px-3 py-2 rounded text-sm hover:bg-white/10"
+                  >
+                    Edit profile
+                  </Link>
+                  <button
+                    role="menuitem"
+                    onClick={signOut}
+                    className="w-full text-left px-3 py-2 rounded text-sm hover:bg-white/10"
+                  >
+                    Sign out
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

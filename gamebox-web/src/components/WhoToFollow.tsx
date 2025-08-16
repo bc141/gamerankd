@@ -68,134 +68,144 @@ export default function WhoToFollow({ limit = DEFAULT_LIMIT }: { limit?: number 
   }, []);
 
   useEffect(() => {
-    let mounted = true;
+    let cancelled = false;
+
     (async () => {
-      const session = await waitForSession(supabase);
-      if (!mounted) return;
-      const myId = session?.user?.id ?? null;
-      setMe(myId);
+      try {
+        // session (if signed out, we can still show generic suggestions)
+        const session = await waitForSession(supabase);
+        if (cancelled) return;
 
-      // Build exclude set: self + already-followed
-      const exclude = new Set<string>();
-      if (myId) exclude.add(myId);
+        const myId = session?.user?.id ?? null;
+        setMe(myId);
 
-      let followingSet = new Set<string>();
-      if (myId) {
-        const { data: flw } = await supabase
+        // Build exclude set: self + already-followed
+        const exclude = new Set<string>();
+        if (myId) exclude.add(myId);
+
+        let followingSet = new Set<string>();
+        if (myId) {
+          const { data: flw } = await supabase
+            .from('follows')
+            .select('followee_id')
+            .eq('follower_id', myId);
+          for (const r of flw ?? []) {
+            const id = r?.followee_id as string;
+            if (id) {
+              followingSet.add(id);
+              exclude.add(id);
+            }
+          }
+        }
+
+        // Followers-of-me (for "Follow back" and score boost)
+        let followersOfMe = new Set<string>();
+        if (myId) {
+          const { data: back } = await supabase
+            .from('follows')
+            .select('follower_id')
+            .eq('followee_id', myId);
+          for (const r of back ?? []) {
+            const id = r?.follower_id as string;
+            if (id && id !== myId && !followingSet.has(id)) {
+              followersOfMe.add(id);
+            }
+          }
+        }
+
+        // 1) recent activity map
+        const sinceIso = new Date(Date.now() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000).toISOString();
+        const { data: recent } = await supabase
+          .from('reviews')
+          .select('user_id, created_at')
+          .gte('created_at', sinceIso)
+          .limit(2000);
+
+        const recentMap = new Map<string, number>();
+        for (const r of recent ?? []) {
+          const uid = r?.user_id as string;
+          if (!uid || exclude.has(uid)) continue;
+          recentMap.set(uid, (recentMap.get(uid) ?? 0) + 1);
+        }
+
+        // 2) popularity map
+        const { data: pop } = await supabase
           .from('follows')
           .select('followee_id')
-          .eq('follower_id', myId);
-        for (const r of flw ?? []) {
-          const id = r.followee_id as string;
-          if (id) {
-            followingSet.add(id);
-            exclude.add(id);
-          }
+          .limit(4000);
+        const followersMap = new Map<string, number>();
+        for (const r of pop ?? []) {
+          const uid = r?.followee_id as string;
+          if (!uid || exclude.has(uid)) continue;
+          followersMap.set(uid, (followersMap.get(uid) ?? 0) + 1);
         }
-      }
 
-      // Followers-of-me (for "Follow back" and score boost)
-      let followersOfMe = new Set<string>();
-      if (myId) {
-        const { data: back } = await supabase
-          .from('follows')
-          .select('follower_id')
-          .eq('followee_id', myId);
-        for (const r of back ?? []) {
-          const id = r.follower_id as string;
-          if (id && id !== myId && !followingSet.has(id)) {
-            followersOfMe.add(id);
-          }
+        // 3) candidates
+        const candidateIds = new Set<string>([
+          ...recentMap.keys(),
+          ...followersMap.keys(),
+          ...followersOfMe.values(),
+        ]);
+
+        if (!candidateIds.size) {
+          if (!cancelled) setPool([]);
+          return;
         }
+
+        // 4) fetch profiles for candidates
+        const idList = [...candidateIds];
+        const { data: profs } = await supabase
+          .from('profiles')
+          .select('id,username,display_name,avatar_url')
+          .in('id', idList);
+
+        // 5) rank (stable)
+        const W_RECENT = 3.0;
+        const W_FOLLOW = 1.0;
+        const BONUS_FOLLOWS_YOU = 2.0;
+
+        const profById = new Map<string, Mini>();
+        for (const p of profs ?? []) {
+          if (!p?.id) continue;
+          profById.set(p.id, {
+            id: p.id,
+            username: p?.username ?? null,
+            display_name: p?.display_name ?? null,
+            avatar_url: p?.avatar_url ?? null,
+          });
+        }
+
+        const raw: Ranked[] = [];
+        for (const id of candidateIds) {
+          const mini = profById.get(id);
+          if (!mini) continue;
+          const rc = recentMap.get(id) ?? 0;
+          const fc = followersMap.get(id) ?? 0;
+          const fy = followersOfMe.has(id);
+          const base = rc * W_RECENT + fc * W_FOLLOW + (fy ? BONUS_FOLLOWS_YOU : 0);
+          raw.push({
+            ...mini,
+            score: base, // no Math.random() — flicker-free
+            recentCount: rc,
+            followersCount: fc,
+            followsYou: fy,
+          });
+        }
+
+        raw.sort((a, b) => b.score - a.score);
+
+        const daySeed = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+        const seeded = myId ? seededShuffle(raw, `${myId}:${daySeed}`) : raw;
+
+        if (!cancelled) setPool(seeded);
+      } catch (e) {
+        // best-effort fallback
+        if (!cancelled) setPool([]);
       }
-
-      // 1) recent activity map
-      const sinceIso = new Date(Date.now() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000).toISOString();
-      const { data: recent } = await supabase
-        .from('reviews')
-        .select('user_id, created_at')
-        .gte('created_at', sinceIso)
-        .limit(2000);
-
-      const recentMap = new Map<string, number>();
-      for (const r of recent ?? []) {
-        const uid = r.user_id as string;
-        if (!uid || exclude.has(uid)) continue;
-        recentMap.set(uid, (recentMap.get(uid) ?? 0) + 1);
-      }
-
-      // 2) popularity map
-      const { data: pop } = await supabase
-        .from('follows')
-        .select('followee_id')
-        .limit(4000);
-      const followersMap = new Map<string, number>();
-      for (const r of pop ?? []) {
-        const uid = r.followee_id as string;
-        if (!uid || exclude.has(uid)) continue;
-        followersMap.set(uid, (followersMap.get(uid) ?? 0) + 1);
-      }
-
-      // 3) candidates
-      const candidateIds = new Set<string>([
-        ...recentMap.keys(),
-        ...followersMap.keys(),
-        ...followersOfMe.values(),
-      ]);
-
-      if (!candidateIds.size) {
-        if (mounted) setPool([]);
-        return;
-      }
-
-      // 4) fetch profiles for candidates
-      const idList = [...candidateIds];
-      const { data: profs } = await supabase
-        .from('profiles')
-        .select('id,username,display_name,avatar_url')
-        .in('id', idList);
-
-      // 5) rank
-      const W_RECENT = 3.0;
-      const W_FOLLOW = 1.0;
-      const BONUS_FOLLOWS_YOU = 2.0;
-
-      const raw: Ranked[] = [];
-      const profById = new Map<string, Mini>();
-      for (const p of profs ?? []) {
-        profById.set(p.id, {
-          id: p.id,
-          username: p.username ?? null,
-          display_name: p.display_name ?? null,
-          avatar_url: p.avatar_url ?? null,
-        });
-      }
-
-      for (const id of candidateIds) {
-        const mini = profById.get(id);
-        if (!mini) continue;
-        const rc = recentMap.get(id) ?? 0;
-        const fc = followersMap.get(id) ?? 0;
-        const fy = followersOfMe.has(id);
-        const base = rc * W_RECENT + fc * W_FOLLOW + (fy ? BONUS_FOLLOWS_YOU : 0);
-        raw.push({
-          ...mini,
-          score: base + Math.random() * 0.1,
-          recentCount: rc,
-          followersCount: fc,
-          followsYou: fy,
-        });
-      }
-
-      // sort by score, deterministic shuffle inside the top slice (seed with user + day)
-      raw.sort((a, b) => b.score - a.score);
-      const daySeed = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-      const seeded = myId ? seededShuffle(raw, `${myId}:${daySeed}`) : raw;
-
-      if (mounted) setPool(seeded);
     })();
+
     return () => {
-      mounted = false;
+      cancelled = true;
     };
   }, [supabase]);
 
@@ -290,20 +300,25 @@ export default function WhoToFollow({ limit = DEFAULT_LIMIT }: { limit?: number 
                 {me && (
                   <button
                     onClick={async () => {
+                      if (busyId) return;
                       setBusyId(u.id);
-                      const { error } = await toggleFollow(supabase, u.id, /* isFollowing */ false);
-                      setBusyId(null);
-                      if (!error) {
-                        // Hide immediately after following
-                        handleDismiss(u.id);
+                      try {
+                        const { error } = await toggleFollow(supabase, u.id);
+                        if (!error) {
+                          // Hide immediately after following
+                          handleDismiss(u.id);
+                        }
+                      } finally {
+                        setBusyId(null);
                       }
                     }}
                     disabled={busyId === u.id}
                     className={`px-3 py-1.5 rounded text-sm disabled:opacity-50 ${
                       u.followsYou
-                        ? 'bg-white/10 hover:bg-white/15' // Follow back → secondary style
+                        ? 'bg-white/10 hover:bg-white/15'
                         : 'bg-indigo-600 hover:bg-indigo-500 text-white'
                     }`}
+                    aria-pressed={busyId === u.id ? true : undefined}
                   >
                     {busyId === u.id ? '…' : (u.followsYou ? 'Follow back' : 'Follow')}
                   </button>

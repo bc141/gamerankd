@@ -9,6 +9,8 @@ import {
   broadcastCommentDelta,
   type CommentRow,
 } from '@/lib/comments';
+import { notifyComment, clearComment } from '@/lib/notifications';
+import { timeAgo } from '@/lib/timeAgo';
 
 type Props = {
   supabase: SupabaseClient;
@@ -33,6 +35,7 @@ export default function CommentThread({
   const [posting, setPosting] = useState(false);
   const [text, setText] = useState('');
   const boxRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // keep parent badge in sync while open
   const count = rows.length;
@@ -41,6 +44,7 @@ export default function CommentThread({
   // initial fetch
   useEffect(() => {
     let mounted = true;
+
     (async () => {
       setLoading(true);
       const { rows: list, error } = await listComments(
@@ -68,11 +72,28 @@ export default function CommentThread({
     };
   }, [supabase, reviewUserId, gameId]);
 
+  // auto focus when opened (if signed in)
+  useEffect(() => {
+    if (viewerId) {
+      inputRef.current?.focus();
+    }
+  }, [viewerId]);
+
+  // scroll to bottom on load and whenever a comment is added/removed
+  useEffect(() => {
+    if (loading) return;
+    requestAnimationFrame(() => {
+      const el = boxRef.current;
+      if (el) el.scrollTop = el.scrollHeight;
+    });
+  }, [loading, rows.length]);
+
   function safeClose() {
     onClose?.();
   }
 
   async function submit() {
+    if (posting) return; // guard double-submit
     const body = text.trim();
     if (!viewerId) {
       alert('Please sign in to comment.');
@@ -112,15 +133,24 @@ export default function CommentThread({
       // swap optimistic with authoritative row
       setRows((p) => p.map((r) => (r.id === temp.id ? row : r)));
 
-      // tell other views (badges) immediately
+      // update badges immediately
       broadcastCommentDelta(reviewUserId, gameId, +1);
 
-      // scroll to bottom after posting
+      // 🔔 Fire-and-forget notification (only after we have a real DB id)
+      try {
+        const commentIdNum =
+          typeof row.id === 'number' ? row.id : parseInt(String(row.id), 10);
+        if (!Number.isNaN(commentIdNum)) {
+          const preview = body.slice(0, 140);
+          notifyComment(supabase, reviewUserId, gameId, commentIdNum, preview).catch(() => {});
+        }
+      } catch {}
+
+      // keep focus and scroll to bottom
       requestAnimationFrame(() => {
-        boxRef.current?.scrollTo({
-          top: boxRef.current.scrollHeight,
-          behavior: 'smooth',
-        });
+        inputRef.current?.focus();
+        const el = boxRef.current;
+        if (el) el.scrollTop = el.scrollHeight;
       });
     } finally {
       setPosting(false);
@@ -132,35 +162,39 @@ export default function CommentThread({
     if (!row) return;
     if (!viewerId || row.commenter?.id !== viewerId) return; // only own comments
 
+    // If it's an optimistic temp row, just drop locally and bail.
+    if (String(id).startsWith('temp_')) {
+      setRows((p) => p.filter((r) => r.id !== id));
+      return;
+    }
+
     // optimistic remove
     setRows((p) => p.filter((r) => r.id !== id));
+
     try {
       const { error } = await supabase
         .from('review_comments')
         .delete()
         .eq('id', id);
-      if (error) {
-        // restore on failure
-        setRows((p) => {
-          const exists = p.some((r) => r.id === id);
-          if (exists) return p;
-          return [...p, row].sort((a, b) =>
-            a.created_at.localeCompare(b.created_at)
-          );
-        });
-        alert(error.message);
-        return;
-      }
+      if (error) throw error;
+
+      // update badges immediately
       broadcastCommentDelta(reviewUserId, gameId, -1);
-    } catch {
-      // restore on crash
+
+      // 🔔 clear notif (fire-and-forget)
+      const commentIdNum =
+        typeof id === 'number' ? id : parseInt(String(id), 10);
+      if (!Number.isNaN(commentIdNum)) {
+        clearComment(supabase, reviewUserId, gameId, commentIdNum).catch(() => {});
+      }
+    } catch (err: any) {
+      // restore on failure
       setRows((p) => {
         const exists = p.some((r) => r.id === id);
         if (exists) return p;
-        return [...p, row].sort((a, b) =>
-          a.created_at.localeCompare(b.created_at)
-        );
+        return [...p, row].sort((a, b) => a.created_at.localeCompare(b.created_at));
       });
+      alert(err?.message ?? 'Failed to delete comment.');
     }
   }
 
@@ -222,7 +256,7 @@ export default function CommentThread({
                         {name}
                       </span>
                       <span className="text-white/40 text-xs">
-                        {new Date(c.created_at).toLocaleString()}
+                        {timeAgo(c.created_at)}
                       </span>
                       {canDelete && (
                         <button
@@ -248,8 +282,15 @@ export default function CommentThread({
         <div className="p-3 border-t border-white/10">
           <div className="flex items-end gap-2">
             <textarea
+              ref={inputRef}
               value={text}
               onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => {
+                if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && !posting && text.trim()) {
+                  e.preventDefault();
+                  submit();
+                }
+              }}
               rows={2}
               placeholder={canPost ? 'Write a comment…' : 'Sign in to comment'}
               disabled={!canPost || posting}

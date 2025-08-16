@@ -14,7 +14,7 @@ type Notif = {
   user_id: string;
   actor_id: string;
   game_id: number | null;
-  comment_id: number | null;
+  comment_id: string | null;
   meta: NotifMeta;
   read_at: string | null;
   created_at: string;

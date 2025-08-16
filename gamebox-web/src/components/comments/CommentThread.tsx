@@ -15,10 +15,9 @@ import { timeAgo } from '@/lib/timeAgo';
 type Props = {
   supabase: SupabaseClient;
   viewerId: string | null;
-  reviewUserId: string;
+  reviewUserId: string; // owner of the review being commented on
   gameId: number;
   onClose: () => void | Promise<void>;
-  /** Optional: let parent update a badge while the thread is open */
   onCountChange?: (nextCount: number) => void;
 };
 
@@ -44,7 +43,6 @@ export default function CommentThread({
   // initial fetch
   useEffect(() => {
     let mounted = true;
-
     (async () => {
       setLoading(true);
       const { rows: list, error } = await listComments(
@@ -74,12 +72,10 @@ export default function CommentThread({
 
   // auto focus when opened (if signed in)
   useEffect(() => {
-    if (viewerId) {
-      inputRef.current?.focus();
-    }
+    if (viewerId) inputRef.current?.focus();
   }, [viewerId]);
 
-  // scroll to bottom on load and whenever a comment is added/removed
+  // scroll to bottom on load / length change
   useEffect(() => {
     if (loading) return;
     requestAnimationFrame(() => {
@@ -93,7 +89,7 @@ export default function CommentThread({
   }
 
   async function submit() {
-    if (posting) return; // guard double-submit
+    if (posting) return;
     const body = text.trim();
     if (!viewerId) {
       alert('Please sign in to comment.');
@@ -103,9 +99,10 @@ export default function CommentThread({
 
     setPosting(true);
 
-    // optimistic append (lightweight placeholder)
+    // optimistic (temp id so we can distinguish)
+    const tempId = `temp_${Date.now()}`;
     const temp: CommentRow = {
-      id: `temp_${Date.now()}`,
+      id: tempId as any, // CommentRow.id is string; temp is fine
       body,
       created_at: new Date().toISOString(),
       commenter: viewerId
@@ -125,28 +122,27 @@ export default function CommentThread({
       );
       if (error || !row) {
         // revert optimistic
-        setRows((p) => p.filter((r) => r.id !== temp.id));
+        setRows((p) => p.filter((r) => r.id !== tempId));
         alert(error?.message ?? 'Failed to post comment.');
         return;
       }
 
       // swap optimistic with authoritative row
-      setRows((p) => p.map((r) => (r.id === temp.id ? row : r)));
+      setRows((p) => p.map((r) => (r.id === tempId ? row : r)));
 
       // update badges immediately
       broadcastCommentDelta(reviewUserId, gameId, +1);
 
-      // 🔔 Fire-and-forget notification (only after we have a real DB id)
+      // 🔔 Fire-and-forget notification (UUID id)
       try {
-        const commentIdNum =
-          typeof row.id === 'number' ? row.id : parseInt(String(row.id), 10);
-        if (!Number.isNaN(commentIdNum)) {
-          const preview = body.slice(0, 140);
-          notifyComment(supabase, reviewUserId, gameId, commentIdNum, preview).catch(() => {});
-        }
-      } catch {}
+        const commentIdStr = String(row.id); // row.id is uuid
+        const preview = body.slice(0, 140);
+        notifyComment(supabase, reviewUserId, gameId, commentIdStr, preview).catch(() => {});
+      } catch {
+        // never block UX on notif issues
+      }
 
-      // keep focus and scroll to bottom
+      // keep focus + scroll
       requestAnimationFrame(() => {
         inputRef.current?.focus();
         const el = boxRef.current;
@@ -162,7 +158,7 @@ export default function CommentThread({
     if (!row) return;
     if (!viewerId || row.commenter?.id !== viewerId) return; // only own comments
 
-    // If it's an optimistic temp row, just drop locally and bail.
+    // Optimistic temp row? just drop locally.
     if (String(id).startsWith('temp_')) {
       setRows((p) => p.filter((r) => r.id !== id));
       return;
@@ -181,12 +177,8 @@ export default function CommentThread({
       // update badges immediately
       broadcastCommentDelta(reviewUserId, gameId, -1);
 
-      // 🔔 clear notif (fire-and-forget)
-      const commentIdNum =
-        typeof id === 'number' ? id : parseInt(String(id), 10);
-      if (!Number.isNaN(commentIdNum)) {
-        clearComment(supabase, reviewUserId, gameId, commentIdNum).catch(() => {});
-      }
+      // 🔔 clear notif (UUID string)
+      clearComment(supabase, reviewUserId, gameId, String(id)).catch(() => {});
     } catch (err: any) {
       // restore on failure
       setRows((p) => {
@@ -224,10 +216,7 @@ export default function CommentThread({
         </div>
 
         {/* List */}
-        <div
-          ref={boxRef}
-          className="max-h-[60vh] overflow-y-auto p-3 space-y-3"
-        >
+        <div ref={boxRef} className="max-h-[60vh] overflow-y-auto p-3 space-y-3">
           {loading ? (
             <div className="text-white/60 text-sm">Loading…</div>
           ) : rows.length === 0 ? (

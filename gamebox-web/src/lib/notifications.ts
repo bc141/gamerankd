@@ -29,7 +29,7 @@ async function insertNotif(
     user_id: string;          // recipient
     actor_id: string;         // sender
     game_id?: number | null;
-    comment_id?: number | null;
+    comment_id?: string | null;
     meta?: Record<string, any> | null;
   }
 ) {
@@ -57,7 +57,7 @@ async function deleteNotif(
     user_id: string;
     actor_id: string;
     game_id?: number | null;
-    comment_id?: number | null;
+    comment_id?: string | null;
   }
 ) {
   const gameId = toNumOrNull(where.game_id);
@@ -124,7 +124,7 @@ export async function notifyComment(
   supabase: SupabaseClient,
   reviewUserId: string,
   gameId: number,
-  commentId: number,
+  commentId: string,
   preview?: string
 ) {
   const me = await getMeId(supabase);
@@ -144,7 +144,7 @@ export async function clearComment(
   supabase: SupabaseClient,
   reviewUserId: string,
   gameId: number,
-  commentId: number
+  commentId: string
 ) {
   const me = await getMeId(supabase);
   if (!me) return;

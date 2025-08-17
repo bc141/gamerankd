@@ -26,6 +26,7 @@ import {
 } from '@/lib/comments';
 import { timeAgo } from '@/lib/timeAgo';
 import { useReviewContextModal } from '@/components/ReviewContext/useReviewContextModal';
+import BlockButtons from '@/components/BlockButtons';
 
 const from100 = (n: number) => n / 20;
 
@@ -78,7 +79,8 @@ export default function PublicProfilePage() {
   const [counts, setCounts] = useState<{ followers: number; following: number }>({ followers: 0, following: 0 });
   const [isFollowing, setIsFollowing] = useState(false);
   const [togglingFollow, setTogglingFollow] = useState(false);
-  const isOwnProfile = viewerId && profile?.id ? viewerId === profile.id : false;
+
+  const isOwnProfile = Boolean(viewerId && profile?.id && viewerId === profile.id);
 
   // ❤️ likes (owner.id, gameId)
   const [likes, setLikes] = useState<Record<string, LikeEntry>>({});
@@ -298,6 +300,8 @@ export default function PublicProfilePage() {
             src={avatarSrc}
             alt={`${profile.username} avatar`}
             className="h-16 w-16 rounded-full object-cover border border-white/20"
+            loading="lazy"
+            decoding="async"
           />
           <div>
             <h1 className="text-2xl font-bold">{profile.display_name || profile.username}</h1>
@@ -316,23 +320,28 @@ export default function PublicProfilePage() {
           </div>
         </div>
 
-        {/* Follow / Edit */}
-        <div className="shrink-0">
+        {/* Follow / Edit / Block */}
+        <div className="shrink-0 flex items-center gap-2">
           {isOwnProfile ? (
             <Link href="/settings/profile" className="bg-white/10 px-3 py-2 rounded text-sm hover:bg-white/15">
               Edit profile
             </Link>
           ) : (
-            <button
-              onClick={onToggleFollow}
-              disabled={togglingFollow}
-              aria-pressed={isFollowing}
-              className={`px-3 py-2 rounded text-sm disabled:opacity-50 ${
-                isFollowing ? 'bg-white/10 hover:bg-white/15' : 'bg-indigo-600 hover:bg-indigo-500 text-white'
-              }`}
-            >
-              {togglingFollow ? '…' : isFollowing ? 'Following' : 'Follow'}
-            </button>
+            <>
+              <button
+                onClick={onToggleFollow}
+                disabled={togglingFollow}
+                aria-pressed={isFollowing}
+                className={`px-3 py-2 rounded text-sm disabled:opacity-50 ${
+                  isFollowing ? 'bg-white/10 hover:bg-white/15' : 'bg-indigo-600 hover:bg-indigo-500 text-white'
+                }`}
+              >
+                {togglingFollow ? '…' : isFollowing ? 'Following' : 'Follow'}
+              </button>
+
+              {/* Block / Mute controls */}
+              <BlockButtons targetId={profile.id} username={profile.username} />
+            </>
           )}
         </div>
       </section>
@@ -366,12 +375,15 @@ export default function PublicProfilePage() {
                     openContextIfSafe(e, openContext, profile.id, gameId);
                   }
                 }}
+                aria-label={gameName ? `Open ${gameName} rating` : 'Open rating'}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={cover || '/cover-fallback.png'}
                   alt={gameName}
                   className="h-16 w-12 object-cover rounded border border-white/10"
+                  loading="lazy"
+                  decoding="async"
                 />
                 <div className="flex-1 min-w-0">
                   <Link
@@ -388,7 +400,7 @@ export default function PublicProfilePage() {
                     <span className="text-xs text-white/40">{timeAgo(r.created_at)}</span>
 
                     {gameId && (
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2" data-ignore-context>
                         {likesReady ? (
                           <LikePill
                             liked={entry.liked}
@@ -405,6 +417,7 @@ export default function PublicProfilePage() {
                           onClick={() => setOpenThread({ reviewUserId: profile.id, gameId })}
                           className="text-xs px-2 py-1 rounded border border-white/10 bg-white/5 hover:bg-white/10"
                           title="View comments"
+                          aria-label="View comments"
                         >
                           💬 {cCount}
                         </button>

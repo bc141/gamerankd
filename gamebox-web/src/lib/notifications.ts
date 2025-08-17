@@ -267,17 +267,18 @@ export async function clearFollow(
 /* Unread helpers (badge)                                             */
 /* ------------------------------------------------------------------ */
 
+// src/lib/notifications.ts
+
 export async function getUnreadCount(supabase: SupabaseClient) {
   const { data: auth } = await supabase.auth.getUser();
   const uid = auth.user?.id;
   if (!uid) return 0;
 
-  // Your view already excludes hidden/blocked rows.
-  const recipientCol = 'user_id'; // keep 'user_id' (not 'recipient_id')
+  // Count unread rows visible to the current user via RLS.
   const { count /*, error*/ } = await supabase
-    .from('notifications_visible') // ← the view
+    .from('notifications')
     .select('id', { head: true, count: 'exact' })
-    .eq(recipientCol, uid)
+    .eq('user_id', uid)
     .is('read_at', null);
 
   return count ?? 0;

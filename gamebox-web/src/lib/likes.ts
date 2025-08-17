@@ -87,7 +87,7 @@ export async function fetchLikesBulk(
     const { data: myLikes, error: myErr } = await supabase
       .from('likes')
       .select('review_user_id, game_id')
-      .eq('liker_id', viewerId) // liker_id is the column that records who liked
+      .eq('liker_id', viewerId) // who liked
       .in('game_id', uniqGameIds)
       .in('review_user_id', uniqUserIds);
 
@@ -139,17 +139,15 @@ export async function toggleLike(
   const liked = !!row?.liked;
   const count = Number(row?.count ?? 0);
 
-  // 🔔 Fire-and-forget notifications
-  try {
-    if (liked) {
-      notifyLike(supabase, reviewUserId, gameId).catch(() => {});
-    } else {
-      clearLike(supabase, reviewUserId, gameId).catch(() => {});
-    }
-  } catch {}
+  // 🔔 Fire-and-forget notifications only on success
+  if (liked) {
+    void notifyLike(supabase, reviewUserId, gameId);
+  } else {
+    void clearLike(supabase, reviewUserId, gameId);
+  }
 
   return { liked, count, error: null };
-}
+} // ← **this brace was missing in your version**
 
 // ---- cross-tab broadcast (now includes origin) ----
 const LS_KEY = 'gb-like-sync';

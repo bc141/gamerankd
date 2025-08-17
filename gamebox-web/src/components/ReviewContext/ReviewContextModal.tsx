@@ -183,6 +183,53 @@ export default function ReviewContextModal({
 
   const headingId = 'rcm-heading';
 
+  const GameCover = row?.games?.id ? (
+    <Link
+      href={`/game/${row.games.id}`}
+      prefetch={false}
+      className="shrink-0"
+      aria-label={`Open ${gameName}`}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={cover}
+        alt={gameName}
+        className="h-16 w-12 object-cover rounded border border-white/10"
+      />
+    </Link>
+  ) : (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={cover}
+      alt={gameName}
+      className="h-16 w-12 object-cover rounded border border-white/10"
+    />
+  );
+
+  const AuthorAvatar =
+    author?.username ? (
+      <Link
+        href={`/u/${author.username}`}
+        prefetch={false}
+        className="shrink-0"
+        aria-label={`Open ${author.display_name || author.username}'s profile`}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={author.avatar_url || '/avatar-placeholder.svg'}
+          alt=""
+          className="h-4 w-4 rounded-full object-cover border border-white/10"
+        />
+      </Link>
+    ) : (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={author?.avatar_url || '/avatar-placeholder.svg'}
+        alt=""
+        className="h-4 w-4 rounded-full object-cover border border-white/10"
+      />
+    );
+
   return (
     <div
       className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
@@ -199,8 +246,8 @@ export default function ReviewContextModal({
         className="w-full max-w-2xl rounded-2xl bg-neutral-900/95 border border-white/10 shadow-2xl overflow-hidden focus:outline-none"
         onMouseDown={(e) => e.stopPropagation()}
       >
-        {/* Summary (single divider below) */}
-        <div className="relative px-4 py-3">
+        {/* Summary (tight; no divider below) */}
+        <div className="relative px-4 pt-3 pb-2">
           {/* Close */}
           <button
             onClick={closeAndRestore}
@@ -220,46 +267,43 @@ export default function ReviewContextModal({
             </div>
           ) : row ? (
             <div className="flex items-start gap-3">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={cover}
-                alt={gameName}
-                className="h-16 w-12 object-cover rounded border border-white/10"
-              />
+              {GameCover}
+
               <div className="flex-1 min-w-0">
                 <h2 id={headingId} className="sr-only">
                   Review details
                 </h2>
 
-                <Link
-                  href={row.games?.id ? `/game/${row.games.id}` : '#'}
-                  className="font-medium hover:underline truncate inline-block"
-                  aria-label={row.games?.id ? `Open ${gameName}` : undefined}
-                  onClick={(e) => {
-                    if (!row.games?.id) e.preventDefault();
-                  }}
-                >
-                  {gameName}
-                </Link>
+                {row.games?.id ? (
+                  <Link
+                    href={`/game/${row.games.id}`}
+                    prefetch={false}
+                    className="font-medium hover:underline truncate inline-block"
+                    aria-label={`Open ${gameName}`}
+                  >
+                    {gameName}
+                  </Link>
+                ) : (
+                  <span className="font-medium truncate inline-block">{gameName}</span>
+                )}
 
                 <div className="mt-1 flex items-center gap-2 flex-wrap text-sm">
                   {author ? (
                     <>
-                      {/* author avatar */}
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={author.avatar_url || '/avatar-placeholder.svg'}
-                        alt=""
-                        className="h-4 w-4 rounded-full object-cover border border-white/10"
-                      />
+                      {AuthorAvatar}
                       <span className="text-white/80">
                         by{' '}
-                        <Link
-                          href={author.username ? `/u/${author.username}` : '#'}
-                          className="hover:underline"
-                        >
-                          {author.display_name || author.username || 'Player'}
-                        </Link>
+                        {author.username ? (
+                          <Link
+                            href={`/u/${author.username}`}
+                            prefetch={false}
+                            className="hover:underline"
+                          >
+                            {author.display_name || author.username}
+                          </Link>
+                        ) : (
+                          <span>{author.display_name || 'Player'}</span>
+                        )}
                       </span>
                       <span className="text-white/30">·</span>
                     </>

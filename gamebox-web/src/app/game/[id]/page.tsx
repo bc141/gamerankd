@@ -2,7 +2,6 @@
 'use client';
 
 import Link from 'next/link';
-import type React from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
@@ -25,23 +24,12 @@ import {
 } from '@/lib/comments';
 import { timeAgo } from '@/lib/timeAgo';
 import { useReviewContextModal } from '@/components/ReviewContext/useReviewContextModal';
+import { onRowClick, onRowKeyDown } from '@/lib/safeOpenContext'; // ✅ new
 
 // ---------- helpers ----------
 const to100 = (stars: number) => Math.round(stars * 20);
 const from100 = (score: number) => score / 20;
 const MAX_REVIEW_LEN = 500;
-
-function openContextIfSafe(
-  e: React.MouseEvent | React.KeyboardEvent,
-  open: (reviewUserId: string, gameId: number) => void,
-  reviewUserId?: string | null,
-  gameId?: number | null
-) {
-  if (!reviewUserId || !gameId) return;
-  const target = e.target as HTMLElement;
-  if (target.closest('a,button,[data-ignore-context],input,textarea,svg')) return;
-  open(reviewUserId, gameId);
-}
 
 // ---------- types ----------
 type Review = { user_id: string; rating: number; review?: string | null };
@@ -401,6 +389,8 @@ export default function GamePage() {
         src={game.cover_url ?? ''}
         alt={game.name}
         className="rounded mb-4 max-h-[360px] object-cover"
+        loading="lazy"
+        decoding="async"
       />
 
       <h1 className="text-3xl font-bold">{game.name}</h1>
@@ -527,18 +517,28 @@ export default function GamePage() {
               const cKey = canComment ? commentKey(a!.id, gameId) : '';
               const cCount = canComment ? (commentCounts[cKey] ?? 0) : 0;
 
+              const label =
+                a?.display_name || a?.username
+                  ? `Open ${a.display_name || a.username}'s rating`
+                  : 'Open rating';
+
               return (
                 <li
                   key={`${r.created_at}-${i}`}
                   className="flex items-start gap-3 py-3 cursor-pointer hover:bg-white/5 rounded-lg -mx-3 px-3"
-                  onClick={(e) => openContextIfSafe(e, openContext, a?.id ?? null, gameId)}
+                  onClick={(e) =>
+                    onRowClick(e, () => {
+                      if (a?.id) openContext(a.id, gameId);
+                    })
+                  }
+                  onKeyDown={(e) =>
+                    onRowKeyDown(e, () => {
+                      if (a?.id) openContext(a.id, gameId);
+                    })
+                  }
                   tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      openContextIfSafe(e, openContext, a?.id ?? null, gameId);
-                    }
-                  }}
+                  role="button"
+                  aria-label={label}
                 >
                   {/* avatar */}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -546,6 +546,8 @@ export default function GamePage() {
                     src={a?.avatar_url || '/avatar-placeholder.svg'}
                     alt=""
                     className="h-9 w-9 rounded-full object-cover border border-white/15"
+                    loading="lazy"
+                    decoding="async"
                   />
 
                   <div className="flex-1 min-w-0">
@@ -574,7 +576,7 @@ export default function GamePage() {
                     )}
 
                     {/* actions (don’t trigger context) */}
-                    <div className="mt-2 flex items-center gap-2">
+                    <div className="mt-2 flex items-center gap-2" data-ignore-context>
                       {canLike && (
                         <LikePill
                           liked={entry.liked}

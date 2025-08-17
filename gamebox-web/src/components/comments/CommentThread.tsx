@@ -40,6 +40,13 @@ export default function CommentThread({
   const boxRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
+  // auto-grow the composer up to ~6 lines
+  function autogrow(el: HTMLTextAreaElement) {
+    el.style.height = '0px';
+    const next = Math.min(el.scrollHeight, 6 * 24 + 16); // ~6 lines + padding
+    el.style.height = next + 'px';
+  }
+
   // keep parent badge in sync while open
   const count = rows.length;
   useEffect(() => onCountChange?.(count), [count, onCountChange]);
@@ -84,7 +91,10 @@ export default function CommentThread({
 
   // auto focus when opened (if signed in)
   useEffect(() => {
-    if (viewerId) inputRef.current?.focus();
+    if (viewerId) {
+      inputRef.current?.focus();
+      if (inputRef.current) autogrow(inputRef.current);
+    }
   }, [viewerId]);
 
   // scroll to bottom on load / length change
@@ -121,6 +131,7 @@ export default function CommentThread({
     };
     setRows((p) => [...p, temp]);
     setText('');
+    if (inputRef.current) autogrow(inputRef.current);
 
     try {
       const { row, error } = await addComment(
@@ -152,9 +163,12 @@ export default function CommentThread({
         // never block UX on notif issues
       }
 
-      // keep focus + scroll
+      // keep focus, reset height, and scroll
       requestAnimationFrame(() => {
-        inputRef.current?.focus();
+        if (inputRef.current) {
+          autogrow(inputRef.current);
+          inputRef.current.focus();
+        }
         const el = boxRef.current;
         if (el) el.scrollTop = el.scrollHeight;
       });
@@ -208,7 +222,7 @@ export default function CommentThread({
     return (
       <div className="flex flex-col max-h-[65vh]">
         {/* Header (no close; parent modal has one) */}
-        <div className="flex items-center justify-between p-3 border-b border-white/10">
+        <div className="flex items-center justify-between px-3 pt-2 pb-1">
           <h2 className="text-lg font-semibold text-white">{headerTitle}</h2>
         </div>
 
@@ -294,14 +308,18 @@ export default function CommentThread({
             <textarea
               ref={inputRef}
               value={text}
-              onChange={(e) => setText(e.target.value)}
+              onFocus={(e) => autogrow(e.currentTarget)}
+              onChange={(e) => {
+                setText(e.target.value);
+                autogrow(e.currentTarget);
+              }}
               onKeyDown={(e) => {
                 if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && !posting && text.trim()) {
                   e.preventDefault();
                   submit();
                 }
               }}
-              rows={2}
+              rows={1}
               placeholder={canPost ? 'Write a comment…' : 'Sign in to comment'}
               disabled={!canPost || posting}
               className="flex-1 resize-none rounded-lg border border-white/15 bg-neutral-900 text-white px-3 py-2 disabled:opacity-60"
@@ -331,7 +349,7 @@ export default function CommentThread({
       }}
     >
       <div className="w-full max-w-xl rounded-2xl bg-neutral-900/95 border border-white/10 shadow-xl">
-        {/* Header */}
+        {/* Header (tight, no divider; summary above handles borders) */}
         <div className="flex items-center justify-between px-3 pt-2 pb-1">
           <h2 className="text-sm font-semibold text-white/80">{headerTitle}</h2>
           <button
@@ -425,14 +443,18 @@ export default function CommentThread({
             <textarea
               ref={inputRef}
               value={text}
-              onChange={(e) => setText(e.target.value)}
+              onFocus={(e) => autogrow(e.currentTarget)}
+              onChange={(e) => {
+                setText(e.target.value);
+                autogrow(e.currentTarget);
+              }}
               onKeyDown={(e) => {
                 if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && !posting && text.trim()) {
                   e.preventDefault();
                   submit();
                 }
               }}
-              rows={2}
+              rows={1}
               placeholder={canPost ? 'Write a comment…' : 'Sign in to comment'}
               disabled={!canPost || posting}
               className="flex-1 resize-none rounded-lg border border-white/15 bg-neutral-900 text-white px-3 py-2 disabled:opacity-60"

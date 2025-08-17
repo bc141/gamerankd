@@ -25,6 +25,7 @@ import {
 } from '@/lib/comments';
 import { timeAgo } from '@/lib/timeAgo';
 import { useReviewContextModal } from '@/components/ReviewContext/useReviewContextModal';
+import { onRowClick, onRowKeyDown } from '@/lib/safeOpenContext';
 
 const AUTHOR_JOIN = 'profiles!reviews_user_id_profiles_fkey';
 
@@ -43,19 +44,6 @@ type Row = {
   games: { id: number; name: string; cover_url: string | null } | null;
   author: Author | null;
 };
-
-// Open context unless the click was on a link/button/etc.
-function openContextIfSafe(
-  e: React.MouseEvent | React.KeyboardEvent,
-  open: (reviewUserId: string, gameId: number) => void,
-  reviewUserId: string,
-  gameId?: number | null
-) {
-  if (!gameId) return;
-  const target = e.target as HTMLElement;
-  if (target.closest('a,button,[data-ignore-context],input,textarea,svg')) return;
-  open(reviewUserId, gameId);
-}
 
 // ------------- Inner client component -------------
 function FeedPageInner() {
@@ -367,17 +355,25 @@ function FeedPageInner() {
 
                 return (
                   <li
-                    key={`${r.created_at}-${i}`}
+                    key={`${r.reviewer_id}-${g?.id ?? 'nogame'}-${r.created_at}-${i}`}
                     className="grid grid-cols-[40px_1fr_auto] gap-3 py-5 cursor-pointer hover:bg-white/5 rounded-lg -mx-3 px-3"
-                    onClick={(e) => openContextIfSafe(e, openContext, r.reviewer_id, g?.id)}
+                    onClick={(e) =>
+                      onRowClick(e, () => {
+                        if (g?.id) openContext(r.reviewer_id, g.id);
+                      })
+                    }
+                    onKeyDown={(e) =>
+                      onRowKeyDown(e, () => {
+                        if (g?.id) openContext(r.reviewer_id, g.id);
+                      })
+                    }
                     tabIndex={0}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        openContextIfSafe(e, openContext, r.reviewer_id, g?.id);
-                      }
-                    }}
-                    aria-label={g?.name ? `Open ${g.name} rating by ${a?.display_name || a?.username || 'player'}` : 'Open rating'}
+                    role="button"
+                    aria-label={
+                      g?.name
+                        ? `Open ${g.name} rating by ${a?.display_name || a?.username || 'player'}`
+                        : 'Open rating'
+                    }
                   >
                     {/* avatar */}
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -385,6 +381,8 @@ function FeedPageInner() {
                       src={a?.avatar_url || '/avatar-placeholder.svg'}
                       alt=""
                       className="h-10 w-10 rounded-full object-cover border border-white/15 mt-1"
+                      loading="lazy"
+                      decoding="async"
                     />
 
                     {/* middle column */}
@@ -430,7 +428,7 @@ function FeedPageInner() {
                       )}
 
                       {/* footer: actions (don’t open context) */}
-                      <div className="mt-3 flex items-center gap-2">
+                      <div className="mt-3 flex items-center gap-2" data-ignore-context>
                         {canLike && (
                           <LikePill
                             liked={entry.liked}
@@ -462,6 +460,8 @@ function FeedPageInner() {
                         src={g.cover_url}
                         alt={g.name}
                         className="h-16 w-12 rounded object-cover border border-white/10"
+                        loading="lazy"
+                        decoding="async"
                       />
                     ) : (
                       <div className="h-16 w-12" />

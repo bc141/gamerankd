@@ -31,10 +31,13 @@ type Profile = {
 
 type Game = { id: number; name: string; cover_url: string | null };
 
-// Helper: only open modal when the click wasn't on a link/button/etc.
+// Only open modal when click wasn't on a control and no text is selected
 function shouldOpenContext(target: EventTarget | null) {
   const el = target as HTMLElement | null;
-  return el ? !el.closest('a,button,[data-ignore-context],input,textarea,svg') : false;
+  if (el?.closest('a,button,[data-ignore-context],input,textarea,svg')) return false;
+  const sel = window.getSelection?.();
+  if (sel && !sel.isCollapsed) return false;
+  return true;
 }
 
 export default function NotificationsPage() {
@@ -53,12 +56,22 @@ export default function NotificationsPage() {
     me
   );
 
-  // cross-tab bell sync
+  // cross-tab bell sync trigger
   const broadcastNotifSync = () => {
     try {
       localStorage.setItem('gb-notif-sync', String(Date.now()));
     } catch {}
   };
+
+  // react to bell sync from other tabs
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'gb-notif-sync') fetchAll();
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // fetch everything
   const fetchAll = async () => {
@@ -274,6 +287,8 @@ export default function NotificationsPage() {
               typeof n.game_id === 'number' &&
               !!me;
 
+            const absTime = new Date(n.created_at).toLocaleString();
+
             return (
               <li
                 key={n.id}
@@ -298,19 +313,40 @@ export default function NotificationsPage() {
                   unread ? 'bg-white/5 hover:bg-white/10' : 'hover:bg-white/5'
                 }`}
               >
-                {/* avatar */}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={avatar}
-                  alt=""
-                  className="h-9 w-9 rounded-full object-cover border border-white/10 mt-0.5"
-                />
+                {/* avatar (clickable if actor has username) */}
+                {actorHref ? (
+                  <Link
+                    href={actorHref}
+                    prefetch={false}
+                    className="shrink-0 mt-0.5"
+                    onClick={(e) => e.stopPropagation()}
+                    aria-label={`Open ${actorName}'s profile`}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={avatar}
+                      alt=""
+                      className="h-9 w-9 rounded-full object-cover border border-white/10"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  </Link>
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={avatar}
+                    alt=""
+                    className="h-9 w-9 rounded-full object-cover border border-white/10 mt-0.5"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                )}
 
                 {/* body */}
                 <div className="flex-1 min-w-0">
                   <div className="text-sm text-white/90">{text}</div>
                   <div className={`text-xs mt-0.5 ${unread ? 'text-white/60' : 'text-white/40'}`}>
-                    {timeAgo(n.created_at)}
+                    <time title={absTime}>{timeAgo(n.created_at)}</time>
                   </div>
                 </div>
 
@@ -328,6 +364,8 @@ export default function NotificationsPage() {
                       src={game.cover_url}
                       alt={game.name}
                       className="h-14 w-10 rounded object-cover border border-white/10"
+                      loading="lazy"
+                      decoding="async"
                     />
                   </Link>
                 ) : null}

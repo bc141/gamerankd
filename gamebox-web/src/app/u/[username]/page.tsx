@@ -27,8 +27,12 @@ import {
 import { timeAgo } from '@/lib/timeAgo';
 import { useReviewContextModal } from '@/components/ReviewContext/useReviewContextModal';
 import OverflowActions from '@/components/OverflowActions';
+import { getBlockSets, unblockUser, broadcastBlockSync } from '@/lib/blocks'; // ✅ NEW
 
 const from100 = (n: number) => n / 20;
+
+// local shape (no need to export from blocks.ts)
+type BlockSets = { iBlocked: Set<string>; blockedMe: Set<string>; iMuted: Set<string> };
 
 // open context unless click was on a link/button/etc.
 function openContextIfSafe(
@@ -80,7 +84,14 @@ export default function PublicProfilePage() {
   const [isFollowing, setIsFollowing] = useState(false);
   const [togglingFollow, setTogglingFollow] = useState(false);
 
+  // blocks (derived flags below)
+  const [blockSets, setBlockSets] = useState<BlockSets | null>(null);
+
   const isOwnProfile = Boolean(viewerId && profile?.id && viewerId === profile.id);
+  const blockedEitherWay =
+    !!(viewerId && profile?.id && blockSets && (blockSets.iBlocked.has(profile.id) || blockSets.blockedMe.has(profile.id)));
+  const iBlocked = !!(viewerId && profile?.id && blockSets?.iBlocked.has(profile.id));
+  
 
   // ❤️ likes (owner.id, gameId)
   const [likes, setLikes] = useState<Record<string, LikeEntry>>({});
@@ -216,16 +227,51 @@ export default function PublicProfilePage() {
     return () => { cancelled = true; };
   }, [ready, slug, viewerId, supabase]);
 
-  const avatarSrc = useMemo(
-    () => (profile?.avatar_url && profile.avatar_url.trim() !== '' ? profile.avatar_url : '/avatar-placeholder.svg'),
-    [profile?.avatar_url]
-  );
+  // 3) fetch & react to block state (small, isolated effect)
+useEffect(() => {
+  let mounted = true;
+
+  const refreshBlocks = async () => {
+    if (!viewerId || !profile?.id) return;
+    const sets = await getBlockSets(supabase, viewerId);
+    if (mounted) setBlockSets(sets as BlockSets);
+  };
+
+  (async () => {
+    await refreshBlocks();
+  })();
+
+  const onStorage = async (e: StorageEvent) => {
+    if (e.key !== 'gb-block-sync' || !profile?.id) return;
+
+    // 1) refresh block sets
+    await refreshBlocks();
+
+    // 2) refresh follow counts
+    const c = await getFollowCounts(supabase, profile.id);
+    if (mounted) setCounts(c);
+
+    // 3) refresh whether viewer still follows (will be false after a block)
+    if (viewerId && viewerId !== profile.id) {
+      const f = await checkIsFollowing(supabase, profile.id);
+      if (mounted) setIsFollowing(f);
+    }
+  };
+
+  try { window.addEventListener('storage', onStorage); } catch {}
+
+  return () => {
+    mounted = false;
+    try { window.removeEventListener('storage', onStorage); } catch {}
+  };
+}, [viewerId, profile?.id, supabase]);
 
   // follow toggle (uses helper; no 3rd arg)
   async function onToggleFollow() {
     if (!profile) return;
     if (!viewerId) return router.push('/login');
     if (isOwnProfile) return;
+    if (blockedEitherWay) return; // ✅ gate follow when blocked
 
     setTogglingFollow(true);
     try {
@@ -241,54 +287,56 @@ export default function PublicProfilePage() {
       setTogglingFollow(false);
     }
   }
+  const avatarSrc = useMemo<string>(() => {
+    const url = (profile?.avatar_url ?? '').trim();
+    return url !== '' ? url : '/avatar-placeholder.svg';
+  }, [profile?.avatar_url]);
+  // like toggle for one row (reviewUserId = profile.id)
+  async function onToggleLike(gameId: number) {
+    if (!profile || !gameId) return;
+    if (!viewerId) return router.push('/login');
+    if (blockedEitherWay) return; // ✅ soft gate; backend also enforces
 
- // like toggle for one row (reviewUserId = profile.id)
-async function onToggleLike(gameId: number) {
-  if (!profile || !gameId) return;
-  if (!viewerId) return router.push('/login');
+    const reviewUserId = profile.id;
+    const k = likeKey(reviewUserId, gameId);
+    if (likeBusy[k]) return;
 
-  const reviewUserId = profile.id;
-  const k = likeKey(reviewUserId, gameId);
-  if (likeBusy[k]) return;
+    const before = likes[k] ?? { liked: false, count: 0 };
 
-  const before = likes[k] ?? { liked: false, count: 0 };
+    // optimistic
+    setLikes(p => ({
+      ...p,
+      [k]: { liked: !before.liked, count: before.count + (before.liked ? -1 : 1) },
+    }));
+    setLikeBusy(p => ({ ...p, [k]: true }));
 
-  // optimistic
-  setLikes(p => ({
-    ...p,
-    [k]: { liked: !before.liked, count: before.count + (before.liked ? -1 : 1) },
-  }));
-  setLikeBusy(p => ({ ...p, [k]: true }));
+    try {
+      const { liked, count, error } = await toggleLikeRPC(supabase, reviewUserId, gameId);
 
-  try {
-    const { liked, count, error } = await toggleLikeRPC(supabase, reviewUserId, gameId);
+      if (error) {
+        // revert on failure (e.g., blocked either way)
+        setLikes(p => ({ ...p, [k]: before }));
+        return;
+      }
 
-    if (error) {
-      // revert on failure (e.g., blocked either way)
-      setLikes(p => ({ ...p, [k]: before }));
-      // Optional: surface why
-      // alert(error.message);
-      return;
+      // snap only if different -> avoids flicker
+      setLikes(p => {
+        const cur = p[k] ?? { liked: false, count: 0 };
+        if (cur.liked === liked && cur.count === count) return p;
+        return { ...p, [k]: { liked, count } };
+      });
+
+      broadcastLike(reviewUserId, gameId, liked, liked ? 1 : -1);
+
+      // tiny truth-sync in case of races
+      setTimeout(async () => {
+        const map = await fetchLikesBulk(supabase, viewerId, [{ reviewUserId, gameId }]);
+        setLikes(p => ({ ...p, ...map }));
+      }, 120);
+    } finally {
+      setLikeBusy(p => ({ ...p, [k]: false }));
     }
-
-    // snap only if different -> avoids flicker
-    setLikes(p => {
-      const cur = p[k] ?? { liked: false, count: 0 };
-      if (cur.liked === liked && cur.count === count) return p;
-      return { ...p, [k]: { liked, count } };
-    });
-
-    broadcastLike(reviewUserId, gameId, liked, liked ? 1 : -1);
-
-    // tiny truth-sync in case of races
-    setTimeout(async () => {
-      const map = await fetchLikesBulk(supabase, viewerId, [{ reviewUserId, gameId }]);
-      setLikes(p => ({ ...p, ...map }));
-    }, 120);
-  } finally {
-    setLikeBusy(p => ({ ...p, [k]: false }));
   }
-}
 
   // branches
   if (error) return <main className="p-8 text-red-500">{error}</main>;
@@ -321,38 +369,93 @@ async function onToggleLike(gameId: number) {
                 <strong className="text-white">{counts.following}</strong> Following
               </Link>
             </div>
+
+            {/* Block banner (only when not own profile) */}
+            {!isOwnProfile && (blockedEitherWay) && (
+              <div className="mt-3 text-xs rounded-lg border border-white/10 bg-white/5 text-white/80 px-3 py-2 flex items-center gap-2">
+                {iBlocked ? (
+                  <>
+                    <span>You blocked this user.</span>
+                    <button
+                      onClick={async () => {
+                        await unblockUser(supabase, profile.id);
+                      
+                        // broadcast to other tabs
+                        try { broadcastBlockSync(); } catch {}
+                      
+                        // local refresh: block sets + follow counts + following state
+                        if (viewerId) {
+                          const sets = await getBlockSets(supabase, viewerId);
+                          setBlockSets(sets as BlockSets);
+                        }
+                        const c2 = await getFollowCounts(supabase, profile.id);
+                        setCounts(c2);
+                      
+                        if (viewerId && viewerId !== profile.id) {
+                          const f2 = await checkIsFollowing(supabase, profile.id);
+                          setIsFollowing(f2);
+                        }
+                      }}
+                      className="ml-auto text-xs px-2 py-1 rounded bg-white/10 hover:bg-white/15"
+                    >
+                      Unblock
+                    </button>
+                  </>
+                ) : (
+                  <span>This user has blocked you.</span>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Follow / Edit / Block */}
+        {/* Follow / Edit / Overflow */}
         <div className="shrink-0 flex items-center gap-2 relative">
-  {isOwnProfile ? (
-    <Link
-      href="/settings/profile"
-      className="bg-white/10 px-3 py-2 rounded text-sm hover:bg-white/15"
-    >
-      Edit profile
-    </Link>
-  ) : (
-    <>
+          {isOwnProfile ? (
+            <Link
+              href="/settings/profile"
+              className="bg-white/10 px-3 py-2 rounded text-sm hover:bg-white/15"
+            >
+              Edit profile
+            </Link>
+          ) : (
+            <>
               <button
-        onClick={onToggleFollow}
-        disabled={togglingFollow}
-        aria-pressed={isFollowing}
-        className={`px-3 py-2 rounded text-sm disabled:opacity-50 ${
-          isFollowing
-            ? 'bg-white/10 hover:bg-white/15'
-            : 'bg-indigo-600 hover:bg-indigo-500 text-white'
-        }`}
-      >
-        {togglingFollow ? '…' : isFollowing ? 'Following' : 'Follow'}
-      </button>
+                onClick={onToggleFollow}
+                disabled={togglingFollow || blockedEitherWay}
+                aria-disabled={togglingFollow || blockedEitherWay}
+                title={blockedEitherWay ? 'Following disabled for blocked users' : undefined}
+                aria-pressed={isFollowing}
+                className={`px-3 py-2 rounded text-sm disabled:opacity-50 ${
+                  isFollowing
+                    ? 'bg-white/10 hover:bg-white/15'
+                    : 'bg-indigo-600 hover:bg-indigo-500 text-white'
+                }`}
+              >
+                {togglingFollow ? '…' : isFollowing ? 'Following' : 'Follow'}
+              </button>
 
-      {/* Kebab dropdown: Block / Unblock + Copy profile link */}
-      <OverflowActions targetId={profile.id} username={profile.username} />
-    </>
-  )}
-</div>
+              {/* Kebab dropdown: Block / Unblock + Copy profile link */}
+              <OverflowActions
+  targetId={profile.id}
+  username={profile.username}
+  onBlockChange={async () => {
+    // same-tab, immediate refresh (no reliance on storage event)
+    if (viewerId) {
+      const sets = await getBlockSets(supabase, viewerId);
+      setBlockSets(sets as BlockSets);
+    }
+    const c2 = await getFollowCounts(supabase, profile.id);
+    setCounts(c2);
+    if (viewerId && viewerId !== profile.id) {
+      const f2 = await checkIsFollowing(supabase, profile.id);
+      setIsFollowing(f2);
+    }
+  }}
+/>
+            </>
+          )}
+        </div>
       </section>
 
       {/* Reviews */}
@@ -411,21 +514,29 @@ async function onToggleLike(gameId: number) {
                     {gameId && (
                       <div className="flex items-center gap-2" data-ignore-context>
                         {likesReady ? (
-                          <LikePill
-                            liked={entry.liked}
-                            count={entry.count}
-                            busy={likeBusy[likeKey(profile.id, gameId)]}
-                            onClick={() => onToggleLike(gameId)}
-                            className="ml-2"
-                          />
-                        ) : (
-                          <span className="ml-2 text-xs text-white/40">❤️ …</span>
-                        )}
-
+  <span
+    className={`ml-2 inline-flex ${blockedEitherWay ? 'opacity-50 cursor-not-allowed' : ''}`}
+    title={blockedEitherWay ? 'Likes disabled for blocked users' : undefined}
+    data-ignore-context
+  >
+    <LikePill
+      liked={entry.liked}
+      count={entry.count}
+      busy={likeBusy[likeKey(profile.id, gameId)]}
+      onClick={() => {
+        if (blockedEitherWay) return;   // gate here
+        onToggleLike(gameId);
+      }}
+    />
+  </span>
+) : (
+  <span className="ml-2 text-xs text-white/40">❤️ …</span>
+)}
                         <button
-                          onClick={(e) => { e.stopPropagation(); setOpenThread({ reviewUserId: profile.id, gameId }); }}
-                          className="text-xs px-2 py-1 rounded border border-white/10 bg-white/5 hover:bg-white/10"
-                          title="View comments"
+                          onClick={(e) => { e.stopPropagation(); if (!blockedEitherWay) setOpenThread({ reviewUserId: profile.id, gameId }); }}
+                          disabled={blockedEitherWay}
+                          className="text-xs px-2 py-1 rounded border border-white/10 bg-white/5 hover:bg-white/10 disabled:opacity-50"
+                          title={blockedEitherWay ? 'Comments disabled for blocked users' : 'View comments'}
                           aria-label="View comments"
                         >
                           💬 {cCount}

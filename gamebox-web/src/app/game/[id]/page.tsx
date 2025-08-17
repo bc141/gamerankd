@@ -25,7 +25,8 @@ import {
 import { timeAgo } from '@/lib/timeAgo';
 import { useReviewContextModal } from '@/components/ReviewContext/useReviewContextModal';
 import { onRowClick, onRowKeyDown } from '@/lib/safeOpenContext'; // ✅ new
-import { getBlockSets } from '@/lib/blocks';
+import type { BlockSets } from '@/lib/blocks';
+import { getBlockSets, isInteractionBlocked, unblockUser, invalidateBlockCache } from '@/lib/blocks';
 
 // ---------- helpers ----------
 const to100 = (stars: number) => Math.round(stars * 20);

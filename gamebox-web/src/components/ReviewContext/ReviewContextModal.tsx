@@ -1,3 +1,4 @@
+// src/components/ReviewContext/ReviewContextModal.tsx
 'use client';
 
 import Link from 'next/link';
@@ -6,6 +7,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import StarRating from '@/components/StarRating';
 import { timeAgo } from '@/lib/timeAgo';
 import CommentThread from '@/components/comments/CommentThread';
+import { getBlockSets } from '@/lib/blocks';
 
 type Author = {
   id: string;
@@ -48,6 +50,9 @@ export default function ReviewContextModal({
   const [row, setRow] = useState<ReviewRow | null>(null);
   const [author, setAuthor] = useState<Author | null>(null);
 
+  // block/mute state (viewer ↔ review author)
+  const [blockedInfo, setBlockedInfo] = useState<{ iBlocked: boolean; blockedMe: boolean } | null>(null);
+
   // a11y/focus
   const panelRef = useRef<HTMLDivElement>(null);
   const openerRef = useRef<HTMLElement | null>(null);
@@ -59,17 +64,14 @@ export default function ReviewContextModal({
     openerRef.current = document.activeElement as HTMLElement | null;
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    // focus panel for screen readers
     const t = setTimeout(() => panelRef.current?.focus(), 0);
     return () => {
       document.body.style.overflow = prev;
       clearTimeout(t);
-      // restore focus to trigger
       openerRef.current?.focus?.();
     };
   }, []);
 
-  // Close helper (restores focus after parent unmount)
   function closeAndRestore() {
     const opener = openerRef.current;
     onClose();
@@ -83,7 +85,6 @@ export default function ReviewContextModal({
         e.preventDefault();
         closeAndRestore();
       } else if (e.key === 'Tab') {
-        // trap tab within modal
         const panel = panelRef.current;
         if (!panel) return;
         const focusables = panel.querySelectorAll<HTMLElement>(
@@ -170,6 +171,31 @@ export default function ReviewContextModal({
     };
   }, [supabase, reviewUserId, gameId]);
 
+  // check block/mute for current viewer vs review author
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      // no viewer: can't be blocked (UI will anyway disable composer)
+      if (!viewerId || viewerId === reviewUserId) {
+        if (!cancelled) setBlockedInfo({ iBlocked: false, blockedMe: false });
+        return;
+      }
+      try {
+        const { iBlocked, blockedMe } = await getBlockSets(supabase, viewerId);
+        if (cancelled) return;
+        setBlockedInfo({
+          iBlocked: iBlocked.has(reviewUserId),
+          blockedMe: blockedMe.has(reviewUserId),
+        });
+      } catch {
+        if (!cancelled) setBlockedInfo({ iBlocked: false, blockedMe: false });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase, viewerId, reviewUserId]);
+
   function onBackdropClick(e: MouseEvent<HTMLDivElement>) {
     if (e.target === e.currentTarget) closeAndRestore();
   }
@@ -178,10 +204,11 @@ export default function ReviewContextModal({
   const stars = row ? row.rating / 20 : 0; // convert 0–100 to 0–5
   const gameName = row?.games?.name ?? 'Unknown game';
   const cover = row?.games?.cover_url || '/cover-fallback.png';
-  const absTime =
-    row?.created_at ? new Date(row.created_at).toLocaleString() : undefined;
+  const absTime = row?.created_at ? new Date(row.created_at).toLocaleString() : undefined;
 
   const headingId = 'rcm-heading';
+
+  const canLinkAuthor = Boolean(author?.username) && !(blockedInfo?.iBlocked || blockedInfo?.blockedMe);
 
   const GameCover = row?.games?.id ? (
     <Link
@@ -206,29 +233,40 @@ export default function ReviewContextModal({
     />
   );
 
-  const AuthorAvatar =
-    author?.username ? (
-      <Link
-        href={`/u/${author.username}`}
-        prefetch={false}
-        className="shrink-0"
-        aria-label={`Open ${author.display_name || author.username}'s profile`}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={author.avatar_url || '/avatar-placeholder.svg'}
-          alt=""
-          className="h-4 w-4 rounded-full object-cover border border-white/10"
-        />
-      </Link>
-    ) : (
-      // eslint-disable-next-line @next/next/no-img-element
+  const AuthorAvatar = canLinkAuthor ? (
+    <Link
+      href={`/u/${author!.username}`}
+      prefetch={false}
+      className="shrink-0"
+      aria-label={`Open ${author!.display_name || author!.username}'s profile`}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src={author?.avatar_url || '/avatar-placeholder.svg'}
+        src={author!.avatar_url || '/avatar-placeholder.svg'}
         alt=""
         className="h-4 w-4 rounded-full object-cover border border-white/10"
       />
-    );
+    </Link>
+  ) : (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={author?.avatar_url || '/avatar-placeholder.svg'}
+      alt=""
+      className="h-4 w-4 rounded-full object-cover border border-white/10"
+    />
+  );
+
+  // Block banner
+  let blockBanner: string | null = null;
+  if (blockedInfo?.iBlocked && blockedInfo?.blockedMe) {
+    blockBanner = 'You and this user have blocked each other. Comments are hidden.';
+  } else if (blockedInfo?.iBlocked) {
+    blockBanner = 'You’ve blocked this user. Comments are hidden.';
+  } else if (blockedInfo?.blockedMe) {
+    blockBanner = 'This user has blocked you. Comments are hidden.';
+  }
+
+  const isBlocked = Boolean(blockedInfo && (blockedInfo.iBlocked || blockedInfo.blockedMe));
 
   return (
     <div
@@ -293,16 +331,16 @@ export default function ReviewContextModal({
                       {AuthorAvatar}
                       <span className="text-white/80">
                         by{' '}
-                        {author.username ? (
+                        {canLinkAuthor ? (
                           <Link
-                            href={`/u/${author.username}`}
+                            href={`/u/${author.username!}`}
                             prefetch={false}
                             className="hover:underline"
                           >
                             {author.display_name || author.username}
                           </Link>
                         ) : (
-                          <span>{author.display_name || 'Player'}</span>
+                          <span>{author.display_name || author.username || 'Player'}</span>
                         )}
                       </span>
                       <span className="text-white/30">·</span>
@@ -329,8 +367,15 @@ export default function ReviewContextModal({
           )}
         </div>
 
-        {/* Comments thread */}
-        {row && (
+        {/* Block banner (if any) */}
+        {blockBanner && (
+          <div className="px-4 py-2 text-sm text-amber-300/90 bg-amber-900/20 border-t border-white/10">
+            {blockBanner}
+          </div>
+        )}
+
+        {/* Comments thread (hidden if blocked) */}
+        {row && !isBlocked && (
           <div className="max-h-[65vh] overflow-y-auto">
             <CommentThread
               supabase={supabase}

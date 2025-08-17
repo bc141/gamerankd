@@ -7,6 +7,7 @@ import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { waitForSession } from '@/lib/waitForSession';
 import { timeAgo } from '@/lib/timeAgo';
 import { useReviewContextModal } from '@/components/ReviewContext/useReviewContextModal';
+import { getBlockSets } from '@/lib/blocks';
 
 type NotifMeta = { preview?: string } | null;
 
@@ -107,10 +108,17 @@ export default function NotificationsPage() {
       return;
     }
 
-    const list = (data ?? []) as Notif[];
+    // --- blocks/mutes gate (hide rows from users you blocked or who blocked you) ---
+    const { iBlocked, blockedMe } = await getBlockSets(supabase, uid);
+    const hidden = new Set<string>([
+      ...Array.from(iBlocked.values()),
+      ...Array.from(blockedMe.values()),
+    ]);
+    const list = ((data ?? []) as Notif[]).filter(n => !hidden.has(n.actor_id));
     setRows(list);
+    // ------------------------------------------------------------------------------
 
-    // hydrate (profiles + games)
+    // hydrate (profiles + games) based on filtered list
     const actorIds = Array.from(new Set(list.map((n) => n.actor_id)));
     const gameIds = Array.from(
       new Set(list.map((n) => n.game_id).filter((x): x is number => typeof x === 'number'))

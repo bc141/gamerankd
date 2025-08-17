@@ -26,6 +26,7 @@ import {
 import { timeAgo } from '@/lib/timeAgo';
 import { useReviewContextModal } from '@/components/ReviewContext/useReviewContextModal';
 import { onRowClick, onRowKeyDown } from '@/lib/safeOpenContext';
+import { getBlockSets } from '@/lib/blocks';
 
 const AUTHOR_JOIN = 'profiles!reviews_user_id_profiles_fkey';
 
@@ -131,6 +132,15 @@ function FeedPageInner() {
           return;
         }
 
+        // -------- blocks/mutes gate --------
+        const { iBlocked, blockedMe } = await getBlockSets(supabase, user.id);
+        const hidden = new Set<string>([
+          ...Array.from(iBlocked.values()),
+          ...Array.from(blockedMe.values()),
+        ]);
+        const hideUser = (uid?: string | null) => !!uid && hidden.has(String(uid));
+        // -----------------------------------
+
         if (tab === 'following') {
           const { data: flw, error: fErr } = await supabase
             .from('follows')
@@ -144,7 +154,11 @@ function FeedPageInner() {
             return;
           }
 
-          const followingIds = (flw ?? []).map(r => String(r.followee_id));
+          // filter out blocked/muted before querying reviews
+          const followingIds = (flw ?? [])
+            .map(r => String(r.followee_id))
+            .filter(id => !hideUser(id));
+
           if (followingIds.length === 0) {
             setRows([]);
             return;
@@ -171,7 +185,7 @@ function FeedPageInner() {
             return;
           }
 
-          const safe: Row[] = (data ?? []).map((r: any) => ({
+          const mapped: Row[] = (data ?? []).map((r: any) => ({
             reviewer_id: String(r?.user_id ?? r?.author?.id ?? ''),
             created_at: r?.created_at ?? new Date(0).toISOString(),
             rating: typeof r?.rating === 'number' ? r.rating : 0,
@@ -189,6 +203,8 @@ function FeedPageInner() {
               : null,
           }));
 
+          // final safety filter
+          const safe = mapped.filter(r => !hideUser(r.reviewer_id));
           setRows(safe);
 
           const pairs = safe
@@ -219,7 +235,7 @@ function FeedPageInner() {
           return;
         }
 
-        const safe: Row[] = (data ?? []).map((r: any) => ({
+        const mapped: Row[] = (data ?? []).map((r: any) => ({
           reviewer_id: String(r?.user_id ?? r?.author_id ?? ''),
           created_at: r?.created_at ?? new Date(0).toISOString(),
           rating: typeof r?.rating === 'number' ? r.rating : 0,
@@ -235,6 +251,7 @@ function FeedPageInner() {
           },
         }));
 
+        const safe = mapped.filter(r => !hideUser(r.reviewer_id));
         setRows(safe);
 
         const pairs = safe
@@ -429,32 +446,31 @@ function FeedPageInner() {
 
                       {/* footer: actions (don’t open context) */}
                       <div className="mt-3 flex items-center gap-2 pointer-events-none">
-  {canLike && (
-    <span className="pointer-events-auto" data-ignore-context>
-      <LikePill
-        liked={entry.liked}
-        count={entry.count}
-        busy={likeBusy[likeK]}
-        onClick={() => onToggleLike(r.reviewer_id, g!.id)}
-        /* optional: className="..." */
-      />
-    </span>
-  )}
+                        {canLike && (
+                          <span className="pointer-events-auto" data-ignore-context>
+                            <LikePill
+                              liked={entry.liked}
+                              count={entry.count}
+                              busy={likeBusy[likeK]}
+                              onClick={() => onToggleLike(r.reviewer_id, g!.id)}
+                            />
+                          </span>
+                        )}
 
-{canComment && (
-    <span className="pointer-events-auto" data-ignore-context>
-      <button
-        onClick={() =>
-          setOpenThread({ reviewUserId: r.reviewer_id, gameId: g!.id })
-        }
-        className="text-xs px-2 py-1 rounded border border-white/10 bg-white/5 hover:bg-white/10"
-        title="View comments"
-        aria-label="View comments"
-      >
-        💬 {cCount}
-      </button>
-    </span>
-  )}
+                        {canComment && (
+                          <span className="pointer-events-auto" data-ignore-context>
+                            <button
+                              onClick={() =>
+                                setOpenThread({ reviewUserId: r.reviewer_id, gameId: g!.id })
+                              }
+                              className="text-xs px-2 py-1 rounded border border-white/10 bg-white/5 hover:bg-white/10"
+                              title="View comments"
+                              aria-label="View comments"
+                            >
+                              💬 {cCount}
+                            </button>
+                          </span>
+                        )}
                       </div>
                     </div>
 

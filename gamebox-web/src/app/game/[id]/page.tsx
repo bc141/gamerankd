@@ -25,6 +25,7 @@ import {
 import { timeAgo } from '@/lib/timeAgo';
 import { useReviewContextModal } from '@/components/ReviewContext/useReviewContextModal';
 import { onRowClick, onRowKeyDown } from '@/lib/safeOpenContext'; // ✅ new
+import { getBlockSets } from '@/lib/blocks';
 
 // ---------- helpers ----------
 const to100 = (stars: number) => Math.round(stars * 20);
@@ -205,7 +206,17 @@ export default function GamePage() {
 
   const refetchRecent = async (viewerId: string | null) => {
     setRecentErr(null);
-
+  
+    // Build hidden set from blocks (only if signed in)
+    let hidden = new Set<string>();
+    if (viewerId) {
+      const { iBlocked, blockedMe } = await getBlockSets(supabase, viewerId);
+      hidden = new Set<string>([
+        ...Array.from(iBlocked.values()),
+        ...Array.from(blockedMe.values()),
+      ]);
+    }
+  
     const { data, error } = await supabase
       .from('reviews')
       .select(`
@@ -219,13 +230,13 @@ export default function GamePage() {
       .eq('game_id', gameId)
       .order('created_at', { ascending: false })
       .limit(12);
-
+  
     if (error) {
       setRecentErr(error.message);
       setRecent([]);
       return;
     }
-
+  
     const rows: RawRecent[] = Array.isArray(data) ? (data as RawRecent[]) : [];
     const normalized: RecentItem[] = rows.map((r) => ({
       created_at: r.created_at ?? new Date(0).toISOString(),
@@ -241,19 +252,30 @@ export default function GamePage() {
             }
           : null,
     }));
-
-    setRecent(normalized);
-
-    // Preload likes + comment counts for the visible set
-    const pairs = normalized
-      .filter(r => r.author?.id)
-      .map(r => ({ reviewUserId: r.author!.id, gameId }));
-
-    const [likesMap, commentsMap] = await Promise.all([
-      fetchLikesBulk(supabase, viewerId, pairs),
-      fetchCommentCountsBulk(supabase, pairs),
-    ]);
-
+  
+    // Hide any rows authored by blocked users (either direction)
+    const visible = normalized.filter((r) => {
+      const uid = r.author?.id;
+      return !(uid && hidden.has(uid));
+    });
+  
+    setRecent(visible);
+  
+    // Preload likes & comment counts **only** for visible rows
+    const pairs = visible
+  .filter((r) => r.author?.id)
+  .map((r) => ({ reviewUserId: r.author!.id, gameId }));
+  if (pairs.length === 0) {
+    setLikes({});
+    setCommentCounts({});
+    return;
+  }
+  
+  const [likesMap, commentsMap] = await Promise.all([
+    fetchLikesBulk(supabase, viewerId, pairs),
+    fetchCommentCountsBulk(supabase, pairs),
+  ]);
+  
     setLikes(likesMap ?? {});
     setCommentCounts(commentsMap ?? {});
   };
@@ -590,12 +612,13 @@ export default function GamePage() {
                       {canComment && (
     <span className="pointer-events-auto" data-ignore-context>
       <button
-        onClick={() => setOpenThread({ reviewUserId: a!.id, gameId })}
-        className="text-xs px-2 py-1 rounded border border-white/10 bg-white/5 hover:bg-white/10"
-        title="View comments"
-      >
-        💬 {cCount}
-      </button>
+  onClick={() => setOpenThread({ reviewUserId: a!.id, gameId })}
+  className="text-xs px-2 py-1 rounded border border-white/10 bg-white/5 hover:bg-white/10"
+  title="View comments"
+  aria-label="View comments"
+>
+💬 {cCount}
+</button>
     </span>
   )}
 </div>

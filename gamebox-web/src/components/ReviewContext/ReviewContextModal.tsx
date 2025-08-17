@@ -6,6 +6,13 @@ import StarRating from '@/components/StarRating';
 import { timeAgo } from '@/lib/timeAgo';
 import CommentThread from '@/components/comments/CommentThread';
 
+type Author = {
+  id: string;
+  username: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
+};
+
 type RawReviewRow = {
   rating?: number | null;
   review?: string | null;
@@ -38,6 +45,7 @@ export default function ReviewContextModal({
 }: Props) {
   const [loading, setLoading] = useState(true);
   const [row, setRow] = useState<ReviewRow | null>(null);
+  const [author, setAuthor] = useState<Author | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
   // lock body scroll while open
@@ -58,45 +66,61 @@ export default function ReviewContextModal({
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  // fetch single review summary
+  // fetch single review summary + author
   useEffect(() => {
     let cancelled = false;
-
     (async () => {
       setLoading(true);
 
-      const { data, error } = await supabase
-        .from('reviews')
-        .select('rating, review, created_at, games:game_id (id, name, cover_url)')
-        .eq('user_id', reviewUserId)
-        .eq('game_id', gameId)
-        .maybeSingle(); // ok if null
+      const [rev, prof] = await Promise.all([
+        supabase
+          .from('reviews')
+          .select('rating, review, created_at, games:game_id (id, name, cover_url)')
+          .eq('user_id', reviewUserId)
+          .eq('game_id', gameId)
+          .maybeSingle(),
+        supabase
+          .from('profiles')
+          .select('id,username,display_name,avatar_url')
+          .eq('id', reviewUserId)
+          .maybeSingle(),
+      ]);
 
       if (cancelled) return;
 
-      if (error || !data) {
+      if (!prof.error && prof.data) {
+        const p = prof.data as any;
+        setAuthor({
+          id: String(p.id),
+          username: p.username ?? null,
+          display_name: p.display_name ?? null,
+          avatar_url: p.avatar_url ?? null,
+        });
+      } else {
+        setAuthor(null);
+      }
+
+      if (rev.error || !rev.data) {
         setRow(null);
         setLoading(false);
         return;
       }
 
-      const d = data as unknown as RawReviewRow;
+      const d = rev.data as RawReviewRow;
       const g = d.games ?? null;
-
-      const normalized: ReviewRow = {
+      setRow({
         rating: Number(d.rating ?? 0),
         review: d.review ?? null,
         created_at: d.created_at ?? new Date(0).toISOString(),
-        games: g && g.id != null
+        games: g
           ? {
-              id: Number(g.id),
+              id: Number(g.id ?? 0),
               name: String(g.name ?? 'Unknown game'),
               cover_url: g.cover_url ?? null,
             }
           : null,
-      };
+      });
 
-      setRow(normalized);
       setLoading(false);
     })();
 
@@ -112,14 +136,14 @@ export default function ReviewContextModal({
   // small helpers
   const stars = row ? row.rating / 20 : 0; // convert 0–100 to 0–5
   const gameName = row?.games?.name ?? 'Unknown game';
-  const cover = row?.games?.cover_url ?? '';
+  const cover = row?.games?.cover_url || '/cover-fallback.png';
 
   return (
     <div
       className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
       role="dialog"
       aria-modal="true"
-      aria-label="View in context"
+      aria-label="Review"
       onMouseDown={onBackdropClick}
     >
       <div
@@ -127,20 +151,17 @@ export default function ReviewContextModal({
         className="w-full max-w-2xl rounded-2xl bg-neutral-900/95 border border-white/10 shadow-2xl overflow-hidden"
         onMouseDown={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-          <h2 className="text-base font-semibold text-white">View in context</h2>
+        {/* Summary (single divider below) */}
+        <div className="relative px-4 py-3 border-b border-white/10">
+          {/* Close */}
           <button
             onClick={onClose}
-            className="px-2 py-1 rounded hover:bg-white/10 text-white/80"
+            className="absolute right-2 top-2 px-2 py-1 rounded hover:bg-white/10 text-white/80"
             aria-label="Close"
           >
             ✕
           </button>
-        </div>
 
-        {/* Review summary */}
-        <div className="px-4 py-3 border-b border-white/10">
           {loading ? (
             <div className="flex items-center gap-3">
               <div className="h-16 w-12 rounded bg-white/10 animate-pulse" />
@@ -158,25 +179,52 @@ export default function ReviewContextModal({
                 className="h-16 w-12 object-cover rounded border border-white/10"
               />
               <div className="flex-1 min-w-0">
-                <div className="font-medium truncate">{gameName}</div>
-                <div className="mt-1 flex items-center gap-2 flex-wrap">
-                  <StarRating value={stars} readOnly size={18} />
-                  <span className="text-sm text-white/60">{stars.toFixed(1)} / 5</span>
+                <a
+                  href={row.games?.id ? `/game/${row.games.id}` : '#'}
+                  className="font-medium hover:underline truncate inline-block"
+                  aria-label={row.games?.id ? `Open ${gameName}` : undefined}
+                  onClick={(e) => {
+                    if (!row.games?.id) e.preventDefault();
+                  }}
+                >
+                  {gameName}
+                </a>
+
+                <div className="mt-1 flex items-center gap-2 flex-wrap text-sm">
+                  {author ? (
+                    <>
+                      {/* author avatar */}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={author.avatar_url || '/avatar-placeholder.svg'}
+                        alt=""
+                        className="h-4 w-4 rounded-full object-cover border border-white/10"
+                      />
+                      <span className="text-white/80">
+                        by{' '}
+                        <a
+                          href={author.username ? `/u/${author.username}` : '#'}
+                          className="hover:underline"
+                        >
+                          {author.display_name || author.username || 'Player'}
+                        </a>
+                      </span>
+                      <span className="text-white/30">·</span>
+                    </>
+                  ) : null}
+
+                  <StarRating value={stars} readOnly size={16} />
+                  <span className="text-white/80">{stars.toFixed(1)} / 5</span>
                   <span className="text-white/30">·</span>
-                  <span className="text-xs text-white/40">{timeAgo(row.created_at)}</span>
+                  <span className="text-white/50">{timeAgo(row.created_at)}</span>
                 </div>
+
                 {row.review && row.review.trim() !== '' && (
-                  <p className="text-white/70 mt-2 whitespace-pre-wrap break-words">
+                  <p className="text-white/80 mt-2 whitespace-pre-wrap break-words">
                     {row.review.trim()}
                   </p>
                 )}
               </div>
-              <a
-                href={`/game/${gameId}`}
-                className="shrink-0 text-xs px-2 py-1 rounded border border-white/10 bg-white/5 hover:bg-white/10"
-              >
-                Open game
-              </a>
             </div>
           ) : (
             <div className="text-sm text-white/70">This rating no longer exists.</div>

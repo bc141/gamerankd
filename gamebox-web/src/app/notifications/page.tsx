@@ -7,7 +7,6 @@ import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { waitForSession } from '@/lib/waitForSession';
 import { timeAgo } from '@/lib/timeAgo';
 import { useReviewContextModal } from '@/components/ReviewContext/useReviewContextModal';
-import ViewInContextButton from '@/components/ReviewContext/ViewInContextButton';
 
 type NotifMeta = { preview?: string } | null;
 
@@ -32,6 +31,12 @@ type Profile = {
 
 type Game = { id: number; name: string; cover_url: string | null };
 
+// Helper: only open modal when the click wasn't on a link/button/etc.
+function shouldOpenContext(target: EventTarget | null) {
+  const el = target as HTMLElement | null;
+  return el ? !el.closest('a,button,[data-ignore-context],input,textarea,svg') : false;
+}
+
 export default function NotificationsPage() {
   const supabase = supabaseBrowser();
   const [ready, setReady] = useState(false);
@@ -42,20 +47,20 @@ export default function NotificationsPage() {
   const [error, setError] = useState<string | null>(null);
   const [me, setMe] = useState<string | null>(null);
 
-  // 👁️ context modal controller
+  // context modal controller
   const { open: openContext, modal: contextModal } = useReviewContextModal(
     supabase,
     me
   );
 
-  // cross-tab ping so the bell stays in sync
+  // cross-tab bell sync
   const broadcastNotifSync = () => {
     try {
       localStorage.setItem('gb-notif-sync', String(Date.now()));
     } catch {}
   };
 
-  // fetch everything for this page
+  // fetch everything
   const fetchAll = async () => {
     setLoading(true);
     setError(null);
@@ -75,7 +80,9 @@ export default function NotificationsPage() {
 
     const { data, error } = await supabase
       .from('notifications')
-      .select('id,type,user_id,actor_id,game_id,comment_id,meta,read_at,created_at')
+      .select(
+        'id,type,user_id,actor_id,game_id,comment_id,meta,read_at,created_at'
+      )
       .eq('user_id', uid)
       .order('created_at', { ascending: false })
       .limit(50);
@@ -90,7 +97,7 @@ export default function NotificationsPage() {
     const list = (data ?? []) as Notif[];
     setRows(list);
 
-    // hydrate related rows (profiles + games)
+    // hydrate (profiles + games)
     const actorIds = Array.from(new Set(list.map((n) => n.actor_id)));
     const gameIds = Array.from(
       new Set(list.map((n) => n.game_id).filter((x): x is number => typeof x === 'number'))
@@ -98,10 +105,16 @@ export default function NotificationsPage() {
 
     const [profsRes, gamesRes] = await Promise.all([
       actorIds.length
-        ? supabase.from('profiles').select('id,username,display_name,avatar_url').in('id', actorIds)
+        ? supabase
+            .from('profiles')
+            .select('id,username,display_name,avatar_url')
+            .in('id', actorIds)
         : Promise.resolve({ data: [] as any[] }),
       gameIds.length
-        ? supabase.from('games').select('id,name,cover_url').in('id', gameIds)
+        ? supabase
+            .from('games')
+            .select('id,name,cover_url')
+            .in('id', gameIds)
         : Promise.resolve({ data: [] as any[] }),
     ]);
 
@@ -132,7 +145,7 @@ export default function NotificationsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase]);
 
-  // refresh on window focus (long-lived tabs)
+  // refresh on focus (long-lived tabs)
   useEffect(() => {
     const onFocus = () => fetchAll();
     window.addEventListener('focus', onFocus);
@@ -140,7 +153,7 @@ export default function NotificationsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [me]);
 
-  // mark one row read (optimistic) and notify other tabs
+  // mark one row read (optimistic) + notify other tabs
   async function handleRowClick(n: Notif) {
     if (n.read_at) return;
     const now = new Date().toISOString();
@@ -158,7 +171,7 @@ export default function NotificationsPage() {
     broadcastNotifSync();
   }
 
-  // mark all read (optimistic) and notify other tabs
+  // mark all read
   async function handleMarkAll() {
     if (!rows.some((r) => !r.read_at)) return;
     const now = new Date().toISOString();
@@ -176,24 +189,6 @@ export default function NotificationsPage() {
       return;
     }
     broadcastNotifSync();
-  }
-
-  // helper: skip context open if the click was on a link/button/etc.
-  function isInteractive(el: HTMLElement | null) {
-    return !!el?.closest('a,button,[data-ignore-context],input,textarea,svg');
-  }
-
-  // unified row activation: mark read and (when applicable) open context
-  function onRowActivate(e: React.MouseEvent | React.KeyboardEvent, n: Notif) {
-    if (isInteractive(e.target as HTMLElement)) return; // child controls handle themselves
-    handleRowClick(n);
-    const canView =
-      (n.type === 'like' || n.type === 'comment') &&
-      typeof n.game_id === 'number' &&
-      !!me;
-    if (canView) {
-      openContext(me!, n.game_id!);
-    }
   }
 
   const title = useMemo(() => 'Notifications', []);
@@ -229,6 +224,7 @@ export default function NotificationsPage() {
             const avatar = actor?.avatar_url || '/avatar-placeholder.svg';
 
             const game = n.game_id != null ? games[n.game_id] ?? null : null;
+            const gameHref = game ? `/game/${game.id}` : null;
 
             const ActorName = actorHref ? (
               <Link href={actorHref} prefetch={false} className="font-medium hover:underline">
@@ -239,9 +235,13 @@ export default function NotificationsPage() {
             );
 
             const GameName =
-              game && (
+              gameHref && game ? (
+                <Link href={gameHref} prefetch={false} className="font-medium hover:underline">
+                  {game.name}
+                </Link>
+              ) : game ? (
                 <span className="font-medium">{game.name}</span>
-              );
+              ) : null;
 
             let text: ReactNode = null;
             if (n.type === 'like') {
@@ -269,7 +269,7 @@ export default function NotificationsPage() {
             }
 
             const unread = !n.read_at;
-            const canView =
+            const canOpenContext =
               (n.type === 'like' || n.type === 'comment') &&
               typeof n.game_id === 'number' &&
               !!me;
@@ -279,11 +279,19 @@ export default function NotificationsPage() {
                 key={n.id}
                 role="button"
                 tabIndex={0}
-                onClick={(e) => onRowActivate(e, n)}
+                onClick={(e) => {
+                  // Always mark read on row click (consistent with previous behavior)
+                  handleRowClick(n);
+                  // Open context if the click wasn't on a link/button/etc.
+                  if (canOpenContext && shouldOpenContext(e.target)) {
+                    openContext(me!, n.game_id!);
+                  }
+                }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
-                    onRowActivate(e, n);
+                    handleRowClick(n);
+                    if (canOpenContext) openContext(me!, n.game_id!);
                   }
                 }}
                 className={`flex items-start gap-3 py-4 rounded-lg -mx-3 px-3 transition-colors cursor-pointer ${
@@ -306,40 +314,30 @@ export default function NotificationsPage() {
                   </div>
                 </div>
 
-                {/* actions / cover */}
-                <div className="flex items-center gap-2" data-ignore-context>
-                  {canView && (
-                    // prevent parent row from also firing
-                    <span onClick={(e) => e.stopPropagation()}>
-                      <ViewInContextButton
-                        onClick={() => openContext(me!, n.game_id!)}
-                      />
-                    </span>
-                  )}
-                  {game?.cover_url ? (
-                    <Link
-                      href={`/game/${game.id}`}
-                      prefetch={false}
-                      aria-label={`Open ${game.name}`}
-                      className="shrink-0"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={game.cover_url}
-                        alt={game.name}
-                        className="h-14 w-10 rounded object-cover border border-white/10"
-                      />
-                    </Link>
-                  ) : null}
-                </div>
+                {/* cover (clicking goes to game without marking read) */}
+                {game?.cover_url ? (
+                  <Link
+                    href={`/game/${game.id}`}
+                    prefetch={false}
+                    aria-label={`Open ${game.name}`}
+                    className="shrink-0"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={game.cover_url}
+                      alt={game.name}
+                      className="h-14 w-10 rounded object-cover border border-white/10"
+                    />
+                  </Link>
+                ) : null}
               </li>
             );
           })}
         </ul>
       )}
 
-      {/* context modal lives once per page */}
+      {/* one modal instance */}
       {contextModal}
     </main>
   );

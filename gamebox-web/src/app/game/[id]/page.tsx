@@ -2,6 +2,7 @@
 'use client';
 
 import Link from 'next/link';
+import type React from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
@@ -24,12 +25,23 @@ import {
 } from '@/lib/comments';
 import { timeAgo } from '@/lib/timeAgo';
 import { useReviewContextModal } from '@/components/ReviewContext/useReviewContextModal';
-import ViewInContextButton from '@/components/ReviewContext/ViewInContextButton';
 
 // ---------- helpers ----------
 const to100 = (stars: number) => Math.round(stars * 20);
 const from100 = (score: number) => score / 20;
 const MAX_REVIEW_LEN = 500;
+
+function openContextIfSafe(
+  e: React.MouseEvent | React.KeyboardEvent,
+  open: (reviewUserId: string, gameId: number) => void,
+  reviewUserId?: string | null,
+  gameId?: number | null
+) {
+  if (!reviewUserId || !gameId) return;
+  const target = e.target as HTMLElement;
+  if (target.closest('a,button,[data-ignore-context],input,textarea,svg')) return;
+  open(reviewUserId, gameId);
+}
 
 // ---------- types ----------
 type Review = { user_id: string; rating: number; review?: string | null };
@@ -516,62 +528,71 @@ export default function GamePage() {
               const cCount = canComment ? (commentCounts[cKey] ?? 0) : 0;
 
               return (
-                <li key={`${r.created_at}-${i}`} className="flex items-start gap-3">
+                <li
+                  key={`${r.created_at}-${i}`}
+                  className="flex items-start gap-3 py-3 cursor-pointer hover:bg-white/5 rounded-lg -mx-3 px-3"
+                  onClick={(e) => openContextIfSafe(e, openContext, a?.id ?? null, gameId)}
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      openContextIfSafe(e, openContext, a?.id ?? null, gameId);
+                    }
+                  }}
+                >
                   {/* avatar */}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={a?.avatar_url || '/avatar-placeholder.svg'}
-                    alt="avatar"
+                    alt=""
                     className="h-9 w-9 rounded-full object-cover border border-white/15"
                   />
 
                   <div className="flex-1 min-w-0">
+                    {/* header: author · stars · time */}
                     <div className="text-sm text-white/80 flex items-center gap-2 flex-wrap">
                       {a ? (
                         <Link
                           href={a.username ? `/u/${a.username}` : '#'}
                           className="font-medium hover:underline"
+                          onClick={(e) => e.stopPropagation()} // don’t open context when clicking the link
                         >
                           {a.display_name || a.username || 'Player'}
                         </Link>
-                      ) : 'Someone'}
+                      ) : (
+                        'Someone'
+                      )}
                       <span>rated</span>
                       <span className="text-white/60">{stars} / 5</span>
                       <span className="text-white/30">·</span>
                       <span className="text-white/40">{timeAgo(r.created_at)}</span>
+                    </div>
 
+                    {/* body: review text */}
+                    {r.review?.trim() && (
+                      <p className="mt-1 whitespace-pre-wrap text-white/85">{r.review.trim()}</p>
+                    )}
+
+                    {/* actions (don’t trigger context) */}
+                    <div className="mt-2 flex items-center gap-2" data-ignore-context>
                       {canLike && (
                         <LikePill
                           liked={entry.liked}
                           count={entry.count}
                           busy={likeBusy[likeK]}
                           onClick={() => onToggleLike(a!.id, gameId)}
-                          className="ml-2"
                         />
                       )}
-
                       {canComment && (
                         <button
                           onClick={() => setOpenThread({ reviewUserId: a!.id, gameId })}
-                          className="ml-2 text-xs px-2 py-1 rounded border border-white/10 bg-white/5 hover:bg-white/10"
+                          className="text-xs px-2 py-1 rounded border border-white/10 bg-white/5 hover:bg-white/10"
                           title="View comments"
                         >
                           💬 {cCount}
                         </button>
                       )}
-
-                      {/* 🔎 View-in-context sits with actions */}
-                      {canComment && (
-                        <ViewInContextButton
-                          className="ml-2"
-                          onClick={() => openContext(a!.id, gameId)}
-                        />
-                      )}
                     </div>
-
-                    {r.review && r.review.trim() !== '' && (
-                      <p className="mt-1 whitespace-pre-wrap text-white/85">{r.review.trim()}</p>
-                    )}
                   </div>
                 </li>
               );

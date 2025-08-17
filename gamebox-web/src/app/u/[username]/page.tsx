@@ -1,6 +1,8 @@
+// src/app/u/[username]/page.tsx
 'use client';
 
 import Link from 'next/link';
+import type React from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
@@ -24,9 +26,21 @@ import {
 } from '@/lib/comments';
 import { timeAgo } from '@/lib/timeAgo';
 import { useReviewContextModal } from '@/components/ReviewContext/useReviewContextModal';
-import ViewInContextButton from '@/components/ReviewContext/ViewInContextButton';
 
 const from100 = (n: number) => n / 20;
+
+// open context unless click was on a link/button/etc.
+function openContextIfSafe(
+  e: React.MouseEvent | React.KeyboardEvent,
+  open: (reviewUserId: string, gameId: number) => void,
+  reviewUserId: string,
+  gameId?: number | null
+) {
+  if (!gameId) return;
+  const target = e.target as HTMLElement;
+  if (target.closest('a,button,[data-ignore-context],input,textarea,svg')) return;
+  open(reviewUserId, gameId);
+}
 
 type Profile = {
   id: string;
@@ -42,19 +56,6 @@ type ReviewRow = {
   created_at: string;
   games: { id: number; name: string; cover_url: string | null } | null;
 };
-
-// open context unless click was on a link/button/etc.
-function openContextIfSafe(
-  e: React.MouseEvent | React.KeyboardEvent,
-  open: (reviewUserId: string, gameId: number) => void,
-  reviewUserId: string,
-  gameId?: number | null
-) {
-  if (!gameId) return;
-  const target = e.target as HTMLElement;
-  if (target.closest('a,button,[data-ignore-context],input,textarea,svg')) return;
-  open(reviewUserId, gameId);
-}
 
 export default function PublicProfilePage() {
   const supabase = supabaseBrowser();
@@ -88,6 +89,7 @@ export default function PublicProfilePage() {
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
   const [openThread, setOpenThread] = useState<{ reviewUserId: string; gameId: number } | null>(null);
 
+  // Context modal
   const { open: openContext, modal: contextModal } = useReviewContextModal(
     supabase,
     viewerId ?? null
@@ -375,6 +377,7 @@ export default function PublicProfilePage() {
                   <Link
                     href={gameId ? `/game/${gameId}` : '#'}
                     className="font-medium hover:underline truncate block"
+                    onClick={(e) => e.stopPropagation()}
                   >
                     {gameName}
                   </Link>
@@ -405,10 +408,6 @@ export default function PublicProfilePage() {
                         >
                           💬 {cCount}
                         </button>
-
-                        <ViewInContextButton
-                          onClick={() => openContext(profile.id, gameId)}
-                        />
                       </div>
                     )}
                   </div>

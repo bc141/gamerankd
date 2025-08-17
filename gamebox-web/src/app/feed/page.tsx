@@ -25,7 +25,6 @@ import {
 } from '@/lib/comments';
 import { timeAgo } from '@/lib/timeAgo';
 import { useReviewContextModal } from '@/components/ReviewContext/useReviewContextModal';
-import ViewInContextButton from '@/components/ReviewContext/ViewInContextButton';
 
 const AUTHOR_JOIN = 'profiles!reviews_user_id_profiles_fkey';
 
@@ -45,7 +44,7 @@ type Row = {
   author: Author | null;
 };
 
-// Helper: open context unless the click was on a link/button/etc.
+// Open context unless the click was on a link/button/etc.
 function openContextIfSafe(
   e: React.MouseEvent | React.KeyboardEvent,
   open: (reviewUserId: string, gameId: number) => void,
@@ -68,7 +67,7 @@ function FeedPageInner() {
   const tab: 'following' | 'foryou' = tabParam === 'foryou' ? 'foryou' : 'following';
 
   function setTab(next: 'following' | 'foryou') {
-    if (next === tab) return; // no-op
+    if (next === tab) return;
     const sp = new URLSearchParams(searchParams as any);
     sp.set('tab', next);
     router.replace(`/feed?${sp.toString()}`, { scroll: false });
@@ -145,7 +144,6 @@ function FeedPageInner() {
         }
 
         if (tab === 'following') {
-          // who am I following?
           const { data: flw, error: fErr } = await supabase
             .from('follows')
             .select('followee_id')
@@ -164,7 +162,6 @@ function FeedPageInner() {
             return;
           }
 
-          // recent reviews from people I follow
           const { data, error } = await supabase
             .from('reviews')
             .select(`
@@ -368,8 +365,6 @@ function FeedPageInner() {
                 const cKey = canComment ? commentKey(r.reviewer_id, g!.id) : '';
                 const cCount = canComment ? (commentCounts[cKey] ?? 0) : 0;
 
-                const canView = Boolean(r.reviewer_id && g?.id); // allow anyone to open context
-
                 return (
                   <li
                     key={`${r.created_at}-${i}`}
@@ -382,6 +377,7 @@ function FeedPageInner() {
                         openContextIfSafe(e, openContext, r.reviewer_id, g?.id);
                       }
                     }}
+                    aria-label={g?.name ? `Open ${g.name} rating by ${a?.display_name || a?.username || 'player'}` : 'Open rating'}
                   >
                     {/* avatar */}
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -399,6 +395,7 @@ function FeedPageInner() {
                           <Link
                             href={a.username ? `/u/${a.username}` : '#'}
                             className="font-medium hover:underline"
+                            onClick={(e) => e.stopPropagation()}
                           >
                             {a.display_name || a.username || 'Player'}
                           </Link>
@@ -409,7 +406,11 @@ function FeedPageInner() {
                         <span>rated</span>
 
                         {g ? (
-                          <Link href={`/game/${g.id}`} className="hover:underline font-medium">
+                          <Link
+                            href={`/game/${g.id}`}
+                            className="hover:underline font-medium"
+                            onClick={(e) => e.stopPropagation()}
+                          >
                             {g.name}
                           </Link>
                         ) : (
@@ -428,7 +429,7 @@ function FeedPageInner() {
                         </p>
                       )}
 
-                      {/* footer: actions (wrapped in data-ignore-context to avoid bubbling) */}
+                      {/* footer: actions (don’t open context) */}
                       <div className="mt-3 flex items-center gap-2" data-ignore-context>
                         {canLike && (
                           <LikePill
@@ -450,12 +451,6 @@ function FeedPageInner() {
                           >
                             💬 {cCount}
                           </button>
-                        )}
-
-                        {canView && (
-                          <ViewInContextButton
-                            onClick={() => openContext(r.reviewer_id, g!.id)}
-                          />
                         )}
                       </div>
                     </div>

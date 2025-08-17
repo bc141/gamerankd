@@ -428,28 +428,33 @@ function FeedPageInner() {
                       )}
 
                       {/* footer: actions (don’t open context) */}
-                      <div className="mt-3 flex items-center gap-2" data-ignore-context>
-                        {canLike && (
-                          <LikePill
-                            liked={entry.liked}
-                            count={entry.count}
-                            busy={likeBusy[likeK]}
-                            onClick={() => onToggleLike(r.reviewer_id, g!.id)}
-                          />
-                        )}
+                      <div className="mt-3 flex items-center gap-2 pointer-events-none">
+  {canLike && (
+    <span className="pointer-events-auto" data-ignore-context>
+      <LikePill
+        liked={entry.liked}
+        count={entry.count}
+        busy={likeBusy[likeK]}
+        onClick={() => onToggleLike(r.reviewer_id, g!.id)}
+        /* optional: className="..." */
+      />
+    </span>
+  )}
 
-                        {canComment && (
-                          <button
-                            onClick={() =>
-                              setOpenThread({ reviewUserId: r.reviewer_id, gameId: g!.id })
-                            }
-                            className="text-xs px-2 py-1 rounded border border-white/10 bg-white/5 hover:bg-white/10"
-                            title="View comments"
-                            aria-label="View comments"
-                          >
-                            💬 {cCount}
-                          </button>
-                        )}
+{canComment && (
+    <span className="pointer-events-auto" data-ignore-context>
+      <button
+        onClick={() =>
+          setOpenThread({ reviewUserId: r.reviewer_id, gameId: g!.id })
+        }
+        className="text-xs px-2 py-1 rounded border border-white/10 bg-white/5 hover:bg-white/10"
+        title="View comments"
+        aria-label="View comments"
+      >
+        💬 {cCount}
+      </button>
+    </span>
+  )}
                       </div>
                     </div>
 

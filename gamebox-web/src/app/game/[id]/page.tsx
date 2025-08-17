@@ -576,25 +576,29 @@ export default function GamePage() {
                     )}
 
                     {/* actions (don’t trigger context) */}
-                    <div className="mt-2 flex items-center gap-2" data-ignore-context>
-                      {canLike && (
-                        <LikePill
-                          liked={entry.liked}
-                          count={entry.count}
-                          busy={likeBusy[likeK]}
-                          onClick={() => onToggleLike(a!.id, gameId)}
-                        />
-                      )}
+                    <div className="mt-2 flex items-center gap-2 pointer-events-none">
+  {canLike && (
+    <span className="pointer-events-auto" data-ignore-context>
+      <LikePill
+        liked={entry.liked}
+        count={entry.count}
+        busy={likeBusy[likeK]}
+        onClick={() => onToggleLike(a!.id, gameId)}
+      />
+    </span>
+  )}
                       {canComment && (
-                        <button
-                          onClick={() => setOpenThread({ reviewUserId: a!.id, gameId })}
-                          className="text-xs px-2 py-1 rounded border border-white/10 bg-white/5 hover:bg-white/10"
-                          title="View comments"
-                        >
-                          💬 {cCount}
-                        </button>
-                      )}
-                    </div>
+    <span className="pointer-events-auto" data-ignore-context>
+      <button
+        onClick={() => setOpenThread({ reviewUserId: a!.id, gameId })}
+        className="text-xs px-2 py-1 rounded border border-white/10 bg-white/5 hover:bg-white/10"
+        title="View comments"
+      >
+        💬 {cCount}
+      </button>
+    </span>
+  )}
+</div>
                   </div>
                 </li>
               );

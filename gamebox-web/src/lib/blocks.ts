@@ -16,15 +16,12 @@ const CACHE_TTL_MS = 10_000;
 type CacheEntry = { t: number; sets: BlockSets };
 const cache = new Map<string, CacheEntry>(); // key: viewerId
 
-function now() {
-  return Date.now();
-}
-function normalizeId(id: unknown) {
-  return String(id ?? '');
-}
-function emptySets(): BlockSets {
-  return { iBlocked: new Set(), blockedMe: new Set(), iMuted: new Set() };
-}
+const HAS_WINDOW = typeof window !== 'undefined';
+const SYNC_KEY = 'gb-block-sync';
+
+const now = () => Date.now();
+const normalizeId = (id: unknown) => String(id ?? '');
+const emptySets = (): BlockSets => ({ iBlocked: new Set(), blockedMe: new Set(), iMuted: new Set() });
 
 /**
  * Fetch block sets for the viewer (with a small in-memory cache).
@@ -39,9 +36,7 @@ export async function getBlockSets(
 
   const key = normalizeId(viewerId);
   const entry = cache.get(key);
-  if (!opts?.force && entry && now() - entry.t < CACHE_TTL_MS) {
-    return entry.sets;
-  }
+  if (!opts?.force && entry && now() - entry.t < CACHE_TTL_MS) return entry.sets;
 
   const iBlocked = new Set<string>();
   const blockedMe = new Set<string>();
@@ -75,8 +70,10 @@ export function isInteractionBlocked(sets: BlockSets, otherUserId: string): bool
 /**
  * Block a user:
  * 1) Upsert into `blocks`
- * 2) Remove follow rows in BOTH directions
+ * 2) (server trigger) removes follows both ways + mutual notifications
  * 3) Invalidate cache + broadcast cross-tab sync
+ *
+ * NOTE: We rely on DB trigger `on_block_insert_cleanup()` for data hygiene.
  */
 export async function blockUser(
   supabase: SupabaseClient,
@@ -89,42 +86,15 @@ export async function blockUser(
     return { error: new Error("You can’t block yourself") };
   }
 
-  // 1) Upsert the block
-  const { error: upsertError } = await supabase
+  const { error } = await supabase
     .from('blocks')
-    .upsert([{ blocker_id: me, blocked_id: targetId }], {
-      onConflict: 'blocker_id,blocked_id',
-    });
+    .upsert([{ blocker_id: me, blocked_id: targetId }], { onConflict: 'blocker_id,blocked_id' });
 
-  // 2) Remove follows in BOTH directions (best-effort)
-  let delError: any = null;
-  if (!upsertError) {
-    // Try single OR delete first (Supabase v2+)
-    const { error } = await supabase
-      .from('follows')
-      .delete()
-      .or(
-        `and(follower_id.eq.${me},followee_id.eq.${targetId}),` +
-          `and(follower_id.eq.${targetId},followee_id.eq.${me})`
-      );
-
-    if (error) {
-      // Fallback: two separate deletes (works everywhere)
-      const [a, b] = await Promise.all([
-        supabase.from('follows').delete().match({ follower_id: me, followee_id: targetId }),
-        supabase.from('follows').delete().match({ follower_id: targetId, followee_id: me }),
-      ]);
-      delError = a.error ?? b.error ?? null;
-    } else {
-      delError = null;
-    }
-  }
-
-  // 3) Cache bust + cross-tab notify
+  // Cache bust + cross-tab notify regardless of error state (UI may still need to refresh)
   invalidateBlockCache(me);
   broadcastBlockSync();
 
-  return { error: upsertError ?? delError };
+  return { error };
 }
 
 /**
@@ -164,28 +134,18 @@ export async function unmuteUser(_supabase: SupabaseClient, _targetId: string): 
 }
 
 /** Cross-tab refresh signal */
-const LS_KEY = 'gb-block-sync';
-
 export function broadcastBlockSync() {
   try {
-    if (typeof window !== 'undefined' && 'localStorage' in window) {
-      window.localStorage.setItem(LS_KEY, String(Date.now()));
+    if (HAS_WINDOW && 'localStorage' in window) {
+      window.localStorage.setItem(SYNC_KEY, String(Date.now()));
     }
   } catch {}
 }
 
 /** Optional: listen for cross-tab block changes (returns an unsubscribe) */
 export function addBlockSyncListener(handler: () => void): () => void {
-  if (typeof window === 'undefined') return () => {};
-  const onStorage = (e: StorageEvent) => {
-    if (e.key === LS_KEY) handler();
-  };
-  try {
-    window.addEventListener('storage', onStorage);
-  } catch {}
-  return () => {
-    try {
-      window.removeEventListener('storage', onStorage);
-    } catch {}
-  };
+  if (!HAS_WINDOW) return () => {};
+  const onStorage = (e: StorageEvent) => { if (e.key === SYNC_KEY) handler(); };
+  try { window.addEventListener('storage', onStorage); } catch {}
+  return () => { try { window.removeEventListener('storage', onStorage); } catch {} };
 }

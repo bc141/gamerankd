@@ -139,7 +139,7 @@ export async function toggleLike(
   const liked = !!row?.liked;
   const count = Number(row?.count ?? 0);
 
-  // 🔔 Fire-and-forget notifications only on success
+  // notify (do not await)
   if (liked) {
     void notifyLike(supabase, reviewUserId, gameId);
   } else {

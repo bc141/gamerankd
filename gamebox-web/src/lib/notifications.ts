@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/naming-convention */
 // src/lib/notifications.ts
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -6,6 +7,7 @@ type NotifType = 'like' | 'comment' | 'follow';
 const isUniqueViolation = (e: any) => e?.code === '23505'; // duplicate
 const isNil = (v: unknown) => v === null || v === undefined;
 
+/** Cross-tab sync key for the bell / notifications page */
 export const NOTIF_SYNC_KEY = 'gb-notif-sync';
 export function broadcastNotifSync() {
   try { localStorage.setItem(NOTIF_SYNC_KEY, String(Date.now())); } catch {}
@@ -18,16 +20,6 @@ function toIntOrNull(v: unknown): number | null {
   if (!Number.isFinite(n)) return null;
   const i = Math.trunc(n);
   return Number.isFinite(i) ? i : null;
-}
-
-export async function markReadById(supabase: SupabaseClient, id: number) {
-  const { error } = await supabase
-    .from('notifications')
-    .update({ read_at: new Date().toISOString() })
-    .eq('id', id)
-    .is('read_at', null);
-
-  if (!error) broadcastNotifSync();
 }
 
 const UUID_RE =
@@ -63,12 +55,21 @@ async function hasBlockEitherWay(
       `and(blocker_id.eq.${b},blocked_id.eq.${a})`
     );
   if (error) {
-    // Be permissive; server RLS will still protect us.
-    // eslint-disable-next-line no-console
-    console.warn('hasBlockEitherWay warning', { code: (error as any)?.code, error });
+    // Be permissive; server RLS/trigger will still protect us.
     return false;
   }
   return (count ?? 0) > 0;
+}
+
+/** Mark one notification as read */
+export async function markReadById(supabase: SupabaseClient, id: number) {
+  const { error } = await supabase
+    .from('notifications')
+    .update({ read_at: new Date().toISOString() })
+    .eq('id', id)
+    .is('read_at', null);
+
+  if (!error) broadcastNotifSync();
 }
 
 /** Insert a notification (DB unique index handles dedupe). */
@@ -95,8 +96,6 @@ async function insertNotif(
   const { error } = await supabase.from('notifications').insert([record]);
   if (error && !isUniqueViolation(error)) {
     // 23503 = FK fail, 42501 = RLS denied, etc.
-    // eslint-disable-next-line no-console
-    console.warn('insertNotif error', { code: (error as any)?.code, error });
     return;
   }
   if (!error) broadcastNotifSync();
@@ -126,15 +125,11 @@ async function deleteNotif(
   q = isNil(commentId) ? q.is('comment_id', null) : q.eq('comment_id', commentId);
 
   const { error } = await q;
-  if (error) {
-    // eslint-disable-next-line no-console
-    console.warn('deleteNotif error', { code: (error as any)?.code, error });
-    return;
-  }
+  if (error) return;
   broadcastNotifSync();
 }
 
-/** Remove all notifications between A and B (both directions). Call right after a block upsert. */
+/** Remove all notifications between A and B (both directions). Safe to call after block. */
 export async function purgeAllBetween(
   supabase: SupabaseClient,
   a: string,
@@ -148,12 +143,7 @@ export async function purgeAllBetween(
       `and(user_id.eq.${a},actor_id.eq.${b}),` +
       `and(user_id.eq.${b},actor_id.eq.${a})`
     );
-  if (error) {
-    // eslint-disable-next-line no-console
-    console.warn('purgeAllBetween error', { code: (error as any)?.code, error });
-    return;
-  }
-  broadcastNotifSync();
+  if (!error) broadcastNotifSync();
 }
 
 /* ------------------------------------------------------------------ */
@@ -168,11 +158,12 @@ export async function notifyLike(
   const me = await getMeId(supabase);
   if (!me || me === reviewUserId) return; // no self-notifs
   if (await hasBlockEitherWay(supabase, me, reviewUserId)) return;
+
   await insertNotif(supabase, {
     type: 'like',
     user_id: reviewUserId,
     actor_id: me,
-    game_id: gameId,
+    game_id:gameId,
     comment_id: null,
   });
 }
@@ -188,7 +179,7 @@ export async function clearLike(
     type: 'like',
     user_id: reviewUserId,
     actor_id: me,
-    game_id: gameId,
+    game_id:gameId,
     comment_id: null,
   });
 }
@@ -207,12 +198,13 @@ export async function notifyComment(
   const me = await getMeId(supabase);
   if (!me || me === reviewUserId) return; // no self-notifs
   if (await hasBlockEitherWay(supabase, me, reviewUserId)) return;
+
   const trimmed = preview?.slice(0, 160);
   await insertNotif(supabase, {
     type: 'comment',
     user_id: reviewUserId,
     actor_id: me,
-    game_id: gameId,
+    game_id:gameId,
     comment_id: commentId,
     meta: trimmed ? { preview: trimmed } : null,
   });
@@ -230,7 +222,7 @@ export async function clearComment(
     type: 'comment',
     user_id: reviewUserId,
     actor_id: me,
-    game_id: gameId,
+    game_id:gameId,
     comment_id: commentId,
   });
 }
@@ -246,6 +238,7 @@ export async function notifyFollow(
   const me = await getMeId(supabase);
   if (!me || me === targetUserId) return;
   if (await hasBlockEitherWay(supabase, me, targetUserId)) return;
+
   await insertNotif(supabase, {
     type: 'follow',
     user_id: targetUserId,
@@ -279,33 +272,26 @@ export async function getUnreadCount(supabase: SupabaseClient) {
   const uid = auth.user?.id;
   if (!uid) return 0;
 
-  // If your view is already filtering out anything blocked, this is all you need.
-  const recipientCol = 'user_id'; // or 'recipient_id' if your view exposes that
-  const { count, error } = await supabase
+  // Your view already excludes hidden/blocked rows.
+  const recipientCol = 'user_id'; // keep 'user_id' (not 'recipient_id')
+  const { count /*, error*/ } = await supabase
     .from('notifications_visible') // ← the view
     .select('id', { head: true, count: 'exact' })
     .eq(recipientCol, uid)
     .is('read_at', null);
 
-  if (error) {
-    // eslint-disable-next-line no-console
-    console.warn('getUnreadCount error', { code: (error as any)?.code, error });
-  }
   return count ?? 0;
 }
 
 export async function markAllRead(supabase: SupabaseClient) {
   const me = await getMeId(supabase);
   if (!me) return;
+
   const { error } = await supabase
     .from('notifications')
     .update({ read_at: new Date().toISOString() })
     .eq('user_id', me)
     .is('read_at', null);
-  if (error) {
-    // eslint-disable-next-line no-console
-    console.warn('markAllRead error', { code: (error as any)?.code, error });
-  } else {
-    broadcastNotifSync();
-  }
+
+  if (!error) broadcastNotifSync();
 }

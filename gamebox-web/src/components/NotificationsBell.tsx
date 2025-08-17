@@ -56,45 +56,37 @@ export default function NotificationsBell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase, me]);
 
-  // Realtime updates (INSERT -> +1, UPDATE read_at -> -1, DELETE unread -> -1)
-  useEffect(() => {
-    if (!me) return;
+  // Realtime updates: on any change to *my* notifications, recompute from source of truth
+useEffect(() => {
+  if (!me) return;
 
-    const channel = supabase
-      .channel(`notif-bell-${me}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${me}` },
-        () => setCount(c => clampUp(c + 1))
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'notifications', filter: `user_id=eq.${me}` },
-        (payload: any) => {
-          const wasUnread = !payload?.old?.read_at;
-          const nowRead   = !!payload?.new?.read_at;
-          if (wasUnread && nowRead) setCount(c => clampDown(c - 1));
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'DELETE', schema: 'public', table: 'notifications', filter: `user_id=eq.${me}` },
-        (payload: any) => {
-          const wasUnread = !payload?.old?.read_at;
-          if (wasUnread) setCount(c => clampDown(c - 1));
-        }
-      )
-      .subscribe();
+  // NOTE: if your recipient column is 'user_id', keep it; if you renamed to 'recipient_id',
+  // change the filter below accordingly.
+  const recipientCol = 'user_id'; // or 'recipient_id'
+  const filter = `${recipientCol}=eq.${me}`;
 
-    return () => { supabase.removeChannel(channel); };
-  }, [supabase, me]);
+  const channel = supabase
+    .channel(`notif-bell-${me}`)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter }, () => {
+      refreshAuthAndCount();
+    })
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notifications', filter }, () => {
+      refreshAuthAndCount();
+    })
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'notifications', filter }, () => {
+      refreshAuthAndCount();
+    })
+    .subscribe();
+
+  return () => { supabase.removeChannel(channel); };
+}, [supabase, me]); 
 
   // Cross-tab sync: auth + notif read/mark-all signals
   useEffect(() => {
     const refreshIfNeeded = () => { if (me) refreshAuthAndCount(); };
-
+  
     const onStorage = (e: StorageEvent) => {
-      if (e.key === 'gb-auth-sync' || e.key === 'gb-notif-sync') {
+      if (e.key === 'gb-auth-sync' || e.key === 'gb-notif-sync' || e.key === 'gb-block-sync') {
         refreshIfNeeded();
       }
     };

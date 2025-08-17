@@ -215,17 +215,19 @@ export async function clearFollow(
 /* ------------------------------------------------------------------ */
 
 export async function getUnreadCount(supabase: SupabaseClient) {
-  const me = await getMeId(supabase);
-  if (!me) return 0;
-  const { count, error } = await supabase
-    .from('notifications')
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', me)
+  const { data: auth } = await supabase.auth.getUser();
+  const uid = auth.user?.id;
+  if (!uid) return 0;
+
+  // If your recipient column is 'user_id', keep that; if you use 'recipient_id', swap it.
+  const recipientCol = 'user_id'; // or 'recipient_id'
+
+  const { count } = await supabase
+    .from('notifications_visible')               // ← the view
+    .select('id', { head: true, count: 'exact' })
+    .eq(recipientCol, uid)
     .is('read_at', null);
-  if (error) {
-    // eslint-disable-next-line no-console
-    console.warn('getUnreadCount error', { code: (error as any)?.code, error });
-  }
+
   return count ?? 0;
 }
 

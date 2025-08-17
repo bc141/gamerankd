@@ -338,9 +338,8 @@ export default function PublicProfilePage() {
               >
                 {togglingFollow ? '…' : isFollowing ? 'Following' : 'Follow'}
               </button>
-              <BlockButtons targetId={profile.id} username={profile.username} />
+              <BlockButtons targetId={profile.id} username={profile.username} asMenu className="ml-2" />
               {/* Block / Mute controls */}
-              <BlockButtons targetId={profile.id} username={profile.username} />
             </>
           )}
         </div>

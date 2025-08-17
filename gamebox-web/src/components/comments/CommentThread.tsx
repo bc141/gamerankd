@@ -12,6 +12,7 @@ import {
 import { notifyComment, clearComment } from '@/lib/notifications';
 import { timeAgo } from '@/lib/timeAgo';
 import Link from 'next/link';
+import { getBlockSets } from '@/lib/blocks'; // 👈 blocks helper
 
 type Props = {
   supabase: SupabaseClient;
@@ -40,6 +41,10 @@ export default function CommentThread({
   const boxRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
+  // NEW: visibility + interaction state from blocks/mutes
+  const [hiddenAuthors, setHiddenAuthors] = useState<Set<string>>(new Set());
+  const [cannotInteract, setCannotInteract] = useState(false); // true when either direction is BLOCKED
+
   // auto-grow the composer up to ~6 lines
   function autogrow(el: HTMLTextAreaElement) {
     el.style.height = '0px';
@@ -47,9 +52,59 @@ export default function CommentThread({
     el.style.height = next + 'px';
   }
 
-  // keep parent badge in sync while open
-  const count = rows.length;
-  useEffect(() => onCountChange?.(count), [count, onCountChange]);
+  // ---- hydrate blocks/mutes (viewer-only) ----
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!viewerId) {
+        if (!cancelled) {
+          setHiddenAuthors(new Set());
+          setCannotInteract(false);
+        }
+        return;
+      }
+
+      // blocks (two-way) via helper
+      const { iBlocked, blockedMe } = await getBlockSets(supabase, viewerId);
+
+      // mutes (one-way; only people YOU muted are hidden from your view)
+      const mRes = await supabase
+        .from('mutes') // table: mutes(muter_id, muted_id)
+        .select('muted_id')
+        .eq('muter_id', viewerId);
+
+      const mutedIds = new Set<string>(
+        ((mRes.data ?? []) as any[]).map((r) => String(r.muted_id))
+      );
+
+      if (cancelled) return;
+
+      // hide authors that are: you blocked, blocked you, or you muted
+      const hidden = new Set<string>([
+        ...Array.from(iBlocked.values()),
+        ...Array.from(blockedMe.values()),
+        ...Array.from(mutedIds.values()),
+      ]);
+      setHiddenAuthors(hidden);
+
+      // cannot interact only when BLOCKED either way (mute doesn't prevent posting)
+      setCannotInteract(iBlocked.has(reviewUserId) || blockedMe.has(reviewUserId));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase, viewerId, reviewUserId]);
+
+  // keep parent badge in sync WHILE OPEN (use VISIBLE count)
+  const visibleRows = useMemo(() => {
+    if (!hiddenAuthors.size) return rows;
+    return rows.filter((r) => {
+      const uid = r.commenter?.id;
+      return !(uid && hiddenAuthors.has(uid));
+    });
+  }, [rows, hiddenAuthors]);
+
+  useEffect(() => onCountChange?.(visibleRows.length), [visibleRows.length, onCountChange]);
 
   // initial fetch
   useEffect(() => {
@@ -89,22 +144,22 @@ export default function CommentThread({
     };
   }, [supabase, reviewUserId, gameId, embed]);
 
-  // auto focus when opened (if signed in)
+  // auto focus when opened (if signed in & allowed)
   useEffect(() => {
-    if (viewerId) {
+    if (viewerId && !cannotInteract) {
       inputRef.current?.focus();
       if (inputRef.current) autogrow(inputRef.current);
     }
-  }, [viewerId]);
+  }, [viewerId, cannotInteract]);
 
-  // scroll to bottom on load / length change
+  // scroll to bottom on load / length change (visible list)
   useEffect(() => {
     if (loading) return;
     requestAnimationFrame(() => {
       const el = boxRef.current;
       if (el) el.scrollTop = el.scrollHeight;
     });
-  }, [loading, rows.length]);
+  }, [loading, visibleRows.length]);
 
   function safeClose() {
     onClose?.();
@@ -115,6 +170,10 @@ export default function CommentThread({
     const body = text.trim();
     if (!viewerId) {
       alert('Please sign in to comment.');
+      return;
+    }
+    if (cannotInteract) {
+      alert("You can't comment here.");
       return;
     }
     if (!body) return;
@@ -215,7 +274,7 @@ export default function CommentThread({
   }
 
   const headerTitle = useMemo(() => 'Comments', []);
-  const canPost = Boolean(viewerId);
+  const canPost = Boolean(viewerId) && !cannotInteract;
 
   // ---------- INLINE (embed) ----------
   if (embed) {
@@ -230,10 +289,10 @@ export default function CommentThread({
         <div ref={boxRef} className="flex-1 overflow-y-auto p-3 space-y-3" aria-live="polite">
           {loading ? (
             <div className="text-white/60 text-sm">Loading…</div>
-          ) : rows.length === 0 ? (
+          ) : visibleRows.length === 0 ? (
             <div className="text-white/60 text-sm">No comments yet.</div>
           ) : (
-            rows.map((c) => {
+            visibleRows.map((c) => {
               const name = c.commenter?.display_name || c.commenter?.username || 'Player';
               const avatar = c.commenter?.avatar_url || '/avatar-placeholder.svg';
               const canDelete = viewerId && c.commenter?.id === viewerId;
@@ -286,6 +345,7 @@ export default function CommentThread({
                           onClick={() => remove(c.id)}
                           className="ml-auto text-xs px-2 py-0.5 rounded bg-white/10 hover:bg-white/15 text-white/80"
                           title="Delete"
+                          data-ignore-context
                         >
                           Delete
                         </button>
@@ -304,7 +364,7 @@ export default function CommentThread({
 
         {/* Composer */}
         <div className="p-3 border-t border-white/10">
-          <div className="flex items-end gap-2">
+          <div className="flex items-end gap-2" data-ignore-context>
             <textarea
               ref={inputRef}
               value={text}
@@ -320,7 +380,9 @@ export default function CommentThread({
                 }
               }}
               rows={1}
-              placeholder={canPost ? 'Write a comment…' : 'Sign in to comment'}
+              placeholder={
+                canPost ? 'Write a comment…' : cannotInteract ? "You can't comment here." : 'Sign in to comment'
+              }
               disabled={!canPost || posting}
               className="flex-1 resize-none rounded-lg border border-white/15 bg-neutral-900 text-white px-3 py-2 disabled:opacity-60"
               maxLength={800}
@@ -351,7 +413,7 @@ export default function CommentThread({
       <div className="w-full max-w-xl rounded-2xl bg-neutral-900/95 border border-white/10 shadow-xl">
         {/* Header (tight, no divider; summary above handles borders) */}
         <div className="flex items-center justify-between px-3 pt-2 pb-1">
-          <h2 className="text-sm font-semibold text-white/80">{headerTitle}</h2>
+          <h2 className="text-sm font-semibold text-white/80">Comments</h2>
           <button
             onClick={safeClose}
             className="px-2 py-1 rounded hover:bg-white/10 text-white/80"
@@ -365,10 +427,10 @@ export default function CommentThread({
         <div ref={boxRef} className="max-h-[60vh] overflow-y-auto p-3 space-y-3" aria-live="polite">
           {loading ? (
             <div className="text-white/60 text-sm">Loading…</div>
-          ) : rows.length === 0 ? (
+          ) : visibleRows.length === 0 ? (
             <div className="text-white/60 text-sm">No comments yet.</div>
           ) : (
-            rows.map((c) => {
+            visibleRows.map((c) => {
               const name = c.commenter?.display_name || c.commenter?.username || 'Player';
               const avatar = c.commenter?.avatar_url || '/avatar-placeholder.svg';
               const canDelete = viewerId && c.commenter?.id === viewerId;
@@ -421,6 +483,7 @@ export default function CommentThread({
                           onClick={() => remove(c.id)}
                           className="ml-auto text-xs px-2 py-0.5 rounded bg-white/10 hover:bg-white/15 text-white/80"
                           title="Delete"
+                          data-ignore-context
                         >
                           Delete
                         </button>
@@ -439,7 +502,7 @@ export default function CommentThread({
 
         {/* Composer */}
         <div className="p-3 border-t border-white/10">
-          <div className="flex items-end gap-2">
+          <div className="flex items-end gap-2" data-ignore-context>
             <textarea
               ref={inputRef}
               value={text}
@@ -455,7 +518,9 @@ export default function CommentThread({
                 }
               }}
               rows={1}
-              placeholder={canPost ? 'Write a comment…' : 'Sign in to comment'}
+              placeholder={
+                canPost ? 'Write a comment…' : cannotInteract ? "You can't comment here." : 'Sign in to comment'
+              }
               disabled={!canPost || posting}
               className="flex-1 resize-none rounded-lg border border-white/15 bg-neutral-900 text-white px-3 py-2 disabled:opacity-60"
               maxLength={800}

@@ -1,5 +1,6 @@
 // src/lib/comments.ts
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { getBlockSets } from './blocks';
 
 export type CommentUser = {
   id: string;
@@ -46,15 +47,21 @@ export async function fetchCommentCountsBulk(
   return out;
 }
 
-// Adjust if your FK alias differs
+/**
+ * If your FK column isn't `commenter_id`, change this to 'user_id'.
+ * The join alias must match your Supabase FK name for review_comments → profiles.
+ */
+const COMMENTER_COL = 'commenter_id' as const;
+// If your FK name differs, update this:
 const COMMENTER_JOIN = 'profiles!review_comments_commenter_id_fkey';
 
-/** Paginated list (newest first). */
+/** List comments (oldest first). Optionally filter by viewer’s block relationships. */
 export async function listComments(
   supabase: SupabaseClient,
   reviewUserId: string,
   gameId: number,
-  limit = 20,
+  limit = 200,
+  viewerId: string | null = null,
   before?: string
 ): Promise<{ rows: CommentRow[]; error: any | null }> {
   let q = supabase
@@ -67,7 +74,7 @@ export async function listComments(
     )
     .eq('review_user_id', reviewUserId)
     .eq('game_id', gameId)
-    .order('created_at', { ascending: false })
+    .order('created_at', { ascending: true }) // oldest → newest works best with "scroll to bottom"
     .limit(limit);
 
   if (before) q = q.lt('created_at', before);
@@ -75,7 +82,7 @@ export async function listComments(
   const { data, error } = await q;
   if (error) return { rows: [], error };
 
-  const rows: CommentRow[] = (data as any[] ?? []).map((r: any) => {
+  let rows: CommentRow[] = (data as any[] ?? []).map((r: any) => {
     const c = r?.commenter ?? null;
     return {
       id: String(r.id),
@@ -92,6 +99,15 @@ export async function listComments(
     };
   });
 
+  // Hide comments from users you block or who block you (if viewer is known)
+  if (viewerId) {
+    const { iBlocked, blockedMe } = await getBlockSets(supabase, viewerId);
+    rows = rows.filter(r => {
+      const uid = r.commenter?.id;
+      return !(uid && (iBlocked.has(uid) || blockedMe.has(uid)));
+    });
+  }
+
   return { rows, error: null };
 }
 
@@ -104,16 +120,26 @@ export async function addComment(
   body: string
 ): Promise<{ row: CommentRow | null; error: any | null }> {
   const trimmed = (body ?? '').trim();
+  if (!viewerId) return { row: null, error: new Error('Not signed in') };
   if (!trimmed) return { row: null, error: new Error('Empty comment') };
+
+  // ❌ Block guard
+  const { iBlocked, blockedMe } = await getBlockSets(supabase, viewerId);
+  if (iBlocked.has(reviewUserId) || blockedMe.has(reviewUserId)) {
+    return { row: null, error: new Error('Blocked users can’t be commented on.') };
+  }
+
+  // Payload with flexible commenter column name
+  const payload: Record<string, any> = {
+    review_user_id: reviewUserId,
+    game_id: gameId,
+    body: trimmed,
+  };
+  payload[COMMENTER_COL] = viewerId;
 
   const { data, error } = await supabase
     .from('review_comments')
-    .insert({
-      review_user_id: reviewUserId,
-      game_id: gameId,
-      commenter_id: viewerId,
-      body: trimmed,
-    })
+    .insert(payload)
     .select(
       `
       id, body, created_at,

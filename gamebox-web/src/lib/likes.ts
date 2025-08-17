@@ -1,6 +1,7 @@
 // src/lib/likes.ts
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { notifyLike, clearLike } from './notifications';
+import { getBlockSets } from './blocks';
 
 export type LikeEntry = { liked: boolean; count: number };
 
@@ -33,19 +34,13 @@ function safeLSSet(key: string, val: string) {
     window.localStorage.setItem(key, val);
   } catch {}
 }
-function safeAddEventListener(
-  type: string,
-  handler: (e: any) => void
-) {
+function safeAddEventListener(type: string, handler: (e: any) => void) {
   try {
     if (!HAS_WINDOW) return;
     window.addEventListener(type as any, handler as any);
   } catch {}
 }
-function safeRemoveEventListener(
-  type: string,
-  handler: (e: any) => void
-) {
+function safeRemoveEventListener(type: string, handler: (e: any) => void) {
   try {
     if (!HAS_WINDOW) return;
     window.removeEventListener(type as any, handler as any);
@@ -59,8 +54,7 @@ function getTabId(): string {
   try {
     let id = safeSSGet(TAB_KEY);
     if (!id) {
-      const canUUID =
-        typeof crypto !== 'undefined' && 'randomUUID' in crypto;
+      const canUUID = typeof crypto !== 'undefined' && 'randomUUID' in crypto;
       id = canUUID ? crypto.randomUUID() : String(Math.random());
       safeSSSet(TAB_KEY, id);
     }
@@ -76,8 +70,8 @@ export async function fetchLikesBulk(
   viewerId: string | null,
   pairs: Pair[]
 ): Promise<Record<string, LikeEntry>> {
-  const uniqGameIds = Array.from(new Set(pairs.map(p => p.gameId)));
-  const uniqUserIds = Array.from(new Set(pairs.map(p => p.reviewUserId)));
+  const uniqGameIds = Array.from(new Set(pairs.map((p) => p.gameId)));
+  const uniqUserIds = Array.from(new Set(pairs.map((p) => p.reviewUserId)));
   if (uniqGameIds.length === 0 || uniqUserIds.length === 0) return {};
 
   const { data: allLikes, error: allErr } = await supabase
@@ -87,26 +81,27 @@ export async function fetchLikesBulk(
     .in('review_user_id', uniqUserIds);
   if (allErr) return {};
 
-  // Viewer’s likes within the same visible set
-let mine: { review_user_id: string; game_id: number }[] = [];
-if (viewerId) {
-  const { data: myLikes, error: myErr } = await supabase
-    .from('likes')
-    .select('review_user_id, game_id')
-    .eq('liker_id', viewerId)        // 👈 FIX (was user_id)
-    .in('game_id', uniqGameIds)
-    .in('review_user_id', uniqUserIds);
-  if (!myErr && Array.isArray(myLikes)) mine = myLikes as any[];
-}
+  // viewer's likes in the same visible set
+  let mine: { review_user_id: string; game_id: number }[] = [];
+  if (viewerId) {
+    const { data: myLikes, error: myErr } = await supabase
+      .from('likes')
+      .select('review_user_id, game_id')
+      .eq('liker_id', viewerId) // liker_id is the column that records who liked
+      .in('game_id', uniqGameIds)
+      .in('review_user_id', uniqUserIds);
+
+    if (!myErr && Array.isArray(myLikes)) mine = myLikes as any[];
+  }
 
   const counts = new Map<string, number>();
   for (const row of allLikes ?? []) {
-    const k = likeKey(String(row.review_user_id), Number(row.game_id));
+    const k = likeKey(String((row as any).review_user_id), Number((row as any).game_id));
     counts.set(k, (counts.get(k) ?? 0) + 1);
   }
 
   const mineSet = new Set(
-    mine.map(r => likeKey(String(r.review_user_id), Number(r.game_id)))
+    mine.map((r) => likeKey(String(r.review_user_id), Number(r.game_id)))
   );
 
   const out: Record<string, LikeEntry> = {};
@@ -118,33 +113,40 @@ if (viewerId) {
 }
 
 // ---- server-side toggle via RPC; returns authoritative {liked,count} ----
-// ---- server-side toggle via RPC; returns authoritative {liked,count} ----
 export async function toggleLike(
   supabase: SupabaseClient,
   reviewUserId: string,
   gameId: number
 ): Promise<{ liked: boolean; count: number; error: any | null }> {
+  // auth + block guard (must be INSIDE the function)
+  const { data: auth } = await supabase.auth.getUser();
+  const me = auth.user?.id;
+  if (!me) return { liked: false, count: 0, error: new Error('Not signed in') };
+
+  // don’t allow likes when either user has blocked the other
+  const { iBlocked, blockedMe } = await getBlockSets(supabase, me);
+  if (iBlocked.has(reviewUserId) || blockedMe.has(reviewUserId)) {
+    return { liked: false, count: 0, error: new Error("Blocked users can't be liked.") };
+  }
+
   const { data, error } = await supabase.rpc('toggle_like', {
     p_review_user_id: reviewUserId,
     p_game_id: gameId,
   });
-
   if (error) return { liked: false, count: 0, error };
 
   const row = Array.isArray(data) ? data[0] : data;
   const liked = !!row?.liked;
   const count = Number(row?.count ?? 0);
 
-  // 🔔 Fire-and-forget notifications (DB dedupe + self-guard handle safety)
+  // 🔔 Fire-and-forget notifications
   try {
     if (liked) {
       notifyLike(supabase, reviewUserId, gameId).catch(() => {});
     } else {
       clearLike(supabase, reviewUserId, gameId).catch(() => {});
     }
-  } catch {
-    // never block the UI on notif errors
-  }
+  } catch {}
 
   return { liked, count, error: null };
 }
@@ -166,14 +168,16 @@ export function broadcastLike(
     liked,
     delta,
   };
-  // local (same tab)
+
+  // same tab (custom event)
   try {
     if (HAS_WINDOW) {
       const ev = new CustomEvent(LS_KEY, { detail: payload });
       window.dispatchEvent(ev);
     }
   } catch {}
-  // other tabs
+
+  // other tabs (storage event)
   safeLSSet(LS_KEY, JSON.stringify(payload));
 }
 
@@ -186,7 +190,7 @@ export function addLikeListener(
   const onLocal = (e: Event) => {
     const d = (e as CustomEvent).detail;
     if (!d || typeof d !== 'object') return;
-    if (d.origin === localId) return; // ignore our own tab
+    if (d.origin === localId) return;
     handler(d);
   };
   const onStorage = (e: StorageEvent) => {
@@ -194,7 +198,7 @@ export function addLikeListener(
     try {
       const d = JSON.parse(e.newValue);
       if (!d || typeof d !== 'object') return;
-      if (d.origin === localId) return; // ignore our own tab
+      if (d.origin === localId) return;
       handler(d);
     } catch {}
   };

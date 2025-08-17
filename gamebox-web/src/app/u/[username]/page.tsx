@@ -27,6 +27,7 @@ import {
 import { timeAgo } from '@/lib/timeAgo';
 import { useReviewContextModal } from '@/components/ReviewContext/useReviewContextModal';
 import BlockButtons from '@/components/BlockButtons';
+import { getBlockSets } from '@/lib/blocks';
 
 const from100 = (n: number) => n / 20;
 
@@ -338,7 +339,7 @@ export default function PublicProfilePage() {
               >
                 {togglingFollow ? '…' : isFollowing ? 'Following' : 'Follow'}
               </button>
-              <BlockButtons targetId={profile.id} username={profile.username} asMenu className="ml-2" />
+          
               {/* Block / Mute controls */}
             </>
           )}

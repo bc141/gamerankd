@@ -116,7 +116,8 @@ export default function CommentThread({
         supabase,
         reviewUserId,
         gameId,
-        200
+        200,
+        viewerId
       );
       if (!mounted) return;
       if (!error) setRows(initial);

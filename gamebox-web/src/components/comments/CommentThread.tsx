@@ -11,6 +11,7 @@ import {
 } from '@/lib/comments';
 import { notifyComment, clearComment } from '@/lib/notifications';
 import { timeAgo } from '@/lib/timeAgo';
+import Link from 'next/link';
 
 type Props = {
   supabase: SupabaseClient;
@@ -225,16 +226,47 @@ export default function CommentThread({
 
               return (
                 <div key={c.id} className="flex items-start gap-3">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={avatar}
-                    alt=""
-                    className="h-8 w-8 rounded-full object-cover border border-white/10"
-                  />
+                  {/* avatar (clickable if username exists) */}
+                  {c.commenter?.username ? (
+                    <Link
+                      href={`/u/${c.commenter.username}`}
+                      prefetch={false}
+                      className="shrink-0"
+                      onClick={(e) => e.stopPropagation()}
+                      aria-label={`Open ${c.commenter.display_name || c.commenter.username}'s profile`}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={avatar}
+                        alt=""
+                        className="h-8 w-8 rounded-full object-cover border border-white/10"
+                      />
+                    </Link>
+                  ) : (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={avatar}
+                      alt=""
+                      className="h-8 w-8 rounded-full object-cover border border-white/10"
+                    />
+                  )}
+
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="text-white font-medium text-sm">{name}</span>
+                      {c.commenter?.username ? (
+                        <Link
+                          href={`/u/${c.commenter.username}`}
+                          prefetch={false}
+                          className="text-white font-medium text-sm hover:underline"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {c.commenter.display_name || c.commenter.username}
+                        </Link>
+                      ) : (
+                        <span className="text-white font-medium text-sm">{name}</span>
+                      )}
                       <span className="text-white/40 text-xs">{timeAgo(c.created_at)}</span>
+
                       {canDelete && (
                         <button
                           onClick={() => remove(c.id)}
@@ -245,6 +277,7 @@ export default function CommentThread({
                         </button>
                       )}
                     </div>
+
                     <p className="text-white/90 whitespace-pre-wrap break-words text-sm">
                       {c.body}
                     </p>
@@ -300,7 +333,7 @@ export default function CommentThread({
       <div className="w-full max-w-xl rounded-2xl bg-neutral-900/95 border border-white/10 shadow-xl">
         {/* Header */}
         <div className="flex items-center justify-between p-3 border-b border-white/10">
-          <h2 className="text-lg font-semibold text-white">{headerTitle}</h2>
+          <h2 className="text-lg font-semibold text-white">Comments</h2>
           <button
             onClick={safeClose}
             className="px-2 py-1 rounded hover:bg-white/10 text-white/80"
@@ -324,16 +357,47 @@ export default function CommentThread({
 
               return (
                 <div key={c.id} className="flex items-start gap-3">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={avatar}
-                    alt=""
-                    className="h-8 w-8 rounded-full object-cover border border-white/10"
-                  />
+                  {/* avatar (clickable if username exists) */}
+                  {c.commenter?.username ? (
+                    <Link
+                      href={`/u/${c.commenter.username}`}
+                      prefetch={false}
+                      className="shrink-0"
+                      onClick={(e) => e.stopPropagation()}
+                      aria-label={`Open ${c.commenter.display_name || c.commenter.username}'s profile`}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={avatar}
+                        alt=""
+                        className="h-8 w-8 rounded-full object-cover border border-white/10"
+                      />
+                    </Link>
+                  ) : (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={avatar}
+                      alt=""
+                      className="h-8 w-8 rounded-full object-cover border border-white/10"
+                    />
+                  )}
+
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="text-white font-medium text-sm">{name}</span>
+                      {c.commenter?.username ? (
+                        <Link
+                          href={`/u/${c.commenter.username}`}
+                          prefetch={false}
+                          className="text-white font-medium text-sm hover:underline"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {c.commenter.display_name || c.commenter.username}
+                        </Link>
+                      ) : (
+                        <span className="text-white font-medium text-sm">{name}</span>
+                      )}
                       <span className="text-white/40 text-xs">{timeAgo(c.created_at)}</span>
+
                       {canDelete && (
                         <button
                           onClick={() => remove(c.id)}
@@ -344,6 +408,7 @@ export default function CommentThread({
                         </button>
                       )}
                     </div>
+
                     <p className="text-white/90 whitespace-pre-wrap break-words text-sm">
                       {c.body}
                     </p>

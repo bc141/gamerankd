@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import StarRating from '@/components/StarRating';
@@ -46,25 +47,65 @@ export default function ReviewContextModal({
   const [loading, setLoading] = useState(true);
   const [row, setRow] = useState<ReviewRow | null>(null);
   const [author, setAuthor] = useState<Author | null>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
 
-  // lock body scroll while open
+  // a11y/focus
+  const panelRef = useRef<HTMLDivElement>(null);
+  const openerRef = useRef<HTMLElement | null>(null);
+  const startTrapRef = useRef<HTMLSpanElement>(null);
+  const endTrapRef = useRef<HTMLSpanElement>(null);
+
+  // lock body scroll while open and capture opener focus
   useEffect(() => {
+    openerRef.current = document.activeElement as HTMLElement | null;
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
+    // focus panel for screen readers
+    const t = setTimeout(() => panelRef.current?.focus(), 0);
     return () => {
       document.body.style.overflow = prev;
+      clearTimeout(t);
+      // restore focus to trigger
+      openerRef.current?.focus?.();
     };
   }, []);
 
-  // ESC to close
+  // Close helper (restores focus after parent unmount)
+  function closeAndRestore() {
+    const opener = openerRef.current;
+    onClose();
+    setTimeout(() => opener?.focus?.(), 0);
+  }
+
+  // ESC to close + focus trap
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeAndRestore();
+      } else if (e.key === 'Tab') {
+        // trap tab within modal
+        const panel = panelRef.current;
+        if (!panel) return;
+        const focusables = panel.querySelectorAll<HTMLElement>(
+          'a[href],button:not([disabled]),textarea,input,select,[tabindex]:not([tabindex="-1"])'
+        );
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        const active = document.activeElement as HTMLElement | null;
+
+        if (e.shiftKey && active === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && active === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, []);
 
   // fetch single review summary + author
   useEffect(() => {
@@ -130,32 +171,39 @@ export default function ReviewContextModal({
   }, [supabase, reviewUserId, gameId]);
 
   function onBackdropClick(e: MouseEvent<HTMLDivElement>) {
-    if (e.target === e.currentTarget) onClose();
+    if (e.target === e.currentTarget) closeAndRestore();
   }
 
   // small helpers
   const stars = row ? row.rating / 20 : 0; // convert 0–100 to 0–5
   const gameName = row?.games?.name ?? 'Unknown game';
   const cover = row?.games?.cover_url || '/cover-fallback.png';
+  const absTime =
+    row?.created_at ? new Date(row.created_at).toLocaleString() : undefined;
+
+  const headingId = 'rcm-heading';
 
   return (
     <div
       className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
       role="dialog"
       aria-modal="true"
-      aria-label="Review"
+      aria-labelledby={headingId}
       onMouseDown={onBackdropClick}
     >
+      {/* focus trap sentinels */}
+      <span ref={startTrapRef} tabIndex={0} className="sr-only" />
       <div
         ref={panelRef}
-        className="w-full max-w-2xl rounded-2xl bg-neutral-900/95 border border-white/10 shadow-2xl overflow-hidden"
+        tabIndex={-1}
+        className="w-full max-w-2xl rounded-2xl bg-neutral-900/95 border border-white/10 shadow-2xl overflow-hidden focus:outline-none"
         onMouseDown={(e) => e.stopPropagation()}
       >
         {/* Summary (single divider below) */}
         <div className="relative px-4 py-3 border-b border-white/10">
           {/* Close */}
           <button
-            onClick={onClose}
+            onClick={closeAndRestore}
             className="absolute right-2 top-2 px-2 py-1 rounded hover:bg-white/10 text-white/80"
             aria-label="Close"
           >
@@ -179,7 +227,11 @@ export default function ReviewContextModal({
                 className="h-16 w-12 object-cover rounded border border-white/10"
               />
               <div className="flex-1 min-w-0">
-                <a
+                <h2 id={headingId} className="sr-only">
+                  Review details
+                </h2>
+
+                <Link
                   href={row.games?.id ? `/game/${row.games.id}` : '#'}
                   className="font-medium hover:underline truncate inline-block"
                   aria-label={row.games?.id ? `Open ${gameName}` : undefined}
@@ -188,7 +240,7 @@ export default function ReviewContextModal({
                   }}
                 >
                   {gameName}
-                </a>
+                </Link>
 
                 <div className="mt-1 flex items-center gap-2 flex-wrap text-sm">
                   {author ? (
@@ -202,12 +254,12 @@ export default function ReviewContextModal({
                       />
                       <span className="text-white/80">
                         by{' '}
-                        <a
+                        <Link
                           href={author.username ? `/u/${author.username}` : '#'}
                           className="hover:underline"
                         >
                           {author.display_name || author.username || 'Player'}
-                        </a>
+                        </Link>
                       </span>
                       <span className="text-white/30">·</span>
                     </>
@@ -216,7 +268,9 @@ export default function ReviewContextModal({
                   <StarRating value={stars} readOnly size={16} />
                   <span className="text-white/80">{stars.toFixed(1)} / 5</span>
                   <span className="text-white/30">·</span>
-                  <span className="text-white/50">{timeAgo(row.created_at)}</span>
+                  <time className="text-white/50" title={absTime}>
+                    {timeAgo(row.created_at)}
+                  </time>
                 </div>
 
                 {row.review && row.review.trim() !== '' && (
@@ -240,12 +294,13 @@ export default function ReviewContextModal({
               reviewUserId={reviewUserId}
               gameId={gameId}
               onCountChange={() => {}}
-              onClose={onClose}
+              onClose={closeAndRestore}
               embed
             />
           </div>
         )}
       </div>
+      <span ref={endTrapRef} tabIndex={0} className="sr-only" />
     </div>
   );
 }

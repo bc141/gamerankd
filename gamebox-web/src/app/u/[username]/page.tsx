@@ -388,7 +388,7 @@ export default function PublicProfilePage() {
                     <span className="text-xs text-white/40">{timeAgo(r.created_at)}</span>
 
                     {gameId && (
-                      <div className="flex items-center gap-2" data-ignore-context>
+                      <div className="flex items-center gap-2">
                         {likesReady ? (
                           <LikePill
                             liked={entry.liked}

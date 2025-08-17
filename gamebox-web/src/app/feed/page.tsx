@@ -430,7 +430,7 @@ function FeedPageInner() {
                       )}
 
                       {/* footer: actions (don’t open context) */}
-                      <div className="mt-3 flex items-center gap-2" data-ignore-context>
+                      <div className="mt-3 flex items-center gap-2">
                         {canLike && (
                           <LikePill
                             liked={entry.liked}

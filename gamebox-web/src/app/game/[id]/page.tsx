@@ -574,7 +574,7 @@ export default function GamePage() {
                     )}
 
                     {/* actions (don’t trigger context) */}
-                    <div className="mt-2 flex items-center gap-2" data-ignore-context>
+                    <div className="mt-2 flex items-center gap-2">
                       {canLike && (
                         <LikePill
                           liked={entry.liked}

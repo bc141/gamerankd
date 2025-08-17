@@ -42,7 +42,7 @@ export default function NotificationsPage() {
   const [error, setError] = useState<string | null>(null);
   const [me, setMe] = useState<string | null>(null);
 
-  // 🎯 context modal controller (safe to pass null initially)
+  // 👁️ context modal controller
   const { open: openContext, modal: contextModal } = useReviewContextModal(
     supabase,
     me
@@ -75,9 +75,7 @@ export default function NotificationsPage() {
 
     const { data, error } = await supabase
       .from('notifications')
-      .select(
-        'id,type,user_id,actor_id,game_id,comment_id,meta,read_at,created_at'
-      )
+      .select('id,type,user_id,actor_id,game_id,comment_id,meta,read_at,created_at')
       .eq('user_id', uid)
       .order('created_at', { ascending: false })
       .limit(50);
@@ -95,23 +93,15 @@ export default function NotificationsPage() {
     // hydrate related rows (profiles + games)
     const actorIds = Array.from(new Set(list.map((n) => n.actor_id)));
     const gameIds = Array.from(
-      new Set(
-        list.map((n) => n.game_id).filter((x): x is number => typeof x === 'number')
-      )
+      new Set(list.map((n) => n.game_id).filter((x): x is number => typeof x === 'number'))
     );
 
     const [profsRes, gamesRes] = await Promise.all([
       actorIds.length
-        ? supabase
-            .from('profiles')
-            .select('id,username,display_name,avatar_url')
-            .in('id', actorIds)
+        ? supabase.from('profiles').select('id,username,display_name,avatar_url').in('id', actorIds)
         : Promise.resolve({ data: [] as any[] }),
       gameIds.length
-        ? supabase
-            .from('games')
-            .select('id,name,cover_url')
-            .in('id', gameIds)
+        ? supabase.from('games').select('id,name,cover_url').in('id', gameIds)
         : Promise.resolve({ data: [] as any[] }),
     ]);
 
@@ -188,6 +178,24 @@ export default function NotificationsPage() {
     broadcastNotifSync();
   }
 
+  // helper: skip context open if the click was on a link/button/etc.
+  function isInteractive(el: HTMLElement | null) {
+    return !!el?.closest('a,button,[data-ignore-context],input,textarea,svg');
+  }
+
+  // unified row activation: mark read and (when applicable) open context
+  function onRowActivate(e: React.MouseEvent | React.KeyboardEvent, n: Notif) {
+    if (isInteractive(e.target as HTMLElement)) return; // child controls handle themselves
+    handleRowClick(n);
+    const canView =
+      (n.type === 'like' || n.type === 'comment') &&
+      typeof n.game_id === 'number' &&
+      !!me;
+    if (canView) {
+      openContext(me!, n.game_id!);
+    }
+  }
+
   const title = useMemo(() => 'Notifications', []);
 
   if (!ready) return <main className="p-8">Loading…</main>;
@@ -221,7 +229,6 @@ export default function NotificationsPage() {
             const avatar = actor?.avatar_url || '/avatar-placeholder.svg';
 
             const game = n.game_id != null ? games[n.game_id] ?? null : null;
-            const gameHref = game ? `/game/${game.id}` : null;
 
             const ActorName = actorHref ? (
               <Link href={actorHref} prefetch={false} className="font-medium hover:underline">
@@ -232,13 +239,9 @@ export default function NotificationsPage() {
             );
 
             const GameName =
-              gameHref && game ? (
-                <Link href={gameHref} prefetch={false} className="font-medium hover:underline">
-                  {game.name}
-                </Link>
-              ) : game ? (
+              game && (
                 <span className="font-medium">{game.name}</span>
-              ) : null;
+              );
 
             let text: ReactNode = null;
             if (n.type === 'like') {
@@ -274,13 +277,13 @@ export default function NotificationsPage() {
             return (
               <li
                 key={n.id}
-                onClick={() => handleRowClick(n)}
                 role="button"
                 tabIndex={0}
+                onClick={(e) => onRowActivate(e, n)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
-                    handleRowClick(n);
+                    onRowActivate(e, n);
                   }
                 }}
                 className={`flex items-start gap-3 py-4 rounded-lg -mx-3 px-3 transition-colors cursor-pointer ${
@@ -304,15 +307,15 @@ export default function NotificationsPage() {
                 </div>
 
                 {/* actions / cover */}
-                <div className="flex items-center gap-2">
-                  {canView ? (
-                    // prevent the parent <li> click from marking read when opening the modal
+                <div className="flex items-center gap-2" data-ignore-context>
+                  {canView && (
+                    // prevent parent row from also firing
                     <span onClick={(e) => e.stopPropagation()}>
                       <ViewInContextButton
                         onClick={() => openContext(me!, n.game_id!)}
                       />
                     </span>
-                  ) : null}
+                  )}
                   {game?.cover_url ? (
                     <Link
                       href={`/game/${game.id}`}

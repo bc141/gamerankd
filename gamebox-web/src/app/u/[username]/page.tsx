@@ -43,6 +43,19 @@ type ReviewRow = {
   games: { id: number; name: string; cover_url: string | null } | null;
 };
 
+// open context unless click was on a link/button/etc.
+function openContextIfSafe(
+  e: React.MouseEvent | React.KeyboardEvent,
+  open: (reviewUserId: string, gameId: number) => void,
+  reviewUserId: string,
+  gameId?: number | null
+) {
+  if (!gameId) return;
+  const target = e.target as HTMLElement;
+  if (target.closest('a,button,[data-ignore-context],input,textarea,svg')) return;
+  open(reviewUserId, gameId);
+}
+
 export default function PublicProfilePage() {
   const supabase = supabaseBrowser();
   const router = useRouter();
@@ -51,7 +64,6 @@ export default function PublicProfilePage() {
     ? (params as any).username[0]
     : (params as any)?.username;
 
-    
   // auth
   const [ready, setReady] = useState(false);
   const [viewerId, setViewerId] = useState<string | null>(null);
@@ -327,7 +339,7 @@ export default function PublicProfilePage() {
       {rows.length === 0 ? (
         <p className="mt-8 text-white/70">No ratings yet.</p>
       ) : (
-        <ul className="mt-8 space-y-6">
+        <ul className="mt-8 space-y-2">
           {rows.map((r, i) => {
             const stars = from100(r.rating);
             const gameId = r.games?.id;
@@ -341,7 +353,18 @@ export default function PublicProfilePage() {
             const cCount = gameId ? (commentCounts[cKey] ?? 0) : 0;
 
             return (
-              <li key={`${gameId ?? 'g'}-${i}`} className="flex items-start gap-4">
+              <li
+                key={`${gameId ?? 'g'}-${i}`}
+                className="flex items-start gap-4 py-3 rounded-lg -mx-3 px-3 hover:bg-white/5 cursor-pointer"
+                onClick={(e) => openContextIfSafe(e, openContext, profile.id, gameId)}
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    openContextIfSafe(e, openContext, profile.id, gameId);
+                  }
+                }}
+              >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={cover || '/cover-fallback.png'}
@@ -362,7 +385,7 @@ export default function PublicProfilePage() {
                     <span className="text-xs text-white/40">{timeAgo(r.created_at)}</span>
 
                     {gameId && (
-                      <>
+                      <div className="flex items-center gap-2" data-ignore-context>
                         {likesReady ? (
                           <LikePill
                             liked={entry.liked}
@@ -377,16 +400,16 @@ export default function PublicProfilePage() {
 
                         <button
                           onClick={() => setOpenThread({ reviewUserId: profile.id, gameId })}
-                          className="ml-2 text-xs px-2 py-1 rounded border border-white/10 bg-white/5 hover:bg-white/10"
+                          className="text-xs px-2 py-1 rounded border border-white/10 bg-white/5 hover:bg-white/10"
                           title="View comments"
                         >
                           💬 {cCount}
                         </button>
+
                         <ViewInContextButton
-      className="ml-2"
-      onClick={() => openContext(profile.id, gameId)}
-    />
-                      </>
+                          onClick={() => openContext(profile.id, gameId)}
+                        />
+                      </div>
                     )}
                   </div>
 
@@ -420,10 +443,10 @@ export default function PublicProfilePage() {
             setCommentCounts(p => ({ ...p, ...map }));
             setOpenThread(null);
           }}
-          
         />
-        
       )}
+
+      {/* One instance of the view-in-context modal */}
       {contextModal}
     </main>
   );

@@ -45,6 +45,19 @@ type Row = {
   author: Author | null;
 };
 
+// Helper: open context unless the click was on a link/button/etc.
+function openContextIfSafe(
+  e: React.MouseEvent | React.KeyboardEvent,
+  open: (reviewUserId: string, gameId: number) => void,
+  reviewUserId: string,
+  gameId?: number | null
+) {
+  if (!gameId) return;
+  const target = e.target as HTMLElement;
+  if (target.closest('a,button,[data-ignore-context],input,textarea,svg')) return;
+  open(reviewUserId, gameId);
+}
+
 // ------------- Inner client component -------------
 function FeedPageInner() {
   const supabase = supabaseBrowser();
@@ -116,7 +129,6 @@ function FeedPageInner() {
       setCommentCounts({});
 
       try {
-        // session (with a gentle timeout so we never hang the UI)
         const session = await Promise.race([
           waitForSession(supabase),
           new Promise<null>(res => setTimeout(() => res(null), 4000)),
@@ -347,7 +359,6 @@ function FeedPageInner() {
               {rows!.map((r, i) => {
                 const a = r.author;
                 const g = r.games;
-                const stars = (r.rating / 20).toFixed(1);
 
                 const canLike = Boolean(r.reviewer_id && g?.id);
                 const likeK = canLike ? likeKey(r.reviewer_id, g!.id) : '';
@@ -357,12 +368,20 @@ function FeedPageInner() {
                 const cKey = canComment ? commentKey(r.reviewer_id, g!.id) : '';
                 const cCount = canComment ? (commentCounts[cKey] ?? 0) : 0;
 
-                const canView = Boolean(r.reviewer_id && g?.id && me?.id);
+                const canView = Boolean(r.reviewer_id && g?.id); // allow anyone to open context
 
                 return (
                   <li
                     key={`${r.created_at}-${i}`}
-                    className="grid grid-cols-[40px_1fr_auto] gap-3 py-5"
+                    className="grid grid-cols-[40px_1fr_auto] gap-3 py-5 cursor-pointer hover:bg-white/5 rounded-lg -mx-3 px-3"
+                    onClick={(e) => openContextIfSafe(e, openContext, r.reviewer_id, g?.id)}
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        openContextIfSafe(e, openContext, r.reviewer_id, g?.id);
+                      }
+                    }}
                   >
                     {/* avatar */}
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -409,8 +428,8 @@ function FeedPageInner() {
                         </p>
                       )}
 
-                      {/* footer: actions are always here -> no bouncing */}
-                      <div className="mt-3 flex items-center gap-2">
+                      {/* footer: actions (wrapped in data-ignore-context to avoid bubbling) */}
+                      <div className="mt-3 flex items-center gap-2" data-ignore-context>
                         {canLike && (
                           <LikePill
                             liked={entry.liked}
@@ -478,7 +497,6 @@ function FeedPageInner() {
           reviewUserId={openThread.reviewUserId}
           gameId={openThread.gameId}
           onClose={async () => {
-            // single-pair refresh to ensure accuracy after close
             const map = await fetchCommentCountsBulk(supabase, [
               { reviewUserId: openThread.reviewUserId, gameId: openThread.gameId },
             ]);

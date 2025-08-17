@@ -200,7 +200,7 @@ export default function ReviewContextModal({
         onMouseDown={(e) => e.stopPropagation()}
       >
         {/* Summary (single divider below) */}
-        <div className="relative px-4 py-3 border-b border-white/10">
+        <div className="relative px-4 py-3">
           {/* Close */}
           <button
             onClick={closeAndRestore}

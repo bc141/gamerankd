@@ -332,8 +332,8 @@ export default function CommentThread({
     >
       <div className="w-full max-w-xl rounded-2xl bg-neutral-900/95 border border-white/10 shadow-xl">
         {/* Header */}
-        <div className="flex items-center justify-between p-3 border-b border-white/10">
-          <h2 className="text-lg font-semibold text-white">Comments</h2>
+        <div className="flex items-center justify-between px-3 pt-2 pb-1">
+          <h2 className="text-sm font-semibold text-white/80">{headerTitle}</h2>
           <button
             onClick={safeClose}
             className="px-2 py-1 rounded hover:bg-white/10 text-white/80"

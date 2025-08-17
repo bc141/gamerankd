@@ -1,22 +1,24 @@
+// src/app/(whatever-your-path-is)/NotificationsBell.tsx
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { getUnreadCount } from '@/lib/notifications';
 
 export default function NotificationsBell() {
   const supabase = supabaseBrowser();
+
+  const mounted = useRef(false);
   const [me, setMe] = useState<string | null>(null);
-  const [count, setCount] = useState<number>(0);
   const [ready, setReady] = useState(false);
-  const mounted = useRef(true);
+  const [count, setCount] = useState(0);
 
   const clampUp = (n: number) => Math.min(99, n);
   const clampDown = (n: number) => Math.max(0, n);
 
-  // Read auth + (re)compute count
-  const refreshAuthAndCount = async () => {
+  // Auth + count (re)compute
+  const refreshAuthAndCount = useCallback(async () => {
     const { data } = await supabase.auth.getUser();
     if (!mounted.current) return;
 
@@ -29,17 +31,17 @@ export default function NotificationsBell() {
       return;
     }
     const c = await getUnreadCount(supabase);
-    if (mounted.current) setCount(c);
-  };
+    if (mounted.current) setCount(typeof c === 'number' ? c : 0);
+  }, [supabase]);
 
   // Initial load + auth changes + visibility/focus refresh
   useEffect(() => {
     mounted.current = true;
-    (async () => { await refreshAuthAndCount(); })();
+    refreshAuthAndCount();
 
     const { data: authSub } = supabase.auth.onAuthStateChange(() => {
-      // if you sign in/out or session refreshes, recompute
       refreshAuthAndCount();
+      try { localStorage.setItem('gb-auth-sync', String(Date.now())); } catch {}
     });
 
     const onFocus = () => { if (me) refreshAuthAndCount(); };
@@ -53,48 +55,63 @@ export default function NotificationsBell() {
       window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onVis);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase, refreshAuthAndCount, me]);
+
+  // Realtime: delta updates, tolerant to user_id/recipient_id
+  useEffect(() => {
+    if (!me) return;
+
+    const isMine = (row: any) => row?.user_id === me || row?.recipient_id === me;
+
+    const onInsert = (payload: any) => {
+      const r = payload?.new;
+      if (!isMine(r)) return;
+      const unread = !r?.read_at;
+      if (unread) setCount(c => clampUp(c + 1));
+    };
+
+    const onUpdate = (payload: any) => {
+      const oldMine = isMine(payload?.old);
+      const newMine = isMine(payload?.new);
+      if (!oldMine && !newMine) return;
+
+      const wasUnread = !payload?.old?.read_at;
+      const nowUnread = !payload?.new?.read_at;
+
+      if (wasUnread && !nowUnread) setCount(c => clampDown(c - 1));   // became read
+      else if (!wasUnread && nowUnread) setCount(c => clampUp(c + 1)); // became unread (rare)
+    };
+
+    const onDelete = (payload: any) => {
+      const r = payload?.old;
+      if (!isMine(r)) return;
+      const wasUnread = !r?.read_at;
+      if (wasUnread) setCount(c => clampDown(c - 1));
+    };
+
+    const channel = supabase
+      .channel(`notif-bell-${me}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, onInsert)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notifications' }, onUpdate)
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'notifications' }, onDelete)
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [supabase, me]);
 
-  // Realtime updates: on any change to *my* notifications, recompute from source of truth
-useEffect(() => {
-  if (!me) return;
-
-  // NOTE: if your recipient column is 'user_id', keep it; if you renamed to 'recipient_id',
-  // change the filter below accordingly.
-  const recipientCol = 'user_id'; // or 'recipient_id'
-  const filter = `${recipientCol}=eq.${me}`;
-
-  const channel = supabase
-    .channel(`notif-bell-${me}`)
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter }, () => {
-      refreshAuthAndCount();
-    })
-    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notifications', filter }, () => {
-      refreshAuthAndCount();
-    })
-    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'notifications', filter }, () => {
-      refreshAuthAndCount();
-    })
-    .subscribe();
-
-  return () => { supabase.removeChannel(channel); };
-}, [supabase, me]); 
-
-  // Cross-tab sync: auth + notif read/mark-all signals
+  // Cross-tab sync (mark-all, auth, block)
   useEffect(() => {
-    const refreshIfNeeded = () => { if (me) refreshAuthAndCount(); };
-  
     const onStorage = (e: StorageEvent) => {
-      if (e.key === 'gb-auth-sync' || e.key === 'gb-notif-sync' || e.key === 'gb-block-sync') {
-        refreshIfNeeded();
+      if (!me) return;
+      if (e.key === 'gb-notif-sync' || e.key === 'gb-auth-sync' || e.key === 'gb-block-sync') {
+        refreshAuthAndCount();
       }
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabase, me]);
+  }, [refreshAuthAndCount, me]);
 
+  // UI
   if (!ready) {
     return <div className="relative h-8 w-8 rounded-full bg-white/10 animate-pulse" aria-hidden />;
   }
@@ -103,28 +120,28 @@ useEffect(() => {
     return (
       <Link
         href="/login"
+        prefetch={false}
         className="inline-flex h-8 w-8 items-center justify-center rounded hover:bg-white/10"
         aria-label="Sign in"
         title="Sign in"
-        prefetch={false}
       >
         <BellIcon />
       </Link>
     );
   }
 
-  const badge = Math.min(count, 99);
+  const badge = count > 99 ? '99+' : String(count);
 
   return (
     <Link
       href="/notifications"
-      className="relative inline-flex h-8 w-8 items-center justify-center rounded hover:bg-white/10"
-      aria-label={badge > 0 ? `${badge} unread notifications` : 'Notifications'}
-      title="Notifications"
       prefetch={false}
+      className="relative inline-flex h-8 w-8 items-center justify-center rounded hover:bg-white/10"
+      aria-label={count > 0 ? `${count} unread notifications` : 'Notifications'}
+      title="Notifications"
     >
       <BellIcon />
-      {badge > 0 && (
+      {count > 0 && (
         <span
           className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-[11px] leading-[18px] text-white text-center shadow"
           aria-hidden
@@ -132,6 +149,10 @@ useEffect(() => {
           {badge}
         </span>
       )}
+      {/* SR-only live region so screen readers get count updates */}
+      <span className="sr-only" aria-live="polite">
+        {count} unread notifications
+      </span>
     </Link>
   );
 }

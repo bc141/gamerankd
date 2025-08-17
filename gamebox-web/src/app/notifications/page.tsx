@@ -67,7 +67,9 @@ export default function NotificationsPage() {
   // react to bell sync from other tabs
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
-      if (e.key === 'gb-notif-sync') fetchAll();
+      if (e.key === 'gb-notif-sync' || e.key === 'gb-block-sync') {
+        fetchAll();
+      }
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
@@ -110,19 +112,21 @@ export default function NotificationsPage() {
 
     // --- blocks/mutes gate (hide rows from users you blocked or who blocked you) ---
     const { iBlocked, blockedMe } = await getBlockSets(supabase, uid);
-    const hidden = new Set<string>([
-      ...Array.from(iBlocked.values()),
-      ...Array.from(blockedMe.values()),
-    ]);
-    const list = ((data ?? []) as Notif[]).filter(n => !hidden.has(n.actor_id));
-    setRows(list);
+const isHidden = (aid?: string | null) =>
+  !!aid && (iBlocked.has(aid) || blockedMe.has(aid));
+
+const all = (data ?? []) as Notif[];
+const visible = all.filter(n => !isHidden(n.actor_id));
+
+setRows(visible);
+
+    
     // ------------------------------------------------------------------------------
 
     // hydrate (profiles + games) based on filtered list
-    const actorIds = Array.from(new Set(list.map((n) => n.actor_id)));
-    const gameIds = Array.from(
-      new Set(list.map((n) => n.game_id).filter((x): x is number => typeof x === 'number'))
-    );
+    const actorIds = Array.from(new Set(visible.map(n => n.actor_id)));
+    const gameIds  = Array.from(new Set(visible.map(n => n.game_id).filter((x): x is number => typeof x === 'number')));
+     
 
     const [profsRes, gamesRes] = await Promise.all([
       actorIds.length

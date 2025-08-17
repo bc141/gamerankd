@@ -1,10 +1,29 @@
 // src/lib/follows.ts
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { notifyFollow } from './notifications';
+import { getBlockSets } from '@/lib/blocks';
 
 function isUniqueViolation(e: any) {
   // Postgres unique_violation (and common duplicate wording)
   return e?.code === '23505' || /duplicate key|unique/i.test(String(e?.message ?? ''));
+}
+
+/** Quick guard so UI or actions can tell if following is allowed. */
+export async function canFollow(
+  supabase: SupabaseClient,
+  targetUserId: string
+): Promise<{ ok: true } | { ok: false; reason: string }> {
+  const { data: auth } = await supabase.auth.getUser();
+  const me = auth.user?.id;
+  if (!me) return { ok: false, reason: 'Not signed in' };
+  if (me === targetUserId) return { ok: false, reason: 'You cannot follow yourself' };
+
+  // If either party has blocked the other, disallow following
+  const { iBlocked, blockedMe } = await getBlockSets(supabase, me);
+  if (iBlocked.has(targetUserId)) return { ok: false, reason: 'You have blocked this user' };
+  if (blockedMe.has(targetUserId)) return { ok: false, reason: 'You are blocked by this user' };
+
+  return { ok: true };
 }
 
 /** Return follower/following counts for a user. */
@@ -41,9 +60,9 @@ export async function checkIsFollowing(
 
 /**
  * Toggle follow state for the signed-in user and `targetUserId`.
- * - On FOLLOW: insert row + fire-and-forget notifyFollow (DB unique index will dedupe; 23505 is OK).
- * - On UNFOLLOW: delete row. We DO NOT clear the prior follow notification (so re-follow won't ping again).
- * If `isFollowing` is omitted, we'll fetch the current state first.
+ * - FOLLOW: disallowed if either party has blocked the other.
+ * - UNFOLLOW: always allowed.
+ * - Notifies on successful new follow (duplicates ignored).
  */
 export async function toggleFollow(
   supabase: SupabaseClient,
@@ -60,14 +79,19 @@ export async function toggleFollow(
   }
 
   if (isFollowing) {
-    // UNFOLLOW: remove the row, keep any historical notification
+    // UNFOLLOW
     const { error } = await supabase
       .from('follows')
       .delete()
       .match({ follower_id: me, followee_id: targetUserId });
     return { error };
   } else {
-    // FOLLOW: insert row; ignore duplicate races; notify once
+    // FOLLOW — guard against blocks
+    const allow = await canFollow(supabase, targetUserId);
+    if (!allow.ok) {
+      return { error: new Error('Following is disabled due to a block') };
+    }
+
     const { error } = await supabase
       .from('follows')
       .insert({ follower_id: me, followee_id: targetUserId });
@@ -76,7 +100,7 @@ export async function toggleFollow(
       return { error };
     }
 
-    // Fire-and-forget: the notifications table unique index will swallow duplicates (23505)
+    // Fire-and-forget; unique index on notifications prevents dupes
     try {
       notifyFollow(supabase, targetUserId).catch(() => {});
     } catch {}

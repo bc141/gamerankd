@@ -1,15 +1,17 @@
-// app/sitemap.ts
+// src/app/sitemap.ts
 import type { MetadataRoute } from 'next';
 import { createClient } from '@supabase/supabase-js';
 
-// Optional: revalidate the sitemap hourly
-export const revalidate = 60 * 60;
+export const dynamic = 'force-static';
+export const revalidate = 3600; // 1 hour literal
+export const runtime = 'nodejs'; // safer for supabase-js
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base =
-    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') ?? 'https://example.com';
+    process.env.NEXT_PUBLIC_SITE_URL ??
+    process.env.NEXT_PUBLIC_APP_URL ??
+    'https://example.com';
 
-  // Query Supabase with anon key on the server. RLS must allow public reads.
   const supaUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supaAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -18,9 +20,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   if (supaUrl && supaAnon) {
     try {
-      const supabase = createClient(supaUrl, supaAnon, {
-        auth: { persistSession: false }, // no cookies in a route file
-      });
+      const supabase = createClient(supaUrl, supaAnon, { auth: { persistSession: false } });
 
       const [g, p] = await Promise.all([
         supabase
@@ -41,9 +41,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     } catch (err) {
       console.error('sitemap query failed:', err);
     }
-  } else {
-    console.warn('Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY');
   }
+
+  const staticUrls: MetadataRoute.Sitemap = [
+    {
+      url: base,
+      lastModified: new Date(),
+      changeFrequency: 'daily',
+      priority: 1,
+    },
+    { url: `${base}/feed`, changeFrequency: 'hourly', priority: 0.7 },
+    { url: `${base}/search`, changeFrequency: 'weekly', priority: 0.6 },
+  ];
 
   const gameUrls: MetadataRoute.Sitemap = games.map((g) => ({
     url: `${base}/game/${g.id}`,
@@ -61,14 +70,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.6,
     }));
 
-  return [
-    {
-      url: base,
-      lastModified: new Date(),
-      changeFrequency: 'daily',
-      priority: 1,
-    },
-    ...gameUrls,
-    ...profileUrls,
-  ];
+  return [...staticUrls, ...gameUrls, ...profileUrls];
 }

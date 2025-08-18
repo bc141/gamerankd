@@ -129,7 +129,7 @@ export default function Header() {
       <div className="mx-auto max-w-5xl px-4 h-14 flex items-center justify-between">
         <div className="flex items-center gap-6">
           <Link href="/" className="font-semibold" aria-label="Home">
-            Gamdit
+            gamdit
           </Link>
           {/* Primary nav */}
           <nav className="hidden sm:flex items-center gap-5">

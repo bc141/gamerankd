@@ -57,26 +57,28 @@ export default function NotificationsBell() {
   // Realtime updates (INSERT/UPDATE/DELETE) – tolerate legacy recipient_id
   useEffect(() => {
     if (!me) return;
-
-    const isMine = (row: any) => row?.user_id === me || row?.recipient_id === me;
-
+  
     const channel = supabase
       .channel(`notif-bell-${me}`)
-      // If you want to reduce noise further, add `filter: "user_id=eq.<uuid>"`
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, (pl: any) => {
-        if (isMine(pl.new)) refreshAuthAndCount();
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notifications' }, (pl: any) => {
-        if (isMine(pl.new) || isMine(pl.old)) refreshAuthAndCount();
-      })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'notifications' }, (pl: any) => {
-        if (isMine(pl.old)) refreshAuthAndCount();
-      })
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${me}` },
+        () => refreshAuthAndCount()
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'notifications', filter: `user_id=eq.${me}` },
+        // if unread -> read or any change on my rows
+        () => refreshAuthAndCount()
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'notifications', filter: `user_id=eq.${me}` },
+        () => refreshAuthAndCount()
+      )
       .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+  
+    return () => { supabase.removeChannel(channel); };
   }, [supabase, me, refreshAuthAndCount]);
 
   // Cross-tab sync (mark-all, auth, blocks)

@@ -256,13 +256,19 @@ export async function getUnreadCount(supabase: SupabaseClient) {
   const uid = auth.user?.id;
   if (!uid) return 0;
 
-  // If you keep a filtered view, swap 'notifications' -> 'notifications_visible'.
-  const { count } = await supabase
+  // Robust pattern: ask for a body (limit 0) + count. Avoids head:true null-count edge cases.
+  const { count, error } = await supabase
     .from('notifications')
-    .select('id', { head: true, count: 'exact' })
+    .select('id', { count: 'exact' }) // no head:true
     .eq('user_id', uid)
-    .is('read_at', null);
+    .is('read_at', null)
+    .limit(0); // request 0 rows but still get a valid count
 
+  if (error) {
+    // Optional: keep during stabilization so silent 0s don’t hide issues
+    // console.warn('getUnreadCount error', error);
+    return 0;
+  }
   return count ?? 0;
 }
 

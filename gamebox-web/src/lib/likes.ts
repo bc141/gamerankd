@@ -117,18 +117,15 @@ export async function toggleLike(
   reviewUserId: string,
   gameId: number
 ): Promise<{ liked: boolean; count: number; error: any | null }> {
-  // auth
   const { data: auth } = await supabase.auth.getUser();
   const me = auth.user?.id;
   if (!me) return { liked: false, count: 0, error: new Error('Not signed in') };
 
-  // soft guard: don’t allow likes when either user has blocked the other
   const { iBlocked, blockedMe } = await getBlockSets(supabase, me);
   if (iBlocked.has(reviewUserId) || blockedMe.has(reviewUserId)) {
     return { liked: false, count: 0, error: new Error("Blocked users can't be liked.") };
   }
 
-  // authoritative toggle
   const { data, error } = await supabase.rpc('toggle_like', {
     p_review_user_id: reviewUserId,
     p_game_id: gameId,

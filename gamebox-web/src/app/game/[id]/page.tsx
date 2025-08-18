@@ -27,6 +27,7 @@ import { useReviewContextModal } from '@/components/ReviewContext/useReviewConte
 import { onRowClick, onRowKeyDown } from '@/lib/safeOpenContext'; // ✅ new
 import type { BlockSets } from '@/lib/blocks';
 import { getBlockSets, isInteractionBlocked, unblockUser, invalidateBlockCache } from '@/lib/blocks';
+import { toInList } from '@/lib/sql';
 
 // ---------- helpers ----------
 const to100 = (stars: number) => Math.round(stars * 20);
@@ -207,20 +208,25 @@ export default function GamePage() {
 
   const refetchRecent = async (viewerId: string | null) => {
     setRecentErr(null);
-  
-    // Build hidden set from blocks (only if signed in)
-    let hidden = new Set<string>();
+
+    // Build hidden sets (blocked both ways + muted) when signed in
+    let hiddenSet = new Set<string>();
+    let mutedIds: string[] = [];
     if (viewerId) {
-      const { iBlocked, blockedMe } = await getBlockSets(supabase, viewerId);
-      hidden = new Set<string>([
+      const { iBlocked, blockedMe, iMuted } = await getBlockSets(supabase, viewerId);
+      hiddenSet = new Set<string>([
         ...Array.from(iBlocked.values()),
         ...Array.from(blockedMe.values()),
+        ...Array.from(iMuted?.values?.() ?? iMuted ?? []),
       ]);
+      mutedIds = Array.from(iMuted ?? new Set<string>());
     }
-  
-    const { data, error } = await supabase
+
+    // Base query
+    let q = supabase
       .from('reviews')
       .select(`
+        user_id,
         created_at,
         rating,
         review,
@@ -231,13 +237,24 @@ export default function GamePage() {
       .eq('game_id', gameId)
       .order('created_at', { ascending: false })
       .limit(12);
-  
+
+    // Push down exclusions to the DB for efficiency
+    const hiddenList = Array.from(hiddenSet);
+    if (hiddenList.length) {
+      q = q.not('user_id', 'in', toInList(hiddenList));
+    } else if (mutedIds.length) {
+      // (defensive) if hiddenSet was empty but iMuted exists
+      q = q.not('user_id', 'in', toInList(mutedIds));
+    }
+
+    const { data, error } = await q;
     if (error) {
       setRecentErr(error.message);
       setRecent([]);
       return;
     }
-  
+
+    // Normalize rows
     const rows: RawRecent[] = Array.isArray(data) ? (data as RawRecent[]) : [];
     const normalized: RecentItem[] = rows.map((r) => ({
       created_at: r.created_at ?? new Date(0).toISOString(),
@@ -253,30 +270,31 @@ export default function GamePage() {
             }
           : null,
     }));
-  
-    // Hide any rows authored by blocked users (either direction)
+
+    // Safety pass (in case of race conditions)
     const visible = normalized.filter((r) => {
       const uid = r.author?.id;
-      return !(uid && hidden.has(uid));
+      return !(uid && hiddenSet.has(uid));
     });
-  
+
     setRecent(visible);
-  
-    // Preload likes & comment counts **only** for visible rows
+
+    // Preload likes & comment counts for the *visible* items only
     const pairs = visible
-  .filter((r) => r.author?.id)
-  .map((r) => ({ reviewUserId: r.author!.id, gameId }));
-  if (pairs.length === 0) {
-    setLikes({});
-    setCommentCounts({});
-    return;
-  }
-  
-  const [likesMap, commentsMap] = await Promise.all([
-    fetchLikesBulk(supabase, viewerId, pairs),
-    fetchCommentCountsBulk(supabase, pairs),
-  ]);
-  
+      .filter((r) => r.author?.id)
+      .map((r) => ({ reviewUserId: r.author!.id, gameId }));
+
+    if (pairs.length === 0) {
+      setLikes({});
+      setCommentCounts({});
+      return;
+    }
+
+    const [likesMap, commentsMap] = await Promise.all([
+      fetchLikesBulk(supabase, viewerId, pairs),
+      fetchCommentCountsBulk(supabase, pairs),
+    ]);
+
     setLikes(likesMap ?? {});
     setCommentCounts(commentsMap ?? {});
   };

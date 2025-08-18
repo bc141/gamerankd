@@ -12,7 +12,7 @@ import {
 import { notifyComment, clearComment } from '@/lib/notifications';
 import { timeAgo } from '@/lib/timeAgo';
 import Link from 'next/link';
-import { getBlockSets } from '@/lib/blocks'; // 👈 blocks helper
+import { getBlockSets } from '@/lib/blocks'; // blocks + mutes (iMuted)
 
 type Props = {
   supabase: SupabaseClient;
@@ -41,18 +41,18 @@ export default function CommentThread({
   const boxRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // NEW: visibility + interaction state from blocks/mutes
+  // visibility + interaction state
   const [hiddenAuthors, setHiddenAuthors] = useState<Set<string>>(new Set());
-  const [cannotInteract, setCannotInteract] = useState(false); // true when either direction is BLOCKED
+  const [cannotInteract, setCannotInteract] = useState(false); // true when blocked either way
 
   // auto-grow the composer up to ~6 lines
   function autogrow(el: HTMLTextAreaElement) {
     el.style.height = '0px';
-    const next = Math.min(el.scrollHeight, 6 * 24 + 16); // ~6 lines + padding
+    const next = Math.min(el.scrollHeight, 6 * 24 + 16);
     el.style.height = next + 'px';
   }
 
-  // ---- hydrate blocks/mutes (viewer-only) ----
+  // ---- hydrate blocks + mutes via getBlockSets ----
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -64,32 +64,22 @@ export default function CommentThread({
         return;
       }
 
-      // blocks (two-way) via helper
-      const { iBlocked, blockedMe } = await getBlockSets(supabase, viewerId);
-
-      // mutes (one-way; only people YOU muted are hidden from your view)
-      const mRes = await supabase
-        .from('mutes') // table: mutes(muter_id, muted_id)
-        .select('muted_id')
-        .eq('muter_id', viewerId);
-
-      const mutedIds = new Set<string>(
-        ((mRes.data ?? []) as any[]).map((r) => String(r.muted_id))
-      );
+      const { iBlocked, blockedMe, iMuted } = await getBlockSets(supabase, viewerId);
 
       if (cancelled) return;
 
-      // hide authors that are: you blocked, blocked you, or you muted
+      // Hide anyone you blocked, anyone who blocked you, and anyone you muted
       const hidden = new Set<string>([
         ...Array.from(iBlocked.values()),
         ...Array.from(blockedMe.values()),
-        ...Array.from(mutedIds.values()),
+        ...Array.from((iMuted ?? new Set<string>()).values()),
       ]);
       setHiddenAuthors(hidden);
 
-      // cannot interact only when BLOCKED either way (mute doesn't prevent posting)
+      // Interaction lock only for hard block (mute should not prevent posting)
       setCannotInteract(iBlocked.has(reviewUserId) || blockedMe.has(reviewUserId));
     })();
+
     return () => {
       cancelled = true;
     };
@@ -124,7 +114,6 @@ export default function CommentThread({
       setLoading(false);
     })();
 
-    // Only add ESC-to-close when we're in modal mode
     if (!embed) {
       const onKey = (e: KeyboardEvent) => {
         if (e.key === 'Escape') safeClose();
@@ -143,7 +132,7 @@ export default function CommentThread({
     return () => {
       mounted = false;
     };
-  }, [supabase, reviewUserId, gameId, embed]);
+  }, [supabase, reviewUserId, gameId, embed, viewerId]);
 
   // auto focus when opened (if signed in & allowed)
   useEffect(() => {
@@ -181,10 +170,10 @@ export default function CommentThread({
 
     setPosting(true);
 
-    // optimistic (temp id so we can distinguish)
+    // optimistic
     const tempId = `temp_${Date.now()}`;
     const temp: CommentRow = {
-      id: tempId, // temp marker
+      id: tempId,
       body,
       created_at: new Date().toISOString(),
       commenter: { id: viewerId, username: null, display_name: 'You', avatar_url: null },
@@ -202,28 +191,24 @@ export default function CommentThread({
         body
       );
       if (error || !row) {
-        // revert optimistic
         setRows((p) => p.filter((r) => r.id !== tempId));
         alert(error?.message ?? 'Failed to post comment.');
         return;
       }
 
-      // swap optimistic with authoritative row
+      // replace optimistic with authoritative
       setRows((p) => p.map((r) => (r.id === tempId ? row : r)));
 
-      // update badges immediately
+      // comment badge delta
       broadcastCommentDelta(reviewUserId, gameId, +1);
 
-      // 🔔 Fire-and-forget notification (row.id is UUID string)
+      // fire-and-forget notification
       try {
         const commentIdStr = String(row.id);
         const preview = body.slice(0, 140);
         notifyComment(supabase, reviewUserId, gameId, commentIdStr, preview).catch(() => {});
-      } catch {
-        // never block UX on notif issues
-      }
+      } catch {}
 
-      // keep focus, reset height, and scroll
       requestAnimationFrame(() => {
         if (inputRef.current) {
           autogrow(inputRef.current);
@@ -242,7 +227,6 @@ export default function CommentThread({
     if (!row) return;
     if (!viewerId || row.commenter?.id !== viewerId) return; // only own comments
 
-    // Optimistic temp row? just drop locally.
     if (String(id).startsWith('temp_')) {
       setRows((p) => p.filter((r) => r.id !== id));
       return;
@@ -258,10 +242,9 @@ export default function CommentThread({
         .eq('id', id);
       if (error) throw error;
 
-      // update badges immediately
       broadcastCommentDelta(reviewUserId, gameId, -1);
 
-      // 🔔 clear notif (UUID string)
+      // clear any notif
       clearComment(supabase, reviewUserId, gameId, String(id)).catch(() => {});
     } catch (err: any) {
       // restore on failure
@@ -281,12 +264,10 @@ export default function CommentThread({
   if (embed) {
     return (
       <div className="flex flex-col max-h-[65vh]">
-        {/* Header (no close; parent modal has one) */}
         <div className="flex items-center justify-between px-3 pt-2 pb-1">
           <h2 className="text-lg font-semibold text-white">{headerTitle}</h2>
         </div>
 
-        {/* List */}
         <div ref={boxRef} className="flex-1 overflow-y-auto p-3 space-y-3" aria-live="polite">
           {loading ? (
             <div className="text-white/60 text-sm">Loading…</div>
@@ -300,7 +281,6 @@ export default function CommentThread({
 
               return (
                 <div key={c.id} className="flex items-start gap-3">
-                  {/* avatar (clickable if username exists) */}
                   {c.commenter?.username ? (
                     <Link
                       href={`/u/${c.commenter.username}`}
@@ -309,7 +289,6 @@ export default function CommentThread({
                       onClick={(e) => e.stopPropagation()}
                       aria-label={`Open ${c.commenter.display_name || c.commenter.username}'s profile`}
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={avatar}
                         alt=""
@@ -317,7 +296,6 @@ export default function CommentThread({
                       />
                     </Link>
                   ) : (
-                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={avatar}
                       alt=""
@@ -363,7 +341,6 @@ export default function CommentThread({
           )}
         </div>
 
-        {/* Composer */}
         <div className="p-3 border-t border-white/10">
           <div className="flex items-end gap-2" data-ignore-context>
             <textarea
@@ -412,7 +389,6 @@ export default function CommentThread({
       }}
     >
       <div className="w-full max-w-xl rounded-2xl bg-neutral-900/95 border border-white/10 shadow-xl">
-        {/* Header (tight, no divider; summary above handles borders) */}
         <div className="flex items-center justify-between px-3 pt-2 pb-1">
           <h2 className="text-sm font-semibold text-white/80">Comments</h2>
           <button
@@ -424,7 +400,6 @@ export default function CommentThread({
           </button>
         </div>
 
-        {/* List */}
         <div ref={boxRef} className="max-h-[60vh] overflow-y-auto p-3 space-y-3" aria-live="polite">
           {loading ? (
             <div className="text-white/60 text-sm">Loading…</div>
@@ -438,7 +413,6 @@ export default function CommentThread({
 
               return (
                 <div key={c.id} className="flex items-start gap-3">
-                  {/* avatar (clickable if username exists) */}
                   {c.commenter?.username ? (
                     <Link
                       href={`/u/${c.commenter.username}`}
@@ -447,7 +421,6 @@ export default function CommentThread({
                       onClick={(e) => e.stopPropagation()}
                       aria-label={`Open ${c.commenter.display_name || c.commenter.username}'s profile`}
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={avatar}
                         alt=""
@@ -455,7 +428,6 @@ export default function CommentThread({
                       />
                     </Link>
                   ) : (
-                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={avatar}
                       alt=""
@@ -501,7 +473,6 @@ export default function CommentThread({
           )}
         </div>
 
-        {/* Composer */}
         <div className="p-3 border-t border-white/10">
           <div className="flex items-end gap-2" data-ignore-context>
             <textarea

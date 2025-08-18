@@ -275,14 +275,13 @@ export async function getUnreadCount(supabase: SupabaseClient) {
   const uid = auth.user?.id;
   if (!uid) return 0;
 
-  const { count, error } = await supabase
-    .from('notifications')
-    .select('id', { count: 'exact' }) // ← not head:true
-    .eq('user_id', uid)
-    .is('read_at', null)
-    .limit(0);
+  const { count /*, error */ } = await supabase
+    .from('notifications_visible')   // ← read from the view
+    .select('id', { head: true, count: 'exact' })
+    .eq('user_id', uid)              // keep this for correctness & index use
+    .is('read_at', null);
 
-  return error ? 0 : (count ?? 0);
+  return count ?? 0;
 }
 
 export async function markAllRead(supabase: SupabaseClient) {

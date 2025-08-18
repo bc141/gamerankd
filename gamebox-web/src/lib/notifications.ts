@@ -61,6 +61,22 @@ async function hasBlockEitherWay(
   return (count ?? 0) > 0;
 }
 
+// helper
+async function hasRecipientMutedActor(
+  supabase: SupabaseClient,
+  recipientId: string,
+  actorId: string
+): Promise<boolean> {
+  if (!recipientId || !actorId || recipientId === actorId) return false;
+  const { count, error } = await supabase
+    .from('mutes')
+    .select('muted_id', { head: true, count: 'exact' })
+    .eq('user_id', recipientId)
+    .eq('muted_id', actorId);
+  if (error) return false; // be permissive; RLS still protects us
+  return (count ?? 0) > 0;
+}
+
 /* ------------------------------ updates ------------------------------ */
 export async function markReadById(supabase: SupabaseClient, id: number) {
   const { error } = await supabase
@@ -151,6 +167,7 @@ export async function notifyLike(
   const me = await getMeId(supabase);
   if (!me || me === reviewUserId) return; // no self-notifs
   if (await hasBlockEitherWay(supabase, me, reviewUserId)) return;
+  if (await hasRecipientMutedActor(supabase, reviewUserId, me)) return;
 
   await insertNotif(supabase, {
     type: 'like',
@@ -188,6 +205,7 @@ export async function notifyComment(
   const me = await getMeId(supabase);
   if (!me || me === reviewUserId) return; // no self-notifs
   if (await hasBlockEitherWay(supabase, me, reviewUserId)) return;
+  if (await hasRecipientMutedActor(supabase, reviewUserId, me)) return;
 
   const trimmed = preview?.slice(0, 160);
   await insertNotif(supabase, {
@@ -225,6 +243,7 @@ export async function notifyFollow(
   const me = await getMeId(supabase);
   if (!me || me === targetUserId) return;
   if (await hasBlockEitherWay(supabase, me, targetUserId)) return;
+  if (await hasRecipientMutedActor(supabase, targetUserId, me)) return;
 
   await insertNotif(supabase, {
     type: 'follow',

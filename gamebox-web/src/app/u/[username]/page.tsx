@@ -27,6 +27,7 @@ import { timeAgo } from '@/lib/timeAgo';
 import { useReviewContextModal } from '@/components/ReviewContext/useReviewContextModal';
 import OverflowActions from '@/components/OverflowActions';
 import { getBlockSets, unblockUser, broadcastBlockSync } from '@/lib/blocks';
+import { getMuteSet, unmuteUser, broadcastMuteSync } from '@/lib/mutes';
 
 const from100 = (n: number) => n / 20;
 
@@ -91,10 +92,14 @@ export default function PublicProfilePage() {
   // blocks (derived flags below)
   const [blockSets, setBlockSets] = useState<BlockSets | null>(null);
 
+  // mutes
+  const [muteSet, setMuteSet] = useState<Set<string>>(new Set());
+
   const isOwnProfile = Boolean(viewerId && profile?.id && viewerId === profile.id);
   const blockedEitherWay =
     !!(viewerId && profile?.id && blockSets && (blockSets.iBlocked.has(profile.id) || blockSets.blockedMe.has(profile.id)));
   const iBlocked = !!(viewerId && profile?.id && blockSets?.iBlocked.has(profile.id));
+  const iMuted = !!(viewerId && profile?.id && muteSet.has(profile.id));
 
   // likes
   const [likes, setLikes] = useState<Record<string, LikeEntry>>({});
@@ -270,12 +275,24 @@ export default function PublicProfilePage() {
     };
   }, [viewerId, profile?.id, supabase]);
 
+  // 4) mute state + storage sync
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      if (!viewerId) return;
+      const set = await getMuteSet(supabase, viewerId);
+      if (mounted) setMuteSet(set);
+    })();
+    return () => { mounted = false; };
+  }, [viewerId, profile?.id, supabase]);
+
   // follow toggle
   async function onToggleFollow() {
     if (!profile) return;
     if (!viewerId) return router.push('/login');
     if (isOwnProfile) return;
     if (blockedEitherWay) return; // gate follow when blocked
+    if (iMuted) return; // gate follow when muted
 
     setTogglingFollow(true);
     try {
@@ -307,6 +324,7 @@ export default function PublicProfilePage() {
     if (!profile || !gameId) return;
     if (!viewerId) return router.push('/login');
     if (blockedEitherWay) return; // soft gate; backend also enforces
+    if (iMuted) return; // gate like when muted
 
     const reviewUserId = profile.id;
     const k = likeKey(reviewUserId, gameId);
@@ -405,6 +423,26 @@ export default function PublicProfilePage() {
                 )}
               </div>
             )}
+
+            {/* Mute banner (only when not own profile) */}
+            {!isOwnProfile && iMuted && (
+              <div className="mt-3 text-xs rounded-lg border border-white/10 bg-white/5 text-white/80 px-3 py-2 flex items-center gap-2">
+                <span>You muted this user.</span>
+                <button
+                  onClick={async () => {
+                    await unmuteUser(supabase, profile.id);
+                    try { broadcastMuteSync(); } catch {}
+                    if (viewerId) {
+                      const set = await getMuteSet(supabase, viewerId);
+                      setMuteSet(set);
+                    }
+                  }}
+                  className="ml-auto text-xs px-2 py-1 rounded bg-white/10 hover:bg-white/15"
+                >
+                  Unmute
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -421,9 +459,9 @@ export default function PublicProfilePage() {
             <>
               <button
                 onClick={onToggleFollow}
-                disabled={togglingFollow || blockedEitherWay}
-                aria-disabled={togglingFollow || blockedEitherWay}
-                title={blockedEitherWay ? 'Following disabled for blocked users' : undefined}
+                disabled={togglingFollow || blockedEitherWay || iMuted}
+                aria-disabled={togglingFollow || blockedEitherWay || iMuted}
+                title={blockedEitherWay ? 'Following disabled for blocked users' : iMuted ? 'Following disabled for muted users' : undefined}
                 aria-pressed={isFollowing}
                 className={`px-3 py-2 rounded text-sm disabled:opacity-50 ${
                   isFollowing
@@ -507,8 +545,8 @@ export default function PublicProfilePage() {
                       <div className="flex items-center gap-2" data-ignore-context>
                         {likesReady ? (
                           <span
-                            className={`ml-2 inline-flex ${blockedEitherWay ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            title={blockedEitherWay ? 'Likes disabled for blocked users' : undefined}
+                            className={`ml-2 inline-flex ${blockedEitherWay || iMuted ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            title={blockedEitherWay ? 'Likes disabled for blocked users' : iMuted ? 'Likes disabled for muted users' : undefined}
                             data-ignore-context
                           >
                             <LikePill
@@ -516,7 +554,7 @@ export default function PublicProfilePage() {
                               count={entry.count}
                               busy={likeBusy[likeKey(profile.id, gameId)]}
                               onClick={() => {
-                                if (blockedEitherWay) return;
+                                if (blockedEitherWay || iMuted) return;
                                 onToggleLike(gameId);
                               }}
                             />
@@ -527,11 +565,11 @@ export default function PublicProfilePage() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (!blockedEitherWay) setOpenThread({ reviewUserId: profile.id, gameId });
+                            if (!blockedEitherWay && !iMuted) setOpenThread({ reviewUserId: profile.id, gameId });
                           }}
-                          disabled={blockedEitherWay}
+                          disabled={blockedEitherWay || iMuted}
                           className="text-xs px-2 py-1 rounded border border-white/10 bg-white/5 hover:bg-white/10 disabled:opacity-50"
-                          title={blockedEitherWay ? 'Comments disabled for blocked users' : 'View comments'}
+                          title={blockedEitherWay ? 'Comments disabled for blocked users' : iMuted ? 'Comments disabled for muted users' : 'View comments'}
                           aria-label="View comments"
                         >
                           💬 {cCount}

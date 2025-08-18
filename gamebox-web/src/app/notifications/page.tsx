@@ -1,4 +1,3 @@
-// src/app/notifications/page.tsx
 'use client';
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
@@ -8,6 +7,7 @@ import { waitForSession } from '@/lib/waitForSession';
 import { timeAgo } from '@/lib/timeAgo';
 import { useReviewContextModal } from '@/components/ReviewContext/useReviewContextModal';
 import { getBlockSets } from '@/lib/blocks';
+import { toInList } from '@/lib/sql';            // ✅ NEW
 
 type NotifMeta = { preview?: string } | null;
 
@@ -32,7 +32,6 @@ type Profile = {
 
 type Game = { id: number; name: string; cover_url: string | null };
 
-// Only open modal when click wasn't on a control and no text is selected
 function shouldOpenContext(target: EventTarget | null) {
   const el = target as HTMLElement | null;
   if (el?.closest('a,button,[data-ignore-context],input,textarea,svg')) return false;
@@ -51,20 +50,12 @@ export default function NotificationsPage() {
   const [error, setError] = useState<string | null>(null);
   const [me, setMe] = useState<string | null>(null);
 
-  // context modal controller
-  const { open: openContext, modal: contextModal } = useReviewContextModal(
-    supabase,
-    me
-  );
+  const { open: openContext, modal: contextModal } = useReviewContextModal(supabase, me);
 
-  // cross-tab bell sync trigger
   const broadcastNotifSync = () => {
-    try {
-      localStorage.setItem('gb-notif-sync', String(Date.now()));
-    } catch {}
+    try { localStorage.setItem('gb-notif-sync', String(Date.now())); } catch {}
   };
 
-  // react to bell sync from other tabs
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
       if (e.key === 'gb-notif-sync' || e.key === 'gb-block-sync') {
@@ -76,7 +67,6 @@ export default function NotificationsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // fetch everything
   const fetchAll = async () => {
     setLoading(true);
     setError(null);
@@ -87,21 +77,27 @@ export default function NotificationsPage() {
     setReady(true);
 
     if (!uid) {
-      setRows([]);
-      setActors({});
-      setGames({});
-      setLoading(false);
+      setRows([]); setActors({}); setGames({}); setLoading(false);
       return;
     }
 
-    const { data, error } = await supabase
+    // ⛔️ gather block/mute sets first
+    const { iBlocked, blockedMe, iMuted } = await getBlockSets(supabase, uid);
+
+    // DB query (exclude muted actors server-side)
+    let q = supabase
       .from('notifications')
-      .select(
-        'id,type,user_id,actor_id,game_id,comment_id,meta,read_at,created_at'
-      )
+      .select('id,type,user_id,actor_id,game_id,comment_id,meta,read_at,created_at')
       .eq('user_id', uid)
       .order('created_at', { ascending: false })
       .limit(50);
+
+    const mutedIds = Array.from(iMuted ?? new Set<string>());
+    if (mutedIds.length) {
+      q = q.not('actor_id', 'in', toInList(mutedIds));   // ✅ DB-level exclusion
+    }
+
+    const { data, error } = await q;
 
     if (error) {
       setError(error.message);
@@ -110,67 +106,51 @@ export default function NotificationsPage() {
       return;
     }
 
-    // --- blocks/mutes gate (hide rows from users you blocked or who blocked you) ---
-    const { iBlocked, blockedMe } = await getBlockSets(supabase, uid);
-const isHidden = (aid?: string | null) =>
-  !!aid && (iBlocked.has(aid) || blockedMe.has(aid));
+    // Final client filter: blocked either way OR muted (belt & suspenders)
+    const isHidden = (aid?: string | null) =>
+      !!aid && (iBlocked.has(aid) || blockedMe.has(aid) || iMuted.has(aid));
 
-const all = (data ?? []) as Notif[];
-const visible = all.filter(n => !isHidden(n.actor_id));
-
-setRows(visible);
-
-    
-    // ------------------------------------------------------------------------------
+    const all = (data ?? []) as Notif[];
+    const visible = all.filter(n => !isHidden(n.actor_id));
+    setRows(visible);
 
     // hydrate (profiles + games) based on filtered list
     const actorIds = Array.from(new Set(visible.map(n => n.actor_id)));
-    const gameIds  = Array.from(new Set(visible.map(n => n.game_id).filter((x): x is number => typeof x === 'number')));
-     
+    const gameIds  = Array.from(new Set(
+      visible.map(n => n.game_id).filter((x): x is number => typeof x === 'number')
+    ));
 
     const [profsRes, gamesRes] = await Promise.all([
       actorIds.length
-        ? supabase
-            .from('profiles')
+        ? supabase.from('profiles')
             .select('id,username,display_name,avatar_url')
             .in('id', actorIds)
         : Promise.resolve({ data: [] as any[] }),
       gameIds.length
-        ? supabase
-            .from('games')
+        ? supabase.from('games')
             .select('id,name,cover_url')
             .in('id', gameIds)
         : Promise.resolve({ data: [] as any[] }),
     ]);
 
     const profMap: Record<string, Profile> = {};
-    (profsRes.data ?? []).forEach((p: any) => {
-      profMap[p.id] = p;
-    });
+    (profsRes.data ?? []).forEach((p: any) => { profMap[p.id] = p; });
     setActors(profMap);
 
     const gameMap: Record<number, Game> = {};
-    (gamesRes.data ?? []).forEach((g: any) => {
-      gameMap[g.id] = g;
-    });
+    (gamesRes.data ?? []).forEach((g: any) => { gameMap[g.id] = g; });
     setGames(gameMap);
 
     setLoading(false);
   };
 
-  // initial load
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      if (!cancelled) await fetchAll();
-    })();
-    return () => {
-      cancelled = true;
-    };
+    (async () => { if (!cancelled) await fetchAll(); })();
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase]);
 
-  // refresh on focus (long-lived tabs)
   useEffect(() => {
     const onFocus = () => fetchAll();
     window.addEventListener('focus', onFocus);
@@ -178,37 +158,32 @@ setRows(visible);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [me]);
 
-  // mark one row read (optimistic) + notify other tabs
   async function handleRowClick(n: Notif) {
     if (n.read_at) return;
     const now = new Date().toISOString();
-    setRows((prev) => prev.map((x) => (x.id === n.id ? { ...x, read_at: now } : x)));
+    setRows(prev => prev.map(x => (x.id === n.id ? { ...x, read_at: now } : x)));
     const { error } = await supabase
       .from('notifications')
       .update({ read_at: now })
       .eq('id', n.id)
       .is('read_at', null);
-
     if (error) {
-      setRows((prev) => prev.map((x) => (x.id === n.id ? { ...x, read_at: null } : x)));
+      setRows(prev => prev.map(x => (x.id === n.id ? { ...x, read_at: null } : x)));
       return;
     }
     broadcastNotifSync();
   }
 
-  // mark all read
   async function handleMarkAll() {
-    if (!rows.some((r) => !r.read_at)) return;
+    if (!rows.some(r => !r.read_at)) return;
     const now = new Date().toISOString();
     const before = rows;
-    setRows((prev) => prev.map((x) => (x.read_at ? x : { ...x, read_at: now })));
-
+    setRows(prev => prev.map(x => (x.read_at ? x : { ...x, read_at: now })));
     const { error } = await supabase
       .from('notifications')
       .update({ read_at: now })
       .eq('user_id', me)
       .is('read_at', null);
-
     if (error) {
       setRows(before);
       return;
@@ -224,7 +199,7 @@ setRows(visible);
     <main className="mx-auto max-w-3xl px-4 py-6">
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">{title}</h1>
-        {rows.length > 0 && rows.some((r) => !r.read_at) && (
+        {rows.length > 0 && rows.some(r => !r.read_at) && (
           <button
             onClick={handleMarkAll}
             className="text-sm rounded px-3 py-1.5 bg-white/10 hover:bg-white/15"
@@ -307,9 +282,7 @@ setRows(visible);
                 role="button"
                 tabIndex={0}
                 onClick={(e) => {
-                  // Always mark read on row click (consistent with previous behavior)
                   handleRowClick(n);
-                  // Open context if the click wasn't on a link/button/etc.
                   if (canOpenContext && shouldOpenContext(e.target)) {
                     openContext(me!, n.game_id!);
                   }
@@ -325,7 +298,6 @@ setRows(visible);
                   unread ? 'bg-white/5 hover:bg-white/10' : 'hover:bg-white/5'
                 }`}
               >
-                {/* avatar (clickable if actor has username) */}
                 {actorHref ? (
                   <Link
                     href={actorHref}
@@ -354,7 +326,6 @@ setRows(visible);
                   />
                 )}
 
-                {/* body */}
                 <div className="flex-1 min-w-0">
                   <div className="text-sm text-white/90">{text}</div>
                   <div className={`text-xs mt-0.5 ${unread ? 'text-white/60' : 'text-white/40'}`}>
@@ -362,7 +333,6 @@ setRows(visible);
                   </div>
                 </div>
 
-                {/* cover (clicking goes to game without marking read) */}
                 {game?.cover_url ? (
                   <Link
                     href={`/game/${game.id}`}
@@ -387,7 +357,6 @@ setRows(visible);
         </ul>
       )}
 
-      {/* one modal instance */}
       {contextModal}
     </main>
   );

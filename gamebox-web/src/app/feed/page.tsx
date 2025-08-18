@@ -27,6 +27,7 @@ import { timeAgo } from '@/lib/timeAgo';
 import { useReviewContextModal } from '@/components/ReviewContext/useReviewContextModal';
 import { onRowClick, onRowKeyDown } from '@/lib/safeOpenContext';
 import { getBlockSets } from '@/lib/blocks';
+import { toInList } from '@/lib/sql';
 
 const AUTHOR_JOIN = 'profiles!reviews_user_id_profiles_fkey';
 
@@ -84,6 +85,16 @@ function FeedPageInner() {
     me?.id ?? null
   );
 
+  // 🔄 cross-tab sync tick (refresh feed on gb-block-sync)
+  const [syncTick, setSyncTick] = useState(0);
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'gb-block-sync') setSyncTick(t => t + 1);
+    };
+    try { window.addEventListener('storage', onStorage); } catch {}
+    return () => { try { window.removeEventListener('storage', onStorage); } catch {} };
+  }, []);
+
   // cross-tab/same-tab LIKE sync
   useEffect(() => {
     const off = addLikeListener(({ reviewUserId, gameId, liked, delta }) => {
@@ -133,12 +144,16 @@ function FeedPageInner() {
         }
 
         // -------- blocks/mutes gate --------
-        const { iBlocked, blockedMe } = await getBlockSets(supabase, user.id);
+        const { iBlocked, blockedMe, iMuted } = await getBlockSets(supabase, user.id);
         const hidden = new Set<string>([
           ...Array.from(iBlocked.values()),
           ...Array.from(blockedMe.values()),
         ]);
         const hideUser = (uid?: string | null) => !!uid && hidden.has(String(uid));
+
+        // muted set for belt-and-suspenders client filter
+        const mutedIds = Array.from(iMuted ?? new Set<string>());
+        const mutedSet = new Set(mutedIds);
         // -----------------------------------
 
         if (tab === 'following') {
@@ -154,7 +169,7 @@ function FeedPageInner() {
             return;
           }
 
-          // filter out blocked/muted before querying reviews
+          // filter out blocked before querying reviews
           const followingIds = (flw ?? [])
             .map(r => String(r.followee_id))
             .filter(id => !hideUser(id));
@@ -164,7 +179,7 @@ function FeedPageInner() {
             return;
           }
 
-          const { data, error } = await supabase
+          let q = supabase
             .from('reviews')
             .select(`
               user_id,
@@ -177,6 +192,13 @@ function FeedPageInner() {
             .in('user_id', followingIds)
             .order('created_at', { ascending: false })
             .limit(50);
+
+          // exclude muted authors at the DB layer
+          if (mutedIds.length) {
+            q = q.not('user_id', 'in', toInList(mutedIds));
+          }
+
+          const { data, error } = await q;
 
           if (cancelled) return;
           if (error) {
@@ -203,8 +225,8 @@ function FeedPageInner() {
               : null,
           }));
 
-          // final safety filter
-          const safe = mapped.filter(r => !hideUser(r.reviewer_id));
+          // final safety filter (blocked + muted)
+          const safe = mapped.filter(r => !hideUser(r.reviewer_id) && !mutedSet.has(r.reviewer_id));
           setRows(safe);
 
           const pairs = safe
@@ -223,10 +245,25 @@ function FeedPageInner() {
         }
 
         // --- For You ---
-        const { data, error } = await supabase.rpc('get_for_you_feed', {
-          p_viewer_id: user.id,
-          p_limit: 50,
-        });
+        let q = supabase
+          .from('reviews')
+          .select(`
+            user_id,
+            created_at,
+            rating,
+            review,
+            games:game_id ( id, name, cover_url ),
+            author:${AUTHOR_JOIN} ( id, username, display_name, avatar_url )
+          `)
+          .order('created_at', { ascending: false })
+          .limit(50);
+
+        // exclude muted authors at the DB layer
+        if (mutedIds.length) {
+          q = q.not('user_id', 'in', toInList(mutedIds));
+        }
+
+        const { data, error } = await q;
 
         if (cancelled) return;
         if (error) {
@@ -236,22 +273,25 @@ function FeedPageInner() {
         }
 
         const mapped: Row[] = (data ?? []).map((r: any) => ({
-          reviewer_id: String(r?.user_id ?? r?.author_id ?? ''),
+          reviewer_id: String(r?.user_id ?? r?.author?.id ?? ''),
           created_at: r?.created_at ?? new Date(0).toISOString(),
           rating: typeof r?.rating === 'number' ? r.rating : 0,
           review: r?.review ?? null,
-          games: r?.game_id
-            ? { id: Number(r.game_id), name: String(r.game_name ?? 'Unknown'), cover_url: r.game_cover_url ?? null }
+          games: r?.games
+            ? { id: Number(r.games.id), name: String(r.games.name ?? 'Unknown'), cover_url: r.games.cover_url ?? null }
             : null,
-          author: {
-            id: String(r?.author_id ?? r?.user_id ?? ''),
-            username: r?.username ?? null,
-            display_name: r?.display_name ?? null,
-            avatar_url: r?.avatar_url ?? null,
-          },
+          author: r?.author
+            ? {
+                id: String(r.author.id),
+                username: r.author.username ?? null,
+                display_name: r.author.display_name ?? null,
+                avatar_url: r.author.avatar_url ?? null,
+              }
+            : null,
         }));
 
-        const safe = mapped.filter(r => !hideUser(r.reviewer_id));
+        // final safety filter (blocked + muted)
+        const safe = mapped.filter(r => !hideUser(r.reviewer_id) && !mutedSet.has(r.reviewer_id));
         setRows(safe);
 
         const pairs = safe
@@ -281,7 +321,7 @@ function FeedPageInner() {
     return () => {
       cancelled = true;
     };
-  }, [supabase, tab]);
+  }, [supabase, tab, syncTick]); // ⬅️ refresh on cross-tab block/mute events
 
   // 2) Like/Unlike
   async function onToggleLike(reviewUserId: string, gameId: number) {

@@ -26,15 +26,13 @@ import {
 import { timeAgo } from '@/lib/timeAgo';
 import { useReviewContextModal } from '@/components/ReviewContext/useReviewContextModal';
 import OverflowActions from '@/components/OverflowActions';
-import { getBlockSets, unblockUser, broadcastBlockSync } from '@/lib/blocks';
-import { getMuteSet, unmuteUser, broadcastMuteSync } from '@/lib/mutes';
+import { getBlockSets, unblockUser, broadcastBlockSync, unmuteUser } from '@/lib/blocks'; // ⬅️ add unmuteUser
 
 const from100 = (n: number) => n / 20;
 
-// local shape (keep in sync with lib/blocks)
+// keep in sync with lib/blocks
 type BlockSets = { iBlocked: Set<string>; blockedMe: Set<string>; iMuted: Set<string> };
 
-// open context unless click was on a link/button/etc.
 function openContextIfSafe(
   e: React.MouseEvent | React.KeyboardEvent,
   open: (reviewUserId: string, gameId: number) => void,
@@ -56,7 +54,7 @@ type Profile = {
 };
 
 type ReviewRow = {
-  rating: number; // 1–100
+  rating: number;
   review: string | null;
   created_at: string;
   games: { id: number; name: string; cover_url: string | null } | null;
@@ -82,24 +80,18 @@ export default function PublicProfilePage() {
   const [error, setError] = useState<string | null>(null);
 
   // follows
-  const [counts, setCounts] = useState<{ followers: number; following: number }>({
-    followers: 0,
-    following: 0,
-  });
+  const [counts, setCounts] = useState<{ followers: number; following: number }>({ followers: 0, following: 0 });
   const [isFollowing, setIsFollowing] = useState(false);
   const [togglingFollow, setTogglingFollow] = useState(false);
 
-  // blocks (derived flags below)
+  // blocks/mutes (derived flags below)
   const [blockSets, setBlockSets] = useState<BlockSets | null>(null);
-
-  // mutes
-  const [muteSet, setMuteSet] = useState<Set<string>>(new Set());
 
   const isOwnProfile = Boolean(viewerId && profile?.id && viewerId === profile.id);
   const blockedEitherWay =
     !!(viewerId && profile?.id && blockSets && (blockSets.iBlocked.has(profile.id) || blockSets.blockedMe.has(profile.id)));
   const iBlocked = !!(viewerId && profile?.id && blockSets?.iBlocked.has(profile.id));
-  const iMuted = !!(viewerId && profile?.id && muteSet.has(profile.id));
+  const isMuted  = !!(viewerId && profile?.id && blockSets?.iMuted.has(profile.id)); // ⬅️ soft mute flag
 
   // likes
   const [likes, setLikes] = useState<Record<string, LikeEntry>>({});
@@ -143,12 +135,9 @@ export default function PublicProfilePage() {
       setViewerId(session?.user?.id ?? null);
       setReady(true);
     })();
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, [supabase]);
 
-  // shared helper to refresh follow counts + following state
   async function refreshFollowBits(ownerId: string, viewer: string | null) {
     const [c, f] = await Promise.all([
       getFollowCounts(supabase, ownerId),
@@ -158,7 +147,7 @@ export default function PublicProfilePage() {
     setIsFollowing(Boolean(f));
   }
 
-  // 2) fetch profile + reviews + preload likes & comment counts + follow bits
+  // 2) profile + reviews + preload likes/comments + follow bits
   useEffect(() => {
     if (!ready || !slug) return;
     let cancelled = false;
@@ -169,7 +158,6 @@ export default function PublicProfilePage() {
 
       const uname = String(slug).toLowerCase();
 
-      // profile
       const { data: prof, error: pErr } = await supabase
         .from('profiles')
         .select('id,username,display_name,bio,avatar_url')
@@ -185,7 +173,6 @@ export default function PublicProfilePage() {
       const owner = prof as Profile;
       setProfile(owner);
 
-      // reviews by this profile
       const { data: reviewsData, error: rErr } = await supabase
         .from('reviews')
         .select('rating, review, created_at, games:game_id (id,name,cover_url)')
@@ -203,19 +190,12 @@ export default function PublicProfilePage() {
           review: r?.review ?? null,
           created_at: r?.created_at ?? new Date(0).toISOString(),
           games: r?.games
-            ? {
-                id: Number(r.games.id),
-                name: String(r.games.name ?? 'Unknown game'),
-                cover_url: r.games.cover_url ?? null,
-              }
+            ? { id: Number(r.games.id), name: String(r.games.name ?? 'Unknown game'), cover_url: r.games.cover_url ?? null }
             : null,
         }));
         setRows(safe);
 
-        // preload likes & comment counts for all (owner.id, gameId) pairs
-        const pairs = safe
-          .filter(r => r.games?.id)
-          .map(r => ({ reviewUserId: owner.id, gameId: r.games!.id }));
+        const pairs = safe.filter(r => r.games?.id).map(r => ({ reviewUserId: owner.id, gameId: r.games!.id }));
 
         const viewer = viewerId ?? null;
         const [likeMap, commentMap] = await Promise.all([
@@ -230,16 +210,13 @@ export default function PublicProfilePage() {
         }
       }
 
-      // follow counts + state
       await refreshFollowBits(owner.id, viewerId);
     })();
 
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [ready, slug, viewerId, supabase]);
 
-  // 3) block state + storage sync
+  // 3) block/mute state + storage sync
   useEffect(() => {
     let mounted = true;
 
@@ -249,66 +226,35 @@ export default function PublicProfilePage() {
       if (mounted) setBlockSets(sets);
     };
 
-    (async () => {
-      await refreshBlocks(true);
-    })();
+    (async () => { await refreshBlocks(true); })();
 
     const onStorage = async (e: StorageEvent) => {
       if (e.key !== 'gb-block-sync' || !profile?.id) return;
-
-      // 1) refresh block sets (force)
       await refreshBlocks(true);
-
-      // 2) refresh follow counts + following state
       await refreshFollowBits(profile.id, viewerId);
     };
 
-    try {
-      window.addEventListener('storage', onStorage);
-    } catch {}
-
+    try { window.addEventListener('storage', onStorage); } catch {}
     return () => {
       mounted = false;
-      try {
-        window.removeEventListener('storage', onStorage);
-      } catch {}
+      try { window.removeEventListener('storage', onStorage); } catch {}
     };
   }, [viewerId, profile?.id, supabase]);
 
-  // 4) mute state + storage sync
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      if (!viewerId) return;
-      const set = await getMuteSet(supabase, viewerId);
-      if (mounted) setMuteSet(set);
-    })();
-    return () => { mounted = false; };
-  }, [viewerId, profile?.id, supabase]);
-
-  // follow toggle
+  // follow toggle (unchanged; only blocked gates)
   async function onToggleFollow() {
     if (!profile) return;
     if (!viewerId) return router.push('/login');
     if (isOwnProfile) return;
-    if (blockedEitherWay) return; // gate follow when blocked
-    if (iMuted) return; // gate follow when muted
+    if (blockedEitherWay) return;
 
     setTogglingFollow(true);
     try {
       const next = !isFollowing;
       const { error } = await toggleFollow(supabase, profile.id);
-      if (error) {
-        // eslint-disable-next-line no-alert
-        alert(error.message);
-        return;
-      }
-
+      if (error) { alert(error.message); return; }
       setIsFollowing(next);
-      setCounts(prev => ({
-        followers: prev.followers + (next ? 1 : -1),
-        following: prev.following,
-      }));
+      setCounts(prev => ({ followers: prev.followers + (next ? 1 : -1), following: prev.following }));
     } finally {
       setTogglingFollow(false);
     }
@@ -319,12 +265,11 @@ export default function PublicProfilePage() {
     return url !== '' ? url : '/avatar-placeholder.svg';
   }, [profile?.avatar_url]);
 
-  // like toggle for one row (reviewUserId = profile.id)
+  // like toggle (only blocked gates)
   async function onToggleLike(gameId: number) {
     if (!profile || !gameId) return;
     if (!viewerId) return router.push('/login');
-    if (blockedEitherWay) return; // soft gate; backend also enforces
-    if (iMuted) return; // gate like when muted
+    if (blockedEitherWay) return;
 
     const reviewUserId = profile.id;
     const k = likeKey(reviewUserId, gameId);
@@ -332,22 +277,13 @@ export default function PublicProfilePage() {
 
     const before = likes[k] ?? { liked: false, count: 0 };
 
-    // optimistic
-    setLikes(p => ({
-      ...p,
-      [k]: { liked: !before.liked, count: Math.max(0, before.count + (before.liked ? -1 : 1)) },
-    }));
+    setLikes(p => ({ ...p, [k]: { liked: !before.liked, count: Math.max(0, before.count + (before.liked ? -1 : 1)) } }));
     setLikeBusy(p => ({ ...p, [k]: true }));
 
     try {
       const { liked, count, error } = await toggleLikeRPC(supabase, reviewUserId, gameId);
+      if (error) { setLikes(p => ({ ...p, [k]: before })); return; }
 
-      if (error) {
-        setLikes(p => ({ ...p, [k]: before }));
-        return;
-      }
-
-      // snap only if different -> avoids flicker
       setLikes(p => {
         const cur = p[k] ?? { liked: false, count: 0 };
         if (cur.liked === liked && cur.count === count) return p;
@@ -356,7 +292,6 @@ export default function PublicProfilePage() {
 
       broadcastLike(reviewUserId, gameId, liked, liked ? 1 : -1);
 
-      // small truth-sync in case of races
       setTimeout(async () => {
         const map = await fetchLikesBulk(supabase, viewerId, [{ reviewUserId, gameId }]);
         setLikes(p => ({ ...p, ...map }));
@@ -387,7 +322,7 @@ export default function PublicProfilePage() {
             {profile.display_name && <div className="text-white/60">@{profile.username}</div>}
             {profile.bio && <p className="text-white/70 mt-1">{profile.bio}</p>}
 
-            {/* clickable counts */}
+            {/* counts */}
             <div className="mt-2 text-sm text-white/60 flex items-center gap-4">
               <Link href={`/u/${profile.username}/followers`} className="hover:underline">
                 <strong className="text-white">{counts.followers}</strong> Followers
@@ -397,7 +332,7 @@ export default function PublicProfilePage() {
               </Link>
             </div>
 
-            {/* Block banner (only when not own profile) */}
+            {/* Block banner */}
             {!isOwnProfile && blockedEitherWay && (
               <div className="mt-3 text-xs rounded-lg border border-white/10 bg-white/5 text-white/80 px-3 py-2 flex items-center gap-2">
                 {iBlocked ? (
@@ -424,17 +359,17 @@ export default function PublicProfilePage() {
               </div>
             )}
 
-            {/* Mute banner (only when not own profile) */}
-            {!isOwnProfile && iMuted && (
+            {/* Mute banner (soft: only show message & Unmute; interactions remain enabled) */}
+            {!isOwnProfile && !blockedEitherWay && isMuted && (
               <div className="mt-3 text-xs rounded-lg border border-white/10 bg-white/5 text-white/80 px-3 py-2 flex items-center gap-2">
-                <span>You muted this user.</span>
+                <span>You muted this user. Their posts/alerts are hidden in your feed.</span>
                 <button
                   onClick={async () => {
                     await unmuteUser(supabase, profile.id);
-                    try { broadcastMuteSync(); } catch {}
+                    try { broadcastBlockSync(); } catch {}
                     if (viewerId) {
-                      const set = await getMuteSet(supabase, viewerId);
-                      setMuteSet(set);
+                      const sets = (await getBlockSets(supabase, viewerId, { force: true })) as BlockSets;
+                      setBlockSets(sets);
                     }
                   }}
                   className="ml-auto text-xs px-2 py-1 rounded bg-white/10 hover:bg-white/15"
@@ -449,24 +384,19 @@ export default function PublicProfilePage() {
         {/* Follow / Edit / Overflow */}
         <div className="shrink-0 flex items-center gap-2 relative">
           {isOwnProfile ? (
-            <Link
-              href="/settings/profile"
-              className="bg-white/10 px-3 py-2 rounded text-sm hover:bg-white/15"
-            >
+            <Link href="/settings/profile" className="bg-white/10 px-3 py-2 rounded text-sm hover:bg-white/15">
               Edit profile
             </Link>
           ) : (
             <>
               <button
                 onClick={onToggleFollow}
-                disabled={togglingFollow || blockedEitherWay || iMuted}
-                aria-disabled={togglingFollow || blockedEitherWay || iMuted}
-                title={blockedEitherWay ? 'Following disabled for blocked users' : iMuted ? 'Following disabled for muted users' : undefined}
+                disabled={togglingFollow || blockedEitherWay}
+                aria-disabled={togglingFollow || blockedEitherWay}
+                title={blockedEitherWay ? 'Following disabled for blocked users' : undefined}
                 aria-pressed={isFollowing}
                 className={`px-3 py-2 rounded text-sm disabled:opacity-50 ${
-                  isFollowing
-                    ? 'bg-white/10 hover:bg-white/15'
-                    : 'bg-indigo-600 hover:bg-indigo-500 text-white'
+                  isFollowing ? 'bg-white/10 hover:bg-white/15' : 'bg-indigo-600 hover:bg-indigo-500 text-white'
                 }`}
               >
                 {togglingFollow ? '…' : isFollowing ? 'Following' : 'Follow'}
@@ -476,6 +406,7 @@ export default function PublicProfilePage() {
                 targetId={profile.id}
                 username={profile.username}
                 onBlockChange={async () => {
+                  // Fired for both block and mute changes
                   if (viewerId) {
                     const sets = (await getBlockSets(supabase, viewerId, { force: true })) as BlockSets;
                     setBlockSets(sets);
@@ -535,6 +466,7 @@ export default function PublicProfilePage() {
                   >
                     {gameName}
                   </Link>
+
                   <div className="mt-1 flex items-center gap-2 flex-wrap">
                     <StarRating value={stars} readOnly size={18} />
                     <span className="text-sm text-white/60">{stars.toFixed(1)} / 5</span>
@@ -545,8 +477,8 @@ export default function PublicProfilePage() {
                       <div className="flex items-center gap-2" data-ignore-context>
                         {likesReady ? (
                           <span
-                            className={`ml-2 inline-flex ${blockedEitherWay || iMuted ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            title={blockedEitherWay ? 'Likes disabled for blocked users' : iMuted ? 'Likes disabled for muted users' : undefined}
+                            className={`ml-2 inline-flex ${blockedEitherWay ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            title={blockedEitherWay ? 'Likes disabled for blocked users' : undefined}
                             data-ignore-context
                           >
                             <LikePill
@@ -554,7 +486,7 @@ export default function PublicProfilePage() {
                               count={entry.count}
                               busy={likeBusy[likeKey(profile.id, gameId)]}
                               onClick={() => {
-                                if (blockedEitherWay || iMuted) return;
+                                if (blockedEitherWay) return;
                                 onToggleLike(gameId);
                               }}
                             />
@@ -562,14 +494,15 @@ export default function PublicProfilePage() {
                         ) : (
                           <span className="ml-2 text-xs text-white/40">❤️ …</span>
                         )}
+
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (!blockedEitherWay && !iMuted) setOpenThread({ reviewUserId: profile.id, gameId });
+                            if (!blockedEitherWay) setOpenThread({ reviewUserId: profile.id, gameId });
                           }}
-                          disabled={blockedEitherWay || iMuted}
+                          disabled={blockedEitherWay}
                           className="text-xs px-2 py-1 rounded border border-white/10 bg-white/5 hover:bg-white/10 disabled:opacity-50"
-                          title={blockedEitherWay ? 'Comments disabled for blocked users' : iMuted ? 'Comments disabled for muted users' : 'View comments'}
+                          title={blockedEitherWay ? 'Comments disabled for blocked users' : 'View comments'}
                           aria-label="View comments"
                         >
                           💬 {cCount}
@@ -579,9 +512,7 @@ export default function PublicProfilePage() {
                   </div>
 
                   {r.review && r.review.trim() !== '' && (
-                    <p className="text-white/70 mt-2 whitespace-pre-wrap break-words">
-                      {r.review.trim()}
-                    </p>
+                    <p className="text-white/70 mt-2 whitespace-pre-wrap break-words">{r.review.trim()}</p>
                   )}
                 </div>
               </li>
@@ -611,7 +542,6 @@ export default function PublicProfilePage() {
         />
       )}
 
-      {/* One instance of the view-in-context modal */}
       {contextModal}
     </main>
   );

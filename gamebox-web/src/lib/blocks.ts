@@ -61,14 +61,6 @@ export function isInteractionBlocked(sets: BlockSets, otherUserId: string): bool
   return sets.iBlocked.has(id) || sets.blockedMe.has(id);
 }
 
-/**
- * Block a user (idempotent):
- * 1) Upsert into `blocks`
- * 2) Best-effort: remove follows both ways (client)
- * 3) Best-effort: purge mutual notifications (client)
- * 4) Invalidate cache + broadcast
- * DB trigger also runs to enforce (2)+(3) server-side.
- */
 export async function blockUser(
   supabase: SupabaseClient,
   targetId: string
@@ -80,31 +72,18 @@ export async function blockUser(
     return { error: new Error("You can't block yourself") };
   }
 
-  // 1) Upsert
-  const { error: upsertError } = await supabase
+  const { error } = await supabase
     .from('blocks')
     .upsert([{ blocker_id: me, blocked_id: targetId }], { onConflict: 'blocker_id,blocked_id' });
 
-  // 2) Best-effort unfollow both ways
-  if (!upsertError) {
-    const { error: delErr } = await supabase
-      .from('follows')
-      .delete()
-      .or(
-        `and(follower_id.eq.${me},followee_id.eq.${targetId}),` +
-        `and(follower_id.eq.${targetId},followee_id.eq.${me})`
-      );
-    // ignore delErr (server trigger also handles it)
+  if (!error) {
+    // 🔧 belt-and-suspenders cleanup (in case trigger isn't present)
+    void purgeAllBetween(supabase, me, targetId);
   }
 
-  // 3) Best-effort purge mutual notifications
-  try { await purgeAllBetween(supabase, me, targetId); } catch {}
-
-  // 4) Cache bust + cross-tab
   invalidateBlockCache(me);
   broadcastBlockSync();
-
-  return { error: upsertError ?? null };
+  return { error };
 }
 
 /** Unblock a user (delete row where I’m the blocker) */

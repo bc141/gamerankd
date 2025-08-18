@@ -5,6 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { waitForSession } from '@/lib/waitForSession';
+import BlockButtons from '@/components/BlockButtons';
+import { getBlockSets } from '@/lib/blocks';
 
 type MiniProfile = {
   id: string;
@@ -155,13 +157,14 @@ export default function FollowersPage() {
                   {p.display_name && <div className="text-xs text-white/50 truncate">@{p.username}</div>}
                 </div>
                 {!isMe && (
-                  <button
-                    onClick={() => toggleFollow(p.id, following)}
-                    disabled={savingId === p.id}
-                    className={`px-3 py-1 rounded text-sm ${following ? 'bg-white/10' : 'bg-indigo-600'} disabled:opacity-50`}
-                  >
-                    {following ? 'Following' : 'Follow'}
-                  </button>
+                  <BlockedUserButton 
+                    user={p} 
+                    me={me} 
+                    following={following}
+                    savingId={savingId}
+                    onToggleFollow={toggleFollow}
+                    supabase={supabase}
+                  />
                 )}
               </li>
             );
@@ -169,5 +172,56 @@ export default function FollowersPage() {
         </ul>
       )}
     </main>
+  );
+}
+
+function BlockedUserButton({ 
+  user, 
+  me, 
+  following, 
+  savingId, 
+  onToggleFollow, 
+  supabase 
+}: {
+  user: MiniProfile;
+  me: { id: string } | null;
+  following: boolean;
+  savingId: string | null;
+  onToggleFollow: (targetId: string, currentlyFollowing: boolean) => Promise<void>;
+  supabase: any;
+}) {
+  const [blockedEitherWay, setBlockedEitherWay] = useState(false);
+
+  useEffect(() => {
+    let m = true;
+    (async () => {
+      const { data } = await supabase.auth.getUser();
+      const me = data.user?.id;
+      if (!m || !me) return;
+      const sets = await getBlockSets(supabase, me, { force: true });
+      if (!m) return;
+      setBlockedEitherWay(sets.iBlocked.has(user.id) || sets.blockedMe.has(user.id));
+    })();
+    return () => { m = false; };
+  }, [supabase, user.id]);
+
+  return (
+    <div className="flex items-center gap-2">
+      {blockedEitherWay ? (
+        <BlockButtons
+          targetId={user.id}
+          username={user.username}
+          onChange={() => {/* optionally refetch this page */}}
+        />
+      ) : (
+        <button
+          onClick={() => onToggleFollow(user.id, following)}
+          disabled={savingId === user.id}
+          className={`px-3 py-1 rounded text-sm ${following ? 'bg-white/10' : 'bg-indigo-600'} disabled:opacity-50`}
+        >
+          {following ? 'Following' : 'Follow'}
+        </button>
+      )}
+    </div>
   );
 }

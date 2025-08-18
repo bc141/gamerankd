@@ -4,7 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 type NotifType = 'like' | 'comment' | 'follow';
 
-const isUniqueViolation = (e: any) => e?.code === '23505'; // duplicate
+const isUniqueViolation = (e: any) => e?.code === '23505';
 const isNil = (v: unknown) => v === null || v === undefined;
 
 /** Cross-tab sync key for the bell / notifications page */
@@ -13,7 +13,7 @@ export function broadcastNotifSync() {
   try { localStorage.setItem(NOTIF_SYNC_KEY, String(Date.now())); } catch {}
 }
 
-// --- coercers ---------------------------------------------------------------
+/* ----------------------------- coercers ----------------------------- */
 function toIntOrNull(v: unknown): number | null {
   if (isNil(v)) return null;
   const n = Number(v);
@@ -40,7 +40,7 @@ async function getMeId(supabase: SupabaseClient): Promise<string | null> {
   }
 }
 
-/** client-side guard to avoid creating notifs that RLS will later hide */
+/** Client-side guard to avoid creating notifs that RLS will later hide */
 async function hasBlockEitherWay(
   supabase: SupabaseClient,
   a: string,
@@ -55,13 +55,13 @@ async function hasBlockEitherWay(
       `and(blocker_id.eq.${b},blocked_id.eq.${a})`
     );
   if (error) {
-    // Be permissive; server RLS/trigger will still protect us.
+    // Be permissive; server-side RLS still protects us.
     return false;
   }
   return (count ?? 0) > 0;
 }
 
-/** Mark one notification as read */
+/* ------------------------------ updates ------------------------------ */
 export async function markReadById(supabase: SupabaseClient, id: number) {
   const { error } = await supabase
     .from('notifications')
@@ -72,7 +72,7 @@ export async function markReadById(supabase: SupabaseClient, id: number) {
   if (!error) broadcastNotifSync();
 }
 
-/** Insert a notification (DB unique index handles dedupe). */
+/* ----------------------------- primitives ---------------------------- */
 async function insertNotif(
   supabase: SupabaseClient,
   payload: {
@@ -94,10 +94,7 @@ async function insertNotif(
   };
 
   const { error } = await supabase.from('notifications').insert([record]);
-  if (error && !isUniqueViolation(error)) {
-    // 23503 = FK fail, 42501 = RLS denied, etc.
-    return;
-  }
+  if (error && !isUniqueViolation(error)) return;
   if (!error) broadcastNotifSync();
 }
 
@@ -125,8 +122,7 @@ async function deleteNotif(
   q = isNil(commentId) ? q.is('comment_id', null) : q.eq('comment_id', commentId);
 
   const { error } = await q;
-  if (error) return;
-  broadcastNotifSync();
+  if (!error) broadcastNotifSync();
 }
 
 /** Remove all notifications between A and B (both directions). Safe to call after block. */
@@ -146,10 +142,7 @@ export async function purgeAllBetween(
   if (!error) broadcastNotifSync();
 }
 
-/* ------------------------------------------------------------------ */
-/* Likes                                                               */
-/* ------------------------------------------------------------------ */
-
+/* -------------------------------- likes ------------------------------ */
 export async function notifyLike(
   supabase: SupabaseClient,
   reviewUserId: string,
@@ -184,10 +177,7 @@ export async function clearLike(
   });
 }
 
-/* ------------------------------------------------------------------ */
-/* Comments                                                            */
-/* ------------------------------------------------------------------ */
-
+/* ------------------------------ comments ---------------------------- */
 export async function notifyComment(
   supabase: SupabaseClient,
   reviewUserId: string,
@@ -214,7 +204,7 @@ export async function clearComment(
   supabase: SupabaseClient,
   reviewUserId: string,
   gameId: number,
-  commentId: string          // uuid string
+  commentId: string
 ) {
   const me = await getMeId(supabase);
   if (!me) return;
@@ -227,10 +217,7 @@ export async function clearComment(
   });
 }
 
-/* ------------------------------------------------------------------ */
-/* Follows                                                             */
-/* ------------------------------------------------------------------ */
-
+/* ------------------------------- follows ----------------------------- */
 export async function notifyFollow(
   supabase: SupabaseClient,
   targetUserId: string
@@ -263,19 +250,14 @@ export async function clearFollow(
   });
 }
 
-/* ------------------------------------------------------------------ */
-/* Unread helpers (badge)                                             */
-/* ------------------------------------------------------------------ */
-
-// src/lib/notifications.ts
-
+/* ----------------------------- unread badge -------------------------- */
 export async function getUnreadCount(supabase: SupabaseClient) {
   const { data: auth } = await supabase.auth.getUser();
   const uid = auth.user?.id;
   if (!uid) return 0;
 
-  // Count unread rows visible to the current user via RLS.
-  const { count /*, error*/ } = await supabase
+  // If you keep a filtered view, swap 'notifications' -> 'notifications_visible'.
+  const { count } = await supabase
     .from('notifications')
     .select('id', { head: true, count: 'exact' })
     .eq('user_id', uid)

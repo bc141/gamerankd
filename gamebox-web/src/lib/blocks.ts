@@ -1,5 +1,6 @@
 // src/lib/blocks.ts
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { purgeAllBetween } from './notifications';
 
 /** What we return from getBlockSets */
 export type BlockSets = {
@@ -70,10 +71,8 @@ export function isInteractionBlocked(sets: BlockSets, otherUserId: string): bool
 /**
  * Block a user:
  * 1) Upsert into `blocks`
- * 2) (server trigger) removes follows both ways + mutual notifications
+ * 2) Best-effort cleanup of follows/notifications (server trigger OR client call)
  * 3) Invalidate cache + broadcast cross-tab sync
- *
- * NOTE: We rely on DB trigger `on_block_insert_cleanup()` for data hygiene.
  */
 export async function blockUser(
   supabase: SupabaseClient,
@@ -89,6 +88,11 @@ export async function blockUser(
   const { error } = await supabase
     .from('blocks')
     .upsert([{ blocker_id: me, blocked_id: targetId }], { onConflict: 'blocker_id,blocked_id' });
+
+  // Optional best-effort cleanup (in case triggers aren’t present)
+  if (!error) {
+    try { await purgeAllBetween(supabase, me, targetId); } catch {}
+  }
 
   // Cache bust + cross-tab notify regardless of error state (UI may still need to refresh)
   invalidateBlockCache(me);
@@ -133,7 +137,7 @@ export async function unmuteUser(_supabase: SupabaseClient, _targetId: string): 
   return { error: null };
 }
 
-/** Cross-tab refresh signal */
+/** Cross-tab refresh signal (browser-safe) */
 export function broadcastBlockSync() {
   try {
     if (HAS_WINDOW && 'localStorage' in window) {
@@ -142,10 +146,10 @@ export function broadcastBlockSync() {
   } catch {}
 }
 
-/** Optional: listen for cross-tab block changes (returns an unsubscribe) */
+/** Optional: listen for cross-tab block changes (returns an unsubscribe). SSR-safe. */
 export function addBlockSyncListener(handler: () => void): () => void {
   if (!HAS_WINDOW) return () => {};
-  const onStorage = (e: StorageEvent) => { if (e.key === SYNC_KEY) handler(); };
+  const onStorage = (e: any) => { if (e?.key === SYNC_KEY) handler(); };
   try { window.addEventListener('storage', onStorage); } catch {}
   return () => { try { window.removeEventListener('storage', onStorage); } catch {} };
 }

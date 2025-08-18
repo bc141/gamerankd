@@ -4,7 +4,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
-import { getUnreadCount } from '@/lib/notifications';
+import { getUnreadCount, NOTIF_SYNC_KEY } from '@/lib/notifications';
 
 export default function NotificationsBell() {
   const supabase = supabaseBrowser();
@@ -13,9 +13,6 @@ export default function NotificationsBell() {
   const [me, setMe] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [count, setCount] = useState(0);
-
-  const clampUp = (n: number) => Math.min(99, n);
-  const clampDown = (n: number) => Math.max(0, n);
 
   // Auth + count (re)compute
   const refreshAuthAndCount = useCallback(async () => {
@@ -57,53 +54,36 @@ export default function NotificationsBell() {
     };
   }, [supabase, refreshAuthAndCount, me]);
 
-  // Realtime: delta updates, tolerant to user_id/recipient_id
+  // Realtime updates (INSERT/UPDATE/DELETE) – tolerate legacy recipient_id
   useEffect(() => {
     if (!me) return;
 
     const isMine = (row: any) => row?.user_id === me || row?.recipient_id === me;
 
-    const onInsert = (payload: any) => {
-      const r = payload?.new;
-      if (!isMine(r)) return;
-      const unread = !r?.read_at;
-      if (unread) setCount(c => clampUp(c + 1));
-    };
-
-    const onUpdate = (payload: any) => {
-      const oldMine = isMine(payload?.old);
-      const newMine = isMine(payload?.new);
-      if (!oldMine && !newMine) return;
-
-      const wasUnread = !payload?.old?.read_at;
-      const nowUnread = !payload?.new?.read_at;
-
-      if (wasUnread && !nowUnread) setCount(c => clampDown(c - 1));   // became read
-      else if (!wasUnread && nowUnread) setCount(c => clampUp(c + 1)); // became unread (rare)
-    };
-
-    const onDelete = (payload: any) => {
-      const r = payload?.old;
-      if (!isMine(r)) return;
-      const wasUnread = !r?.read_at;
-      if (wasUnread) setCount(c => clampDown(c - 1));
-    };
-
     const channel = supabase
       .channel(`notif-bell-${me}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, onInsert)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notifications' }, onUpdate)
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'notifications' }, onDelete)
+      // If you want to reduce noise further, add `filter: "user_id=eq.<uuid>"`
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, (pl: any) => {
+        if (isMine(pl.new)) refreshAuthAndCount();
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notifications' }, (pl: any) => {
+        if (isMine(pl.new) || isMine(pl.old)) refreshAuthAndCount();
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'notifications' }, (pl: any) => {
+        if (isMine(pl.old)) refreshAuthAndCount();
+      })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
-  }, [supabase, me]);
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [supabase, me, refreshAuthAndCount]);
 
-  // Cross-tab sync (mark-all, auth, block)
+  // Cross-tab sync (mark-all, auth, blocks)
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
       if (!me) return;
-      if (e.key === 'gb-notif-sync' || e.key === 'gb-auth-sync' || e.key === 'gb-block-sync') {
+      if (e.key === NOTIF_SYNC_KEY || e.key === 'gb-auth-sync' || e.key === 'gb-block-sync') {
         refreshAuthAndCount();
       }
     };

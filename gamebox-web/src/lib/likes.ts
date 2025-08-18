@@ -11,7 +11,7 @@ export function likeKey(reviewUserId: string, gameId: number) {
 
 type Pair = { reviewUserId: string; gameId: number };
 
-// ---------------- safety helpers ----------------
+/* ---------------- safety helpers ---------------- */
 const HAS_WINDOW = typeof window !== 'undefined';
 
 function safeSSGet(key: string): string | null {
@@ -47,7 +47,7 @@ function safeRemoveEventListener(type: string, handler: (e: any) => void) {
   } catch {}
 }
 
-// ---- per-tab id so we can ignore our own broadcasts ----
+/* ---- per-tab id so we can ignore our own broadcasts ---- */
 const TAB_KEY = 'gb-like-tab';
 function getTabId(): string {
   if (!HAS_WINDOW) return 'static-tab';
@@ -64,14 +64,14 @@ function getTabId(): string {
   }
 }
 
-// ---- bulk fetch current counts + whether viewer liked ----
+/* ---- bulk fetch current counts + whether viewer liked ---- */
 export async function fetchLikesBulk(
   supabase: SupabaseClient,
   viewerId: string | null,
   pairs: Pair[]
 ): Promise<Record<string, LikeEntry>> {
-  const uniqGameIds = Array.from(new Set(pairs.map((p) => p.gameId)));
-  const uniqUserIds = Array.from(new Set(pairs.map((p) => p.reviewUserId)));
+  const uniqGameIds = Array.from(new Set(pairs.map(p => p.gameId)));
+  const uniqUserIds = Array.from(new Set(pairs.map(p => p.reviewUserId)));
   if (uniqGameIds.length === 0 || uniqUserIds.length === 0) return {};
 
   const { data: allLikes, error: allErr } = await supabase
@@ -79,6 +79,7 @@ export async function fetchLikesBulk(
     .select('review_user_id, game_id')
     .in('game_id', uniqGameIds)
     .in('review_user_id', uniqUserIds);
+
   if (allErr) return {};
 
   // viewer's likes in the same visible set
@@ -87,7 +88,7 @@ export async function fetchLikesBulk(
     const { data: myLikes, error: myErr } = await supabase
       .from('likes')
       .select('review_user_id, game_id')
-      .eq('liker_id', viewerId) // who liked
+      .eq('liker_id', viewerId)
       .in('game_id', uniqGameIds)
       .in('review_user_id', uniqUserIds);
 
@@ -100,9 +101,7 @@ export async function fetchLikesBulk(
     counts.set(k, (counts.get(k) ?? 0) + 1);
   }
 
-  const mineSet = new Set(
-    mine.map((r) => likeKey(String(r.review_user_id), Number(r.game_id)))
-  );
+  const mineSet = new Set(mine.map(r => likeKey(String(r.review_user_id), Number(r.game_id))));
 
   const out: Record<string, LikeEntry> = {};
   for (const p of pairs) {
@@ -112,23 +111,24 @@ export async function fetchLikesBulk(
   return out;
 }
 
-// ---- server-side toggle via RPC; returns authoritative {liked,count} ----
+/* ---- server-side toggle via RPC; returns authoritative {liked,count} ---- */
 export async function toggleLike(
   supabase: SupabaseClient,
   reviewUserId: string,
   gameId: number
 ): Promise<{ liked: boolean; count: number; error: any | null }> {
-  // auth + block guard (must be INSIDE the function)
+  // auth
   const { data: auth } = await supabase.auth.getUser();
   const me = auth.user?.id;
   if (!me) return { liked: false, count: 0, error: new Error('Not signed in') };
 
-  // don’t allow likes when either user has blocked the other
+  // soft guard: don’t allow likes when either user has blocked the other
   const { iBlocked, blockedMe } = await getBlockSets(supabase, me);
   if (iBlocked.has(reviewUserId) || blockedMe.has(reviewUserId)) {
     return { liked: false, count: 0, error: new Error("Blocked users can't be liked.") };
   }
 
+  // authoritative toggle
   const { data, error } = await supabase.rpc('toggle_like', {
     p_review_user_id: reviewUserId,
     p_game_id: gameId,
@@ -139,17 +139,21 @@ export async function toggleLike(
   const liked = !!row?.liked;
   const count = Number(row?.count ?? 0);
 
-  // notify (do not await)
-  if (liked) {
-    void notifyLike(supabase, reviewUserId, gameId);
-  } else {
-    void clearLike(supabase, reviewUserId, gameId);
+  // fire-and-forget notification (don’t await; don’t throw)
+  try {
+    if (liked) {
+      void notifyLike(supabase, reviewUserId, gameId);
+    } else {
+      void clearLike(supabase, reviewUserId, gameId);
+    }
+  } catch {
+    // ignore – Realtime/badge doesn’t depend on this await
   }
 
   return { liked, count, error: null };
-} // ← **this brace was missing in your version**
+}
 
-// ---- cross-tab broadcast (now includes origin) ----
+/* ---- cross-tab broadcast (now includes origin) ---- */
 const LS_KEY = 'gb-like-sync';
 
 export function broadcastLike(
@@ -179,7 +183,7 @@ export function broadcastLike(
   safeLSSet(LS_KEY, JSON.stringify(payload));
 }
 
-// ---- listen for broadcasts (ignores events from same tab) ----
+/* ---- listen for broadcasts (ignores events from same tab) ---- */
 export function addLikeListener(
   handler: (d: { reviewUserId: string; gameId: number; liked: boolean; delta: number }) => void
 ) {

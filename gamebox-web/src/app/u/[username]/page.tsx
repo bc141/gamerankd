@@ -115,7 +115,7 @@ export default function PublicProfilePage() {
   // ---- Library state (new) ----
   const [libByGame, setLibByGame] = useState<Record<number, LibraryStatus>>({});
   const [libCounts, setLibCounts] = useState<LibraryCounts>({ total: 0 });
-  const [libPreview, setLibPreview] = useState<Array<{ id: number; cover_url: string | null; status: LibraryStatus }>>([]);
+  const [libPreview, setLibPreview] = useState<Array<{ id: number; cover_url: string | null; status: LibraryStatus; name: string; updated_at: string }>>([]);
 
   // cross-tab/same-tab like & comment sync
   useEffect(() => {
@@ -297,12 +297,20 @@ export default function PublicProfilePage() {
 
     // preview: prioritize Playing → Backlog → Completed, cap 6
     const pickOrder: LibraryStatus[] = ['Playing', 'Backlog', 'Completed', 'Dropped'];
-    const chosen: Array<{ id: number; cover_url: string | null; status: LibraryStatus }> = [];
+    const chosen: Array<{ id: number; cover_url: string | null; status: LibraryStatus; name: string; updated_at: string }> = [];
     for (const status of pickOrder) {
       for (const row of list) {
         if (row.status !== status) continue;
         if (!row.games?.id) continue;
-        chosen.push({ id: row.games.id, cover_url: row.games.cover_url ?? null, status });
+        // Find the original data row to get name and updated_at
+        const originalRow = data.find((r: any) => r.game_id === row.game_id);
+        chosen.push({ 
+          id: row.games.id, 
+          cover_url: row.games.cover_url ?? null, 
+          status,
+          name: (originalRow?.games as any)?.name ?? 'Unknown',
+          updated_at: originalRow?.updated_at ?? new Date(0).toISOString()
+        });
         if (chosen.length >= 6) break;
       }
       if (chosen.length >= 6) break;
@@ -424,7 +432,7 @@ export default function PublicProfilePage() {
                         }
                         await refreshFollowBits(profile.id, viewerId);
                       }}
-                      className="ml-auto text-xs px-2 py-1 rounded bg-white/10 hover:bg-white/15"
+                      className="ml-auto text-xs px-2 py-1 rounded bg-white/10 hover:bg-white/15 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                     >
                       Unblock
                     </button>
@@ -448,7 +456,7 @@ export default function PublicProfilePage() {
                       setBlockSets(sets);
                     }
                   }}
-                  className="ml-auto text-xs px-2 py-1 rounded bg-white/10 hover:bg-white/15"
+                  className="ml-auto text-xs px-2 py-1 rounded bg-white/10 hover:bg-white/15 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                 >
                   Unmute
                 </button>
@@ -460,7 +468,7 @@ export default function PublicProfilePage() {
         {/* Follow / Edit / Overflow */}
         <div className="shrink-0 flex items-center gap-2 relative">
           {isOwnProfile ? (
-            <Link href="/settings/profile" className="bg-white/10 px-3 py-2 rounded text-sm hover:bg-white/15">
+            <Link href="/settings/profile" className="bg-white/10 px-3 py-2 rounded text-sm hover:bg-white/15 focus:ring-2 focus:ring-indigo-500 focus:outline-none">
               Edit profile
             </Link>
           ) : (
@@ -471,7 +479,7 @@ export default function PublicProfilePage() {
                 aria-disabled={togglingFollow || blockedEitherWay}
                 title={blockedEitherWay ? 'Following disabled for blocked users' : undefined}
                 aria-pressed={isFollowing}
-                className={`px-3 py-2 rounded text-sm disabled:opacity-50 ${
+                className={`px-3 py-2 rounded text-sm disabled:opacity-50 focus:ring-2 focus:ring-indigo-500 focus:outline-none ${
                   isFollowing ? 'bg-white/10 hover:bg-white/15' : 'bg-indigo-600 hover:bg-indigo-500 text-white'
                 }`}
               >
@@ -522,34 +530,43 @@ export default function PublicProfilePage() {
       </div>
 
       {/* Library preview */}
-      {libPreview.length > 0 && (
-        <section className="mt-6">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xs uppercase tracking-wide text-white/40">Library</h3>
-            <Link href={`/u/${username}/library`} className="text-xs text-white/70 hover:underline">
-              View all · {libCounts.total}
-            </Link>
+      <section className="mt-6">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs uppercase tracking-wide text-white/40">Library</h3>
+          <Link href={`/u/${username}/library`} className="text-xs text-white/70 hover:underline">
+            View all · {libCounts.total}
+          </Link>
+        </div>
+        {!ready ? (
+          <div className="mt-2 grid grid-cols-3 sm:grid-cols-6 gap-3">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="h-36 w-28 rounded bg-white/10 animate-pulse" />
+            ))}
           </div>
+        ) : libPreview.length === 0 ? (
+          <p className="mt-2 text-white/60">No games in library yet.</p>
+        ) : (
           <ul className="mt-2 grid grid-cols-3 sm:grid-cols-6 gap-3">
             {libPreview.map((g) => (
-              <li key={g.id} className="relative">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={g.cover_url || '/cover-fallback.png'}
-                  alt=""
-                  className="h-28 w-full object-cover rounded border border-white/10"
-                  loading="lazy"
-                  decoding="async"
-                />
-                <span className="absolute bottom-1 left-1 rounded bg-black/70 text-[10px] px-1.5 py-0.5 border border-white/10">
-                  {g.status}
-                </span>
-                <Link href={`/game/${g.id}`} className="sr-only">Open</Link>
-              </li>
+              <Link
+                key={g.id}
+                href={`/game/${g.id}`}
+                className="group block rounded-lg overflow-hidden border border-white/10 hover:border-white/20 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+              >
+                <div className="relative">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={g.cover_url || '/cover-fallback.png'} alt={g.name} className="h-28 w-20 object-cover" />
+                  <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/60 to-transparent" />
+                  <span className="absolute left-2 bottom-2 text-[11px] rounded bg-white/15 px-1.5 py-0.5">{g.status}</span>
+                </div>
+                <div className="px-2 py-1 flex items-center gap-2">
+                  <time className="text-[11px] text-white/40">{timeAgo(g.updated_at)}</time>
+                </div>
+              </Link>
             ))}
           </ul>
-        </section>
-      )}
+        )}
+      </section>
 
       {/* Reviews */}
       {rows.length === 0 ? (
@@ -573,7 +590,7 @@ export default function PublicProfilePage() {
             return (
               <li
                 key={`${gameId ?? 'g'}-${i}`}
-                className="flex items-start gap-4 py-3 rounded-lg -mx-3 px-3 hover:bg-white/5 cursor-pointer"
+                className="flex items-start gap-4 py-3 rounded-lg -mx-3 px-3 hover:bg-white/5 cursor-pointer focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                 onClick={(e) => openContextIfSafe(e, openContext, profile.id, gameId)}
                 tabIndex={0}
                 onKeyDown={(e) => {
@@ -642,7 +659,7 @@ export default function PublicProfilePage() {
                             if (!blockedEitherWay) setOpenThread({ reviewUserId: profile.id, gameId });
                           }}
                           disabled={blockedEitherWay}
-                          className="text-xs px-2 py-1 rounded border border-white/10 bg-white/5 hover:bg-white/10 disabled:opacity-50"
+                          className="text-xs px-2 py-1 rounded border border-white/10 bg-white/5 hover:bg-white/10 disabled:opacity-50 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                           title={blockedEitherWay ? 'Comments disabled for blocked users' : 'View comments'}
                           aria-label="View comments"
                         >

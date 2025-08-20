@@ -28,6 +28,13 @@ export default function ProfileLibraryPage() {
   const [owner, setOwner] = useState<{ id: string; display: string } | null>(null);
   const [rows, setRows] = useState<Row[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [libCounts, setLibCounts] = useState<{ total: number; Backlog: number; Playing: number; Completed: number; Dropped: number }>({
+    total: 0,
+    Backlog: 0,
+    Playing: 0,
+    Completed: 0,
+    Dropped: 0,
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -87,12 +94,28 @@ export default function ProfileLibraryPage() {
       }).filter(r => Number.isFinite(r.game.id));
 
       setRows(normalized);
+      
+      // Calculate counts
+      const counts = {
+        total: normalized.length,
+        Backlog: normalized.filter(r => r.status === 'Backlog').length,
+        Playing: normalized.filter(r => r.status === 'Playing').length,
+        Completed: normalized.filter(r => r.status === 'Completed').length,
+        Dropped: normalized.filter(r => r.status === 'Dropped').length,
+      };
+      setLibCounts(counts);
     })();
 
     return () => { cancelled = true; };
   }, [supabase, username]);
 
-  const tabs: Tab[] = ['All', ...LIBRARY_STATUSES];
+  const TAB_META: {key: LibraryStatus | 'All'; label: string; count: number}[] = [
+    { key: 'All',       label: 'All',       count: libCounts.total },
+    { key: 'Backlog',   label: 'Backlog',   count: libCounts.Backlog ?? 0 },
+    { key: 'Playing',   label: 'Playing',   count: libCounts.Playing ?? 0 },
+    { key: 'Completed', label: 'Completed', count: libCounts.Completed ?? 0 },
+    { key: 'Dropped',   label: 'Dropped',   count: libCounts.Dropped ?? 0 },
+  ];
 
   const filtered = useMemo(() => {
     if (!rows) return null;
@@ -106,20 +129,16 @@ export default function ProfileLibraryPage() {
       </h1>
       <p className="text-white/60 mb-4">@{username}</p>
 
-      {/* Tabs */}
-      <div className="flex items-center gap-2 mb-4">
-        {tabs.map(t => (
+      {/* chips */}
+      <div className="flex gap-2">
+        {TAB_META.map(t => (
           <button
-            key={t}
-            onClick={() => setTab(t)}
-            aria-pressed={tab === t}
-            className={`px-3 py-1.5 rounded text-sm ${
-              tab === t
-                ? 'bg-indigo-600 text-white'
-                : 'bg-white/10 hover:bg-white/15 text-white/80'
-            }`}
+            key={t.key}
+            onClick={() => setTab(t.key as LibraryStatus | 'All')}
+            aria-pressed={tab === t.key}
+            className={`px-3 py-2 rounded ${tab===t.key ? 'bg-indigo-600 text-white' : 'bg-white/10 hover:bg-white/15'}`}
           >
-            {t}
+            {t.label}{typeof t.count === 'number' ? ` (${t.count})` : ''}
           </button>
         ))}
       </div>

@@ -24,10 +24,16 @@ import {
 } from '@/lib/comments';
 import { timeAgo } from '@/lib/timeAgo';
 import { useReviewContextModal } from '@/components/ReviewContext/useReviewContextModal';
-import { onRowClick, onRowKeyDown } from '@/lib/safeOpenContext'; // ✅ new
-import type { BlockSets } from '@/lib/blocks';
-import { getBlockSets, isInteractionBlocked, unblockUser, invalidateBlockCache } from '@/lib/blocks';
+import { onRowClick, onRowKeyDown } from '@/lib/safeOpenContext';
+import { getBlockSets } from '@/lib/blocks';
 import { toInList } from '@/lib/sql';
+import {
+  LIBRARY_STATUSES,
+  getMyLibraryForGame,
+  setLibraryStatus,
+  removeFromLibrary,
+  type LibraryStatus,
+} from '@/lib/library';
 
 // ---------- helpers ----------
 const to100 = (stars: number) => Math.round(stars * 20);
@@ -112,6 +118,10 @@ export default function GamePage() {
   const [openThread, setOpenThread] =
     useState<{ reviewUserId: string; gameId: number } | null>(null);
 
+  // 📚 library
+  const [myLibStatus, setMyLibStatus] = useState<LibraryStatus | null>(null);
+  const [libBusy, setLibBusy] = useState(false);
+
   // 🔎 View-in-context modal hook
   const { open: openContext, modal: contextModal } = useReviewContextModal(
     supabase,
@@ -139,7 +149,7 @@ export default function GamePage() {
     return off;
   }, []);
 
-  // 1) Hydrate, load game, my rating, and recent reviews
+  // 1) Hydrate, load game, my rating, library status, and recent reviews
   useEffect(() => {
     if (!validId) return;
 
@@ -168,6 +178,15 @@ export default function GamePage() {
       const g = data as Game | null;
       setGame(g);
 
+      // Library status
+      if (user && validId) {
+        const { status } = await getMyLibraryForGame(supabase, user.id, gameId);
+        if (mounted) setMyLibStatus(status);
+      } else {
+        if (mounted) setMyLibStatus(null);
+      }
+
+      // My rating text/stars
       if (user && g?.reviews?.length) {
         const mine = g.reviews.find(r => r.user_id === user.id);
         if (mine) {
@@ -189,10 +208,12 @@ export default function GamePage() {
         setTempText('');
       }
 
-      await refetchRecent(user ? user.id : null); // also preloads likes + comment counts
+      await refetchRecent(user ? user.id : null);
     })();
 
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [validId, gameId, supabase]);
 
@@ -214,12 +235,9 @@ export default function GamePage() {
     let mutedIds: string[] = [];
     if (viewerId) {
       const { iBlocked, blockedMe, iMuted } = await getBlockSets(supabase, viewerId);
-      hiddenSet = new Set<string>([
-        ...Array.from(iBlocked.values()),
-        ...Array.from(blockedMe.values()),
-        ...Array.from(iMuted?.values?.() ?? iMuted ?? []),
-      ]);
-      mutedIds = Array.from(iMuted ?? new Set<string>());
+      const blockedBothWays = [...iBlocked, ...blockedMe].map(String);
+      mutedIds = Array.from(iMuted ?? new Set<string>()).map(String);
+      hiddenSet = new Set<string>([...blockedBothWays, ...mutedIds]);
     }
 
     // Base query
@@ -243,7 +261,6 @@ export default function GamePage() {
     if (hiddenList.length) {
       q = q.not('user_id', 'in', toInList(hiddenList));
     } else if (mutedIds.length) {
-      // (defensive) if hiddenSet was empty but iMuted exists
       q = q.not('user_id', 'in', toInList(mutedIds));
     }
 
@@ -374,7 +391,7 @@ export default function GamePage() {
     await Promise.all([refetchGame(), refetchRecent(me.id)]);
   }
 
-  // Like/Unlike handler (single source of truth)
+  // Like/Unlike handler
   async function onToggleLike(reviewUserId: string, gameId: number) {
     if (!me) return router.push('/login');
 
@@ -383,7 +400,7 @@ export default function GamePage() {
 
     const before = likes[k] ?? { liked: false, count: 0 };
 
-    // optimistic bump
+    // optimistic
     setLikes(p => ({
       ...p,
       [k]: { liked: !before.liked, count: before.count + (before.liked ? -1 : 1) },
@@ -393,11 +410,9 @@ export default function GamePage() {
     try {
       const { liked, count, error } = await toggleLike(supabase, reviewUserId, gameId);
       if (error) {
-        // revert on failure
         setLikes(p => ({ ...p, [k]: before }));
         return;
       }
-      // authoritative snap + broadcast for other tabs/pages
       setLikes(p => {
         const cur = p[k] ?? { liked: false, count: 0 };
         if (cur.liked === liked && cur.count === count) return p;
@@ -405,13 +420,39 @@ export default function GamePage() {
       });
       broadcastLike(reviewUserId, gameId, liked, liked ? 1 : -1);
 
-      // small truth-sync in case of races
       setTimeout(async () => {
         const map = await fetchLikesBulk(supabase, me.id, [{ reviewUserId, gameId }]);
         setLikes(p => ({ ...p, ...map }));
       }, 120);
     } finally {
       setLikeBusy(p => ({ ...p, [k]: false }));
+    }
+  }
+
+  // Library handlers
+  async function onSetStatus(next: LibraryStatus) {
+    if (!me) return router.push('/login');
+    if (!validId) return;
+    if (libBusy) return;
+    setLibBusy(true);
+    try {
+      const { error } = await setLibraryStatus(supabase, me.id, gameId, next);
+      if (!error) setMyLibStatus(next);
+    } finally {
+      setLibBusy(false);
+    }
+  }
+
+  async function onRemoveFromLibrary() {
+    if (!me) return router.push('/login');
+    if (!validId) return;
+    if (libBusy) return;
+    setLibBusy(true);
+    try {
+      const { error } = await removeFromLibrary(supabase, me.id, gameId);
+      if (!error) setMyLibStatus(null);
+    } finally {
+      setLibBusy(false);
     }
   }
 
@@ -436,21 +477,66 @@ export default function GamePage() {
 
       <h1 className="text-3xl font-bold">{game.name}</h1>
 
-      {/* Community average + quick CTA */}
+      {/* Community average + quick CTA + Library */}
       <div className="mt-2 flex items-center gap-2 text-sm text-white/70">
         <StarRating value={avgStars ?? 0} readOnly size={18} />
         <span>{avgStars == null ? 'No ratings yet' : `${avgStars} / 5`}</span>
         <span className="text-white/40">· {ratingsCount} rating{ratingsCount === 1 ? '' : 's'}</span>
 
         {showAuthControls && me && (
-          <button
-            onClick={() =>
-              document.getElementById('review-editor')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-            }
-            className="ml-auto px-3 py-1.5 rounded bg-white/10 hover:bg-white/15 text-white/90"
-          >
-            Write a review
-          </button>
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              onClick={() =>
+                document
+                  .getElementById('review-editor')
+                  ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+              }
+              className="px-3 py-1.5 rounded bg-white/10 hover:bg-white/15 text-white/90"
+            >
+              Write a review
+            </button>
+
+            {/* Library segmented (desktop) */}
+            <div className="hidden sm:flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 p-1">
+              {LIBRARY_STATUSES.map(s => (
+                <button
+                  key={s}
+                  onClick={() => onSetStatus(s)}
+                  disabled={libBusy}
+                  aria-pressed={myLibStatus === s}
+                  className={`px-2.5 py-1 rounded text-xs ${
+                    myLibStatus === s ? 'bg-indigo-600 text-white' : 'text-white/80 hover:bg-white/10'
+                  }`}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+
+            {/* Library compact (mobile) */}
+            <button
+              onClick={() => {
+                const i = Math.max(0, LIBRARY_STATUSES.indexOf(myLibStatus ?? 'Backlog'));
+                const next = LIBRARY_STATUSES[(i + 1) % LIBRARY_STATUSES.length];
+                onSetStatus(next);
+              }}
+              disabled={libBusy}
+              className="sm:hidden px-3 py-1.5 rounded bg-white/10 hover:bg-white/15 text-sm"
+            >
+              {myLibStatus ?? 'Add to Library'}
+            </button>
+
+            {myLibStatus && (
+              <button
+                onClick={onRemoveFromLibrary}
+                disabled={libBusy}
+                className="px-2.5 py-1.5 rounded bg-white/10 hover:bg-white/15 text-xs"
+                title="Remove from library"
+              >
+                Remove
+              </button>
+            )}
+          </div>
         )}
       </div>
 
@@ -592,13 +678,13 @@ export default function GamePage() {
                   />
 
                   <div className="flex-1 min-w-0">
-                    {/* header: author · stars · time */}
+                    {/* header */}
                     <div className="text-sm text-white/80 flex items-center gap-2 flex-wrap">
                       {a ? (
                         <Link
                           href={a.username ? `/u/${a.username}` : '#'}
                           className="font-medium hover:underline"
-                          onClick={(e) => e.stopPropagation()} // don’t open context when clicking the link
+                          onClick={(e) => e.stopPropagation()}
                         >
                           {a.display_name || a.username || 'Player'}
                         </Link>
@@ -611,36 +697,36 @@ export default function GamePage() {
                       <span className="text-white/40">{timeAgo(r.created_at)}</span>
                     </div>
 
-                    {/* body: review text */}
+                    {/* body */}
                     {r.review?.trim() && (
                       <p className="mt-1 whitespace-pre-wrap text-white/85">{r.review.trim()}</p>
                     )}
 
                     {/* actions (don’t trigger context) */}
                     <div className="mt-2 flex items-center gap-2 pointer-events-none">
-  {canLike && (
-    <span className="pointer-events-auto" data-ignore-context>
-      <LikePill
-        liked={entry.liked}
-        count={entry.count}
-        busy={likeBusy[likeK]}
-        onClick={() => onToggleLike(a!.id, gameId)}
-      />
-    </span>
-  )}
+                      {canLike && (
+                        <span className="pointer-events-auto" data-ignore-context>
+                          <LikePill
+                            liked={entry.liked}
+                            count={entry.count}
+                            busy={likeBusy[likeK]}
+                            onClick={() => onToggleLike(a!.id, gameId)}
+                          />
+                        </span>
+                      )}
                       {canComment && (
-    <span className="pointer-events-auto" data-ignore-context>
-      <button
-  onClick={() => setOpenThread({ reviewUserId: a!.id, gameId })}
-  className="text-xs px-2 py-1 rounded border border-white/10 bg-white/5 hover:bg-white/10"
-  title="View comments"
-  aria-label="View comments"
->
-💬 {cCount}
-</button>
-    </span>
-  )}
-</div>
+                        <span className="pointer-events-auto" data-ignore-context>
+                          <button
+                            onClick={() => setOpenThread({ reviewUserId: a!.id, gameId })}
+                            className="text-xs px-2 py-1 rounded border border-white/10 bg-white/5 hover:bg-white/10"
+                            title="View comments"
+                            aria-label="View comments"
+                          >
+                            💬 {cCount}
+                          </button>
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </li>
               );

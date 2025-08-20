@@ -34,6 +34,7 @@ import {
   removeFromLibrary,
   type LibraryStatus,
 } from '@/lib/library';
+import LibraryStatusPicker from '@/components/library/LibraryStatusPicker';
 
 // ---------- helpers ----------
 const to100 = (stars: number) => Math.round(stars * 20);
@@ -496,46 +497,12 @@ export default function GamePage() {
               Write a review
             </button>
 
-            {/* Library segmented (desktop) */}
-            <div className="hidden sm:flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 p-1">
-              {LIBRARY_STATUSES.map(s => (
-                <button
-                  key={s}
-                  onClick={() => onSetStatus(s)}
-                  disabled={libBusy}
-                  aria-pressed={myLibStatus === s}
-                  className={`px-2.5 py-1 rounded text-xs ${
-                    myLibStatus === s ? 'bg-indigo-600 text-white' : 'text-white/80 hover:bg-white/10'
-                  }`}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-
-            {/* Library compact (mobile) */}
-            <button
-              onClick={() => {
-                const i = Math.max(0, LIBRARY_STATUSES.indexOf(myLibStatus ?? 'Backlog'));
-                const next = LIBRARY_STATUSES[(i + 1) % LIBRARY_STATUSES.length];
-                onSetStatus(next);
-              }}
-              disabled={libBusy}
-              className="sm:hidden px-3 py-1.5 rounded bg-white/10 hover:bg-white/15 text-sm"
-            >
-              {myLibStatus ?? 'Add to Library'}
-            </button>
-
-            {myLibStatus && (
-              <button
-                onClick={onRemoveFromLibrary}
-                disabled={libBusy}
-                className="px-2.5 py-1.5 rounded bg-white/10 hover:bg-white/15 text-xs"
-                title="Remove from library"
-              >
-                Remove
-              </button>
-            )}
+            <LibraryStatusPicker
+              value={myLibStatus}
+              busy={libBusy}
+              onSet={(next: LibraryStatus) => onSetStatus(next)}
+              onRemove={myLibStatus ? onRemoveFromLibrary : undefined}
+            />
           </div>
         )}
       </div>

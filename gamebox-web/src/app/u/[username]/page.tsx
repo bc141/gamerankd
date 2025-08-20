@@ -1,4 +1,3 @@
-// src/app/u/[username]/page.tsx
 'use client';
 
 import Link from 'next/link';
@@ -26,7 +25,8 @@ import {
 import { timeAgo } from '@/lib/timeAgo';
 import { useReviewContextModal } from '@/components/ReviewContext/useReviewContextModal';
 import OverflowActions from '@/components/OverflowActions';
-import { getBlockSets, unblockUser, broadcastBlockSync, unmuteUser } from '@/lib/blocks'; // ⬅️ add unmuteUser
+import { getBlockSets, unblockUser, broadcastBlockSync, unmuteUser } from '@/lib/blocks';
+import { LIBRARY_STATUSES, type LibraryStatus } from '@/lib/library';
 
 const from100 = (n: number) => n / 20;
 
@@ -60,6 +60,14 @@ type ReviewRow = {
   games: { id: number; name: string; cover_url: string | null } | null;
 };
 
+// library helpers
+type LibraryEntry = {
+  game_id: number;
+  status: LibraryStatus;
+  games: { id: number; cover_url: string | null } | null;
+};
+type LibraryCounts = { total: number } & { [K in LibraryStatus]?: number };
+
 export default function PublicProfilePage() {
   const supabase = supabaseBrowser();
   const router = useRouter();
@@ -84,14 +92,13 @@ export default function PublicProfilePage() {
   const [isFollowing, setIsFollowing] = useState(false);
   const [togglingFollow, setTogglingFollow] = useState(false);
 
-  // blocks/mutes (derived flags below)
+  // blocks/mutes
   const [blockSets, setBlockSets] = useState<BlockSets | null>(null);
-
   const isOwnProfile = Boolean(viewerId && profile?.id && viewerId === profile.id);
   const blockedEitherWay =
     !!(viewerId && profile?.id && blockSets && (blockSets.iBlocked.has(profile.id) || blockSets.blockedMe.has(profile.id)));
   const iBlocked = !!(viewerId && profile?.id && blockSets?.iBlocked.has(profile.id));
-  const isMuted  = !!(viewerId && profile?.id && blockSets?.iMuted.has(profile.id)); // ⬅️ soft mute flag
+  const isMuted  = !!(viewerId && profile?.id && blockSets?.iMuted.has(profile.id));
 
   // likes
   const [likes, setLikes] = useState<Record<string, LikeEntry>>({});
@@ -105,25 +112,25 @@ export default function PublicProfilePage() {
   // Context modal
   const { open: openContext, modal: contextModal } = useReviewContextModal(supabase, viewerId ?? null);
 
-  // cross-tab/same-tab like sync
+  // ---- Library state (new) ----
+  const [libByGame, setLibByGame] = useState<Record<number, LibraryStatus>>({});
+  const [libCounts, setLibCounts] = useState<LibraryCounts>({ total: 0 });
+  const [libPreview, setLibPreview] = useState<Array<{ id: number; cover_url: string | null; status: LibraryStatus }>>([]);
+
+  // cross-tab/same-tab like & comment sync
   useEffect(() => {
-    const off = addLikeListener(({ reviewUserId, gameId, liked, delta }) => {
+    const off1 = addLikeListener(({ reviewUserId, gameId, liked, delta }) => {
       const k = likeKey(reviewUserId, gameId);
       setLikes(prev => {
         const cur = prev[k] ?? { liked: false, count: 0 };
         return { ...prev, [k]: { liked, count: Math.max(0, cur.count + delta) } };
       });
     });
-    return off;
-  }, []);
-
-  // cross-tab/same-tab comment count sync
-  useEffect(() => {
-    const off = addCommentListener(({ reviewUserId, gameId, delta }) => {
+    const off2 = addCommentListener(({ reviewUserId, gameId, delta }) => {
       const k = commentKey(reviewUserId, gameId);
       setCommentCounts(prev => ({ ...prev, [k]: Math.max(0, (prev[k] ?? 0) + delta) }));
     });
-    return off;
+    return () => { off1(); off2(); };
   }, []);
 
   // 1) hydrate session
@@ -147,7 +154,7 @@ export default function PublicProfilePage() {
     setIsFollowing(Boolean(f));
   }
 
-  // 2) profile + reviews + preload likes/comments + follow bits
+  // 2) profile + reviews (+likes/comments preload)
   useEffect(() => {
     if (!ready || !slug) return;
     let cancelled = false;
@@ -196,8 +203,8 @@ export default function PublicProfilePage() {
         setRows(safe);
 
         const pairs = safe.filter(r => r.games?.id).map(r => ({ reviewUserId: owner.id, gameId: r.games!.id }));
-
         const viewer = viewerId ?? null;
+
         const [likeMap, commentMap] = await Promise.all([
           fetchLikesBulk(supabase, viewer, pairs),
           fetchCommentCountsBulk(supabase, pairs),
@@ -211,9 +218,13 @@ export default function PublicProfilePage() {
       }
 
       await refreshFollowBits(owner.id, viewerId);
+
+      // kick off library fetch in parallel (no await needed for UI first paint)
+      void fetchLibrary(owner.id);
     })();
 
     return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, slug, viewerId, supabase]);
 
   // 3) block/mute state + storage sync
@@ -241,7 +252,65 @@ export default function PublicProfilePage() {
     };
   }, [viewerId, profile?.id, supabase]);
 
-  // follow toggle (unchanged; only blocked gates)
+  // ---- Library loader (counts, preview, map for chips) ----
+  async function fetchLibrary(ownerId: string) {
+    // Pull most-recent first; join covers for preview
+    const { data, error } = await supabase
+      .from('user_game_library')
+      .select('game_id,status,updated_at,games:game_id (id,cover_url,name)')
+      .eq('user_id', ownerId)
+      .order('updated_at', { ascending: false })
+      .limit(400);
+
+    if (error || !data) {
+      setLibCounts({ total: 0 });
+      setLibByGame({});
+      setLibPreview([]);
+      return;
+    }
+
+    const list: LibraryEntry[] = (data ?? []).map((r: any) => ({
+      game_id: Number(r.game_id),
+      status: r.status as LibraryStatus,
+      games: r.games
+        ? { id: Number(r.games.id), cover_url: r.games.cover_url ?? null }
+        : null,
+    }));
+
+    // counts (typed concrete so indexing is safe)
+    type LibraryCountsFull = { total: number } & Record<LibraryStatus, number>;
+
+    const base = LIBRARY_STATUSES.reduce((acc, s) => {
+      acc[s] = 0;
+      return acc;
+    }, {} as Record<LibraryStatus, number>);
+    
+    const counts: LibraryCountsFull = { total: list.length, ...base };
+    for (const r of list) counts[r.status] += 1;
+    
+    setLibCounts(counts);
+
+    // quick map for status chips on the reviews list
+    const map: Record<number, LibraryStatus> = {};
+    for (const r of list) map[r.game_id] = r.status;
+    setLibByGame(map);
+
+    // preview: prioritize Playing → Backlog → Completed, cap 6
+    const pickOrder: LibraryStatus[] = ['Playing', 'Backlog', 'Completed', 'Dropped'];
+    const chosen: Array<{ id: number; cover_url: string | null; status: LibraryStatus }> = [];
+    for (const status of pickOrder) {
+      for (const row of list) {
+        if (row.status !== status) continue;
+        if (!row.games?.id) continue;
+        chosen.push({ id: row.games.id, cover_url: row.games.cover_url ?? null, status });
+        if (chosen.length >= 6) break;
+      }
+      if (chosen.length >= 6) break;
+    }
+    setLibPreview(chosen);
+  }
+
+  // follow toggle
   async function onToggleFollow() {
     if (!profile) return;
     if (!viewerId) return router.push('/login');
@@ -265,7 +334,7 @@ export default function PublicProfilePage() {
     return url !== '' ? url : '/avatar-placeholder.svg';
   }, [profile?.avatar_url]);
 
-  // like toggle (only blocked gates)
+  // like toggle
   async function onToggleLike(gameId: number) {
     if (!profile || !gameId) return;
     if (!viewerId) return router.push('/login');
@@ -304,6 +373,8 @@ export default function PublicProfilePage() {
   if (error) return <main className="p-8 text-red-500">{error}</main>;
   if (!ready || !profile || !rows) return <main className="p-8">Loading…</main>;
 
+  const username = profile.username;
+
   return (
     <main className="p-8 max-w-3xl mx-auto">
       {/* Header */}
@@ -312,23 +383,28 @@ export default function PublicProfilePage() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={avatarSrc}
-            alt={`${profile.username} avatar`}
+            alt={`${username} avatar`}
             className="h-16 w-16 rounded-full object-cover border border-white/20"
             loading="lazy"
             decoding="async"
           />
           <div>
-            <h1 className="text-2xl font-bold">{profile.display_name || profile.username}</h1>
-            {profile.display_name && <div className="text-white/60">@{profile.username}</div>}
-            {profile.bio && <p className="text-white/70 mt-1">{profile.bio}</p>}
+            <h1 className="text-2xl font-bold">{profile.display_name || username}</h1>
+            {profile.display_name && <div className="text-white/60">@{username}</div>}
+            {profile.bio && <p className="text-white/70 mt-1">{profile.bio}</p>
 
+            }
             {/* counts */}
             <div className="mt-2 text-sm text-white/60 flex items-center gap-4">
-              <Link href={`/u/${profile.username}/followers`} className="hover:underline">
+              <Link href={`/u/${username}/followers`} className="hover:underline">
                 <strong className="text-white">{counts.followers}</strong> Followers
               </Link>
-              <Link href={`/u/${profile.username}/following`} className="hover:underline">
+              <Link href={`/u/${username}/following`} className="hover:underline">
                 <strong className="text-white">{counts.following}</strong> Following
+              </Link>
+              {/* quick library count */}
+              <Link href={`/u/${username}/library`} className="hover:underline">
+                <strong className="text-white">{libCounts.total}</strong> Library
               </Link>
             </div>
 
@@ -359,7 +435,7 @@ export default function PublicProfilePage() {
               </div>
             )}
 
-            {/* Mute banner (soft: only show message & Unmute; interactions remain enabled) */}
+            {/* Mute banner */}
             {!isOwnProfile && !blockedEitherWay && isMuted && (
               <div className="mt-3 text-xs rounded-lg border border-white/10 bg-white/5 text-white/80 px-3 py-2 flex items-center gap-2">
                 <span>You muted this user. Their posts/alerts are hidden in your feed.</span>
@@ -404,9 +480,8 @@ export default function PublicProfilePage() {
 
               <OverflowActions
                 targetId={profile.id}
-                username={profile.username}
+                username={username}
                 onBlockChange={async () => {
-                  // Fired for both block and mute changes
                   if (viewerId) {
                     const sets = (await getBlockSets(supabase, viewerId, { force: true })) as BlockSets;
                     setBlockSets(sets);
@@ -418,6 +493,63 @@ export default function PublicProfilePage() {
           )}
         </div>
       </section>
+
+      {/* Sub-nav */}
+      <div className="mt-6 border-t border-white/10 pt-3">
+        <nav className="flex items-center gap-5 text-sm">
+          <Link href={`/u/${username}`} className="pb-0.5 border-b-2 border-indigo-500 text-white">
+            Overview
+          </Link>
+          <Link
+            href={`/u/${username}/followers`}
+            className="pb-0.5 border-b-2 border-transparent text-white/80 hover:text-white hover:border-white/30"
+          >
+            Followers
+          </Link>
+          <Link
+            href={`/u/${username}/following`}
+            className="pb-0.5 border-b-2 border-transparent text-white/80 hover:text-white hover:border-white/30"
+          >
+            Following
+          </Link>
+          <Link
+            href={`/u/${username}/library`}
+            className="pb-0.5 border-b-2 border-transparent text-white/80 hover:text-white hover:border-white/30"
+          >
+            Library
+          </Link>
+        </nav>
+      </div>
+
+      {/* Library preview */}
+      {libPreview.length > 0 && (
+        <section className="mt-6">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs uppercase tracking-wide text-white/40">Library</h3>
+            <Link href={`/u/${username}/library`} className="text-xs text-white/70 hover:underline">
+              View all · {libCounts.total}
+            </Link>
+          </div>
+          <ul className="mt-2 grid grid-cols-3 sm:grid-cols-6 gap-3">
+            {libPreview.map((g) => (
+              <li key={g.id} className="relative">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={g.cover_url || '/cover-fallback.png'}
+                  alt=""
+                  className="h-28 w-full object-cover rounded border border-white/10"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <span className="absolute bottom-1 left-1 rounded bg-black/70 text-[10px] px-1.5 py-0.5 border border-white/10">
+                  {g.status}
+                </span>
+                <Link href={`/game/${g.id}`} className="sr-only">Open</Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* Reviews */}
       {rows.length === 0 ? (
@@ -435,6 +567,8 @@ export default function PublicProfilePage() {
 
             const cKey = gameId ? commentKey(profile.id, gameId) : '';
             const cCount = gameId ? (commentCounts[cKey] ?? 0) : 0;
+
+            const statusChip = gameId ? libByGame[gameId] : undefined;
 
             return (
               <li
@@ -459,13 +593,20 @@ export default function PublicProfilePage() {
                   decoding="async"
                 />
                 <div className="flex-1 min-w-0">
-                  <Link
-                    href={gameId ? `/game/${gameId}` : '#'}
-                    className="font-medium hover:underline truncate block"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {gameName}
-                  </Link>
+                  <div className="flex items-center gap-2">
+                    <Link
+                      href={gameId ? `/game/${gameId}` : '#'}
+                      className="font-medium hover:underline truncate"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {gameName}
+                    </Link>
+                    {statusChip && (
+                      <span className="text-[11px] px-2 py-0.5 rounded border border-white/10 bg-white/5">
+                        {statusChip}
+                      </span>
+                    )}
+                  </div>
 
                   <div className="mt-1 flex items-center gap-2 flex-wrap">
                     <StarRating value={stars} readOnly size={18} />

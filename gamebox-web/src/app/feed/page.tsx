@@ -533,10 +533,7 @@ function FeedPageInner() {
             </ul>
           )}
 
-          {/* Mobile suggestions */}
-          <div className="mt-10 lg:hidden">
-            <WhoToFollow limit={6} />
-          </div>
+          
         </section>
 
         {/* Desktop sticky suggestions */}

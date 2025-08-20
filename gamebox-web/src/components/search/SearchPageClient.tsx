@@ -14,6 +14,7 @@ import {
   type SearchUser,
   type SearchGame,
 } from '@/lib/search';
+import { SearchIcon, XMarkIcon } from '@/components/icons';
 
 export default function SearchPageClient() {
   const supabase = supabaseBrowser();
@@ -97,7 +98,9 @@ export default function SearchPageClient() {
       {/* Input + scope */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
         <div className="flex items-center rounded-lg bg-white/10 focus-within:ring-2 focus-within:ring-indigo-500 w-full sm:w-auto">
-          <span className="pl-2 pr-1 self-center">🔍</span>
+        <span className="pl-2 pr-1 self-center text-white/60">
+  <SearchIcon className="h-4 w-4" />
+</span>
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
@@ -106,14 +109,15 @@ export default function SearchPageClient() {
             aria-label="Search"
           />
           {q && (
-            <button
-              onClick={() => { setQ(''); }}
-              className="px-2 text-white/60 hover:text-white"
-              aria-label="Clear"
-            >
-              ✕
-            </button>
-          )}
+  <button
+    onClick={() => setQ('')}
+    className="px-2 text-white/60 hover:text-white"
+    aria-label="Clear"
+    type="button"
+  >
+    <XMarkIcon className="h-4 w-4" />
+  </button>
+)}
         </div>
 
         <div className="flex items-center gap-1">

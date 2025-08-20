@@ -13,6 +13,7 @@ import { notifyComment, clearComment } from '@/lib/notifications';
 import { timeAgo } from '@/lib/timeAgo';
 import Link from 'next/link';
 import { getBlockSets } from '@/lib/blocks'; // blocks + mutes (iMuted)
+import { XMarkIcon } from '@/components/icons';
 
 type Props = {
   supabase: SupabaseClient;
@@ -392,12 +393,13 @@ export default function CommentThread({
         <div className="flex items-center justify-between px-3 pt-2 pb-1">
           <h2 className="text-sm font-semibold text-white/80">Comments</h2>
           <button
-            onClick={safeClose}
-            className="px-2 py-1 rounded hover:bg-white/10 text-white/80"
-            aria-label="Close comments"
-          >
-            ✕
-          </button>
+  onClick={safeClose}
+  className="px-2 py-1 rounded hover:bg-white/10 text-white/80"
+  aria-label="Close comments"
+  type="button"
+>
+  <XMarkIcon className="h-4 w-4" />
+</button>
         </div>
 
         <div ref={boxRef} className="max-h-[60vh] overflow-y-auto p-3 space-y-3" aria-live="polite">

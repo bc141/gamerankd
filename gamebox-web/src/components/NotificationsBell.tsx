@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { getUnreadCount, NOTIF_SYNC_KEY } from '@/lib/notifications';
+import { BellIcon } from '@/components/icons';
+
 
 export default function NotificationsBell() {
   const supabase = supabaseBrowser();
@@ -100,29 +102,27 @@ export default function NotificationsBell() {
 
   if (!me) {
     return (
-      <Link
-        href="/login"
-        prefetch={false}
-        className="inline-flex h-8 w-8 items-center justify-center rounded hover:bg-white/10"
+      <button
+        onClick={() => window.location.href = '/login'}
+        className="relative p-2 rounded hover:bg-white/10"
         aria-label="Sign in"
         title="Sign in"
       >
-        <BellIcon />
-      </Link>
+        <BellIcon className="h-5 w-5 opacity-90" />
+      </button>
     );
   }
 
   const badge = count > 99 ? '99+' : String(count);
 
   return (
-    <Link
-      href="/notifications"
-      prefetch={false}
-      className="relative inline-flex h-8 w-8 items-center justify-center rounded hover:bg-white/10"
+    <button
+      onClick={() => window.location.href = '/notifications'}
+      className="relative p-2 rounded hover:bg-white/10"
       aria-label={count > 0 ? `${count} unread notifications` : 'Notifications'}
       title="Notifications"
     >
-      <BellIcon />
+              <BellIcon className="h-5 w-5 opacity-90" />
       {count > 0 && (
         <span
           className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-[11px] leading-[18px] text-white text-center shadow"
@@ -135,24 +135,7 @@ export default function NotificationsBell() {
       <span className="sr-only" aria-live="polite">
         {count} unread notifications
       </span>
-    </Link>
+    </button>
   );
 }
 
-function BellIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className="h-5 w-5 text-white/90"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M14 19a2 2 0 1 1-4 0" />
-      <path d="M6 8a6 6 0 1 1 12 0c0 7 3 7 3 9H3c0-2 3-2 3-9Z" />
-    </svg>
-  );
-}

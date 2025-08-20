@@ -8,6 +8,7 @@ import StarRating from '@/components/StarRating';
 import { timeAgo } from '@/lib/timeAgo';
 import CommentThread from '@/components/comments/CommentThread';
 import { getBlockSets } from '@/lib/blocks';
+import { XMarkIcon } from '@/components/icons';
 
 type Author = {
   id: string;
@@ -288,12 +289,13 @@ export default function ReviewContextModal({
         <div className="relative px-4 pt-3 pb-2">
           {/* Close */}
           <button
-            onClick={closeAndRestore}
-            className="absolute right-2 top-2 px-2 py-1 rounded hover:bg-white/10 text-white/80"
-            aria-label="Close"
-          >
-            ✕
-          </button>
+  onClick={onClose}
+  className="px-2 py-1 rounded hover:bg-white/10 text-white/80"
+  aria-label="Close"
+  type="button"
+>
+  <XMarkIcon className="h-4 w-4" />
+</button>
 
           {loading ? (
             <div className="flex items-center gap-3">

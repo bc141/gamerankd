@@ -1,3 +1,4 @@
+// src/components/WhoToFollow.tsx
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
@@ -5,6 +6,8 @@ import Link from 'next/link';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { waitForSession } from '@/lib/waitForSession';
 import { toggleFollow } from '@/lib/follows';
+import { XMarkIcon } from '@/components/icons';
+import { getBlockSets } from '@/lib/blocks';
 
 type Mini = {
   id: string;
@@ -79,11 +82,23 @@ export default function WhoToFollow({ limit = DEFAULT_LIMIT }: { limit?: number 
         const myId = session?.user?.id ?? null;
         setMe(myId);
 
-        // Build exclude set: self + already-followed
+        // --------- hard excludes (self, already-following, blocks, mutes) ---------
         const exclude = new Set<string>();
         if (myId) exclude.add(myId);
 
-        let followingSet = new Set<string>();
+        // blocks/mutes: hide users you blocked, who blocked you, or you muted
+        let hardHide = new Set<string>();
+        if (myId) {
+          const { iBlocked, blockedMe, iMuted } = await getBlockSets(supabase, myId);
+          hardHide = new Set<string>([
+            ...Array.from(iBlocked.values()),
+            ...Array.from(blockedMe.values()),
+            ...Array.from(iMuted.values()),
+          ]);
+        }
+
+        // already following
+        const followingSet = new Set<string>();
         if (myId) {
           const { data: flw } = await supabase
             .from('follows')
@@ -98,8 +113,8 @@ export default function WhoToFollow({ limit = DEFAULT_LIMIT }: { limit?: number 
           }
         }
 
-        // Followers-of-me (for "Follow back" and score boost)
-        let followersOfMe = new Set<string>();
+        // followers of me (possible "follow back")
+        const followersOfMe = new Set<string>();
         if (myId) {
           const { data: back } = await supabase
             .from('follows')
@@ -124,7 +139,7 @@ export default function WhoToFollow({ limit = DEFAULT_LIMIT }: { limit?: number 
         const recentMap = new Map<string, number>();
         for (const r of recent ?? []) {
           const uid = r?.user_id as string;
-          if (!uid || exclude.has(uid)) continue;
+          if (!uid || exclude.has(uid) || hardHide.has(uid)) continue;
           recentMap.set(uid, (recentMap.get(uid) ?? 0) + 1);
         }
 
@@ -136,7 +151,7 @@ export default function WhoToFollow({ limit = DEFAULT_LIMIT }: { limit?: number 
         const followersMap = new Map<string, number>();
         for (const r of pop ?? []) {
           const uid = r?.followee_id as string;
-          if (!uid || exclude.has(uid)) continue;
+          if (!uid || exclude.has(uid) || hardHide.has(uid)) continue;
           followersMap.set(uid, (followersMap.get(uid) ?? 0) + 1);
         }
 
@@ -185,7 +200,7 @@ export default function WhoToFollow({ limit = DEFAULT_LIMIT }: { limit?: number 
           const base = rc * W_RECENT + fc * W_FOLLOW + (fy ? BONUS_FOLLOWS_YOU : 0);
           raw.push({
             ...mini,
-            score: base, // no Math.random() — flicker-free
+            score: base,
             recentCount: rc,
             followersCount: fc,
             followsYou: fy,
@@ -194,12 +209,11 @@ export default function WhoToFollow({ limit = DEFAULT_LIMIT }: { limit?: number 
 
         raw.sort((a, b) => b.score - a.score);
 
-        const daySeed = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+        const daySeed = new Date().toISOString().slice(0, 10);
         const seeded = myId ? seededShuffle(raw, `${myId}:${daySeed}`) : raw;
 
         if (!cancelled) setPool(seeded);
-      } catch (e) {
-        // best-effort fallback
+      } catch {
         if (!cancelled) setPool([]);
       }
     })();
@@ -285,16 +299,15 @@ export default function WhoToFollow({ limit = DEFAULT_LIMIT }: { limit?: number 
               </Link>
 
               <div className="flex items-center gap-2 shrink-0">
-                {/* Dismiss */}
+                {/* Dismiss (central icon) */}
                 <button
                   onClick={() => handleDismiss(u.id)}
                   aria-label="Dismiss suggestion"
                   className="hidden sm:inline-flex h-8 w-8 items-center justify-center rounded hover:bg-white/10"
                   title="Dismiss"
+                  type="button"
                 >
-                  <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 opacity-70">
-                    <path fillRule="evenodd" d="M10 8.586L4.757 3.343 3.343 4.757 8.586 10l-5.243 5.243 1.414 1.414L10 11.414l5.243 5.243 1.414-1.414L11.414 10l5.243-5.243-1.414-1.414L10 8.586z" clipRule="evenodd" />
-                  </svg>
+                  <XMarkIcon className="h-4 w-4 opacity-70" />
                 </button>
 
                 {me && (
@@ -319,6 +332,7 @@ export default function WhoToFollow({ limit = DEFAULT_LIMIT }: { limit?: number 
                         : 'bg-indigo-600 hover:bg-indigo-500 text-white'
                     }`}
                     aria-pressed={busyId === u.id ? true : undefined}
+                    type="button"
                   >
                     {busyId === u.id ? '…' : (u.followsYou ? 'Follow back' : 'Follow')}
                   </button>
@@ -334,6 +348,7 @@ export default function WhoToFollow({ limit = DEFAULT_LIMIT }: { limit?: number 
           <button
             onClick={() => setTargetCount((c) => c + SHOW_MORE_STEP)}
             className="w-full bg-white/10 hover:bg-white/15 px-3 py-2 rounded text-sm"
+            type="button"
           >
             Show more · {remainingCount} more
           </button>

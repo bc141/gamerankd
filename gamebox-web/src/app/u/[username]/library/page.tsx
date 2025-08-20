@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { LIBRARY_STATUSES, type LibraryStatus } from '@/lib/library';
 import { timeAgo } from '@/lib/timeAgo';
+import BackToProfile from '@/components/BackToProfile';
 
 type Tab = 'All' | LibraryStatus;
 
@@ -19,10 +20,10 @@ type Row = {
 export default function ProfileLibraryPage() {
   const supabase = supabaseBrowser();
   const params = useParams();
-  const username =
+  const usernameSlug =
     Array.isArray((params as any)?.username)
-      ? (params as any).username[0]
-      : (params as any)?.username;
+      ? (params as any)?.username[0]
+      : ((params as any)?.username ?? '');
 
   const [tab, setTab] = useState<Tab>('All');
   const [owner, setOwner] = useState<{ id: string; display: string } | null>(null);
@@ -46,7 +47,7 @@ export default function ProfileLibraryPage() {
       const { data: prof, error: pErr } = await supabase
         .from('profiles')
         .select('id, username, display_name')
-        .eq('username', username)
+        .eq('username', usernameSlug)
         .single();
 
       if (pErr || !prof) {
@@ -107,7 +108,7 @@ export default function ProfileLibraryPage() {
     })();
 
     return () => { cancelled = true; };
-  }, [supabase, username]);
+  }, [supabase, usernameSlug]);
 
   const TAB_META: {key: LibraryStatus | 'All'; label: string; count: number}[] = [
     { key: 'All',       label: 'All',       count: libCounts.total },
@@ -124,10 +125,13 @@ export default function ProfileLibraryPage() {
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-6">
+      <div className="mb-2">
+        <BackToProfile username={usernameSlug} />
+      </div>
       <h1 className="text-2xl font-bold mb-1">
         {owner ? `${owner.display}'s Library` : 'Library'}
       </h1>
-      <p className="text-white/60 mb-4">@{username}</p>
+      <p className="text-white/60 mb-4">@{usernameSlug}</p>
 
       {/* chips */}
       <div className="flex gap-2">

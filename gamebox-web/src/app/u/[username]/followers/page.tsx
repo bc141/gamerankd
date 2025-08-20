@@ -7,6 +7,7 @@ import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { waitForSession } from '@/lib/waitForSession';
 import BlockButtons from '@/components/BlockButtons';
 import { getBlockSets } from '@/lib/blocks';
+import BackToProfile from '@/components/BackToProfile';
 
 type MiniProfile = {
   id: string;
@@ -20,9 +21,10 @@ export default function FollowersPage() {
   const router = useRouter();
   const params = useParams();
 
-  const slug = Array.isArray((params as any)?.username)
-    ? (params as any).username[0]
-    : (params as any)?.username;
+  const usernameSlug =
+    Array.isArray((params as any)?.username)
+      ? (params as any)?.username[0]
+      : ((params as any)?.username ?? '');
 
   const [ready, setReady] = useState(false);
   const [me, setMe] = useState<{ id: string } | null>(null);
@@ -45,7 +47,7 @@ export default function FollowersPage() {
   }, [supabase]);
 
   useEffect(() => {
-    if (!ready || !slug) return;
+    if (!ready || !usernameSlug) return;
     let cancelled = false;
 
     (async () => {
@@ -55,7 +57,7 @@ export default function FollowersPage() {
       const { data: prof, error: pErr } = await supabase
         .from('profiles')
         .select('id,username,display_name,avatar_url')
-        .eq('username', String(slug).toLowerCase())
+        .eq('username', String(usernameSlug).toLowerCase())
         .single();
 
       if (cancelled) return;
@@ -106,7 +108,7 @@ export default function FollowersPage() {
     })();
 
     return () => { cancelled = true; };
-  }, [ready, slug, supabase, me?.id]);
+  }, [ready, usernameSlug, supabase, me?.id]);
 
   async function toggleFollow(targetId: string, currentlyFollowing: boolean) {
     if (!me) return router.push('/login');
@@ -135,7 +137,7 @@ export default function FollowersPage() {
   return (
     <main className="p-8 max-w-2xl mx-auto">
       <div className="mb-6">
-        <Link className="text-sm text-white/60 hover:underline" href={`/u/${owner.username}`}>&larr; Back to profile</Link>
+        <BackToProfile username={usernameSlug} className="mb-2" />
         <h1 className="text-2xl font-bold mt-2">{title}</h1>
       </div>
 

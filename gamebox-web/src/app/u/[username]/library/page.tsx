@@ -14,16 +14,16 @@ type Tab = 'All' | LibraryStatus;
 
 // ADD / UPDATE imports near the top
 const SORT_OPTIONS: { key: SortKey; label: string }[] = [
+  { key: 'recent',       label: 'Recent' },
   { key: 'az',           label: 'A–Z' },
   { key: 'za',           label: 'Z–A' },
-  { key: 'recent',       label: 'Recent' },
   { key: 'status',       label: 'By status' },
   { key: 'ratingHigh',   label: 'Your rating (High → Low)' },
   { key: 'ratingLow',    label: 'Your rating (Low → High)' },
 ];
 
-// choose a sensible default; A–Z is good for libraries
-const DEFAULT_SORT: SortKey = 'az';
+// choose a sensible default; Recent is best for libraries
+const DEFAULT_SORT: SortKey = 'recent';
 
 const LIBRARY_SORT_MAP: SupabaseSortMap = {
   recent: { column: 'updated_at' },            // base table column
@@ -73,7 +73,16 @@ export default function ProfileLibraryPage() {
       : ((params as any)?.username ?? '');
 
   const [tab, setTab] = useState<Tab>('All');
-  const [sort, setSort] = useState<SortKey>(DEFAULT_SORT);
+  const [sort, setSort] = useState<SortKey>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = window.localStorage.getItem(`lib:sort:${String(usernameSlug)}`);
+      if (saved === 'recent' || saved === 'az' || saved === 'za' ||
+          saved === 'status' || saved === 'ratingHigh' || saved === 'ratingLow') {
+        return saved as SortKey;
+      }
+    }
+    return DEFAULT_SORT;
+  });
   const [owner, setOwner] = useState<{ id: string; display: string } | null>(null);
   const [rows, setRows] = useState<RowWithRating[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -84,6 +93,13 @@ export default function ProfileLibraryPage() {
     Completed: 0,
     Dropped: 0,
   });
+
+  // Persist sort preference to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(`lib:sort:${String(usernameSlug)}`, sort);
+    }
+  }, [sort, usernameSlug]);
 
   // Columns in this query:
   // - updated_at, status are from the base "library" table

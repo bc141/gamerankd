@@ -7,6 +7,8 @@ import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { LIBRARY_STATUSES, type LibraryStatus } from '@/lib/library';
 import { timeAgo } from '@/lib/timeAgo';
 import BackToProfile from '@/components/BackToProfile';
+import { applySortToSupabase, type SortKey, type SupabaseSortMap } from '@/lib/sort';
+import SortSelect from '@/components/SortSelect';
 
 type Tab = 'All' | LibraryStatus;
 
@@ -26,6 +28,7 @@ export default function ProfileLibraryPage() {
       : ((params as any)?.username ?? '');
 
   const [tab, setTab] = useState<Tab>('All');
+  const [sort, setSort] = useState<SortKey>('recent');
   const [owner, setOwner] = useState<{ id: string; display: string } | null>(null);
   const [rows, setRows] = useState<Row[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -36,6 +39,15 @@ export default function ProfileLibraryPage() {
     Completed: 0,
     Dropped: 0,
   });
+
+  // Columns in this query:
+  // - updated_at, status are from the base "library" table
+  // - name comes from the joined games table
+  const LIBRARY_SORT_MAP: SupabaseSortMap = {
+    recent: { column: 'updated_at' },       // base table
+    name:   { column: 'name', table: 'games' }, // joined table
+    status: { column: 'status' },           // base table
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -65,12 +77,19 @@ export default function ProfileLibraryPage() {
       });
 
       // fetch their library
-      const { data, error } = await supabase
+      let q = supabase
         .from('user_game_library')
         .select('game_id,status,updated_at,game:games(id,name,cover_url)')
-        .eq('user_id', prof.id)
-        .order('updated_at', { ascending: false })
-        .limit(200);
+        .eq('user_id', prof.id);
+
+      q = applySortToSupabase(q, sort, LIBRARY_SORT_MAP);
+
+      // (optional) still keep your .eq(tab) filter logic here
+      if (tab !== 'All') {
+        q = q.eq('status', tab);
+      }
+
+      const { data, error } = await q.limit(200);
 
       if (cancelled) return;
 
@@ -108,7 +127,7 @@ export default function ProfileLibraryPage() {
     })();
 
     return () => { cancelled = true; };
-  }, [supabase, usernameSlug]);
+  }, [supabase, usernameSlug, sort, tab]);
 
   const TAB_META: {key: LibraryStatus | 'All'; label: string; count: number}[] = [
     { key: 'All',       label: 'All',       count: libCounts.total },
@@ -118,10 +137,7 @@ export default function ProfileLibraryPage() {
     { key: 'Dropped',   label: 'Dropped',   count: libCounts.Dropped ?? 0 },
   ];
 
-  const filtered = useMemo(() => {
-    if (!rows) return null;
-    return tab === 'All' ? rows : rows.filter(r => r.status === tab);
-  }, [rows, tab]);
+  const filtered = rows;
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-6">
@@ -134,17 +150,22 @@ export default function ProfileLibraryPage() {
       <p className="text-white/60 mb-4">@{usernameSlug}</p>
 
       {/* chips */}
-      <div className="flex gap-2">
-        {TAB_META.map(t => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key as LibraryStatus | 'All')}
-            aria-pressed={tab === t.key}
-            className={`px-3 py-2 rounded ${tab===t.key ? 'bg-indigo-600 text-white' : 'bg-white/10 hover:bg-white/15'}`}
-          >
-            {t.label}{typeof t.count === 'number' ? ` (${t.count})` : ''}
-          </button>
-        ))}
+      <div className="mb-4 flex items-center gap-3">
+        <div className="flex gap-2">
+          {TAB_META.map(t => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key as LibraryStatus | 'All')}
+              aria-pressed={tab === t.key}
+              className={`px-3 py-2 rounded ${tab===t.key ? 'bg-indigo-600 text-white' : 'bg-white/10 hover:bg-white/15'}`}
+            >
+              {t.label}{typeof t.count === 'number' ? ` (${t.count})` : ''}
+            </button>
+          ))}
+        </div>
+        <div className="ml-auto">
+          <SortSelect value={sort} onChange={(s) => setSort(s)} />
+        </div>
       </div>
 
       {err && <p className="text-red-400 mb-3">{err}</p>}

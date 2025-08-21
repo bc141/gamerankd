@@ -94,6 +94,31 @@ export default function ProfileLibraryPage() {
     Completed: 0,
     Dropped: 0,
   });
+  const [openMenus, setOpenMenus] = useState<Set<number>>(new Set());
+
+  // Close menus when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (!target.closest('[role="menu"], [aria-haspopup="menu"]')) {
+        setOpenMenus(new Set());
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpenMenus(new Set());
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEscape);
+    
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, []);
 
   // Add handlers inside the component
   const handleStatusChange = useCallback(async (gameId: number, next: LibraryStatus) => {
@@ -343,53 +368,107 @@ export default function ProfileLibraryPage() {
 
       {filtered && filtered.length > 0 && (
         <ul className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-          {filtered.map((r) => (
-            <li key={`${r.game?.id || r.game_id}-${r.status}-${r.updated_at}`}>
-              <Link
-                href={`/game/${r.game?.id || r.game_id}`}
-                className="block rounded hover:bg-white/5 p-2 relative"
-              >
-                {/* cover */}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={r.game?.cover_url || '/cover-fallback.png'}
-                  alt={r.game?.name || 'Unknown Game'}
-                  className="h-40 w-full object-cover rounded border border-white/10"
-                  loading="lazy"
-                  decoding="async"
-                />
-
-                {/* top-right status menu */}
-                <div className="absolute right-3 top-3">
-                  <StatusMenu
-                    value={r.status}
-                    onChange={(next) => handleStatusChange(r.game_id, next)}
+          {filtered.map((r) => {
+            const menuOpen = openMenus.has(r.game_id);
+            
+            return (
+              <li key={`${r.game?.id || r.game_id}-${r.status}-${r.updated_at}`} className="relative z-0">
+                <Link
+                  href={`/game/${r.game?.id || r.game_id}`}
+                  className="block rounded hover:bg-white/5 p-2"
+                >
+                  {/* cover */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={r.game?.cover_url || '/cover-fallback.png'}
+                    alt={r.game?.name || 'Unknown Game'}
+                    className="h-40 w-full object-cover rounded border border-white/10"
+                    loading="lazy"
+                    decoding="async"
                   />
-                </div>
 
-                {/* name */}
-                <div className="mt-2 text-sm text-white truncate">
-                  {r.game?.name || 'Unknown Game'}
-                </div>
+                  {/* name */}
+                  <div className="mt-2 text-sm text-white truncate">
+                    {r.game?.name || 'Unknown Game'}
+                  </div>
 
-                {/* meta row */}
-                <div className="mt-1 text-xs text-white/50 flex items-center gap-2">
-                  <span className="px-1.5 py-0.5 rounded bg-white/10">{r.status}</span>
-                  <span>· {timeAgo(r.updated_at)}</span>
-                </div>
+                  {/* meta row */}
+                  <div className="mt-1 text-xs text-white/50 flex items-center gap-2">
+                    <span className="px-1.5 py-0.5 rounded bg-white/10">{r.status}</span>
+                    <span>· {timeAgo(r.updated_at)}</span>
+                  </div>
 
-                {/* rating row – editable */}
-                <div className="mt-1 flex items-center gap-2 text-xs text-white/70" data-ignore-context>
-                  <StarRating
-                    value={(r.my_rating ?? 0) / 20}
-                    size={14}
-                    onChange={(v) => handleSetRating(r.game_id, v)}
-                  />
-                  {r.my_rating != null && <span>{((r.my_rating as number) / 20).toFixed(1)} / 5</span>}
-                </div>
-              </Link>
-            </li>
-          ))}
+                  {/* rating row – editable */}
+                  <div className="mt-1 flex items-center gap-2 text-xs text-white/70" data-ignore-context>
+                    <StarRating
+                      value={(r.my_rating ?? 0) / 20}
+                      size={14}
+                      onChange={(v) => handleSetRating(r.game_id, v)}
+                    />
+                    {r.my_rating != null && <span>{((r.my_rating as number) / 20).toFixed(1)} / 5</span>}
+                  </div>
+                </Link>
+
+                {/* menu button */}
+                <button
+                  className="absolute top-2 right-2 z-20 rounded-full bg-black/55 hover:bg-black/70 backdrop-blur px-2 py-1 ring-1 ring-white/20 text-white shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                  aria-haspopup="menu"
+                  aria-expanded={menuOpen}
+                  aria-controls={`menu-${r.game_id}`}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setOpenMenus(prev => {
+                      const next = new Set(prev);
+                      if (next.has(r.game_id)) {
+                        next.delete(r.game_id);
+                      } else {
+                        next.add(r.game_id);
+                      }
+                      return next;
+                    });
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setOpenMenus(prev => {
+                        const next = new Set(prev);
+                        if (next.has(r.game_id)) {
+                          next.delete(r.game_id);
+                        } else {
+                          next.add(r.game_id);
+                        }
+                        return next;
+                      });
+                    }
+                  }}
+                >
+                  ⋯
+                </button>
+
+                {menuOpen && (
+                  <div
+                    id={`menu-${r.game_id}`}
+                    role="menu"
+                    className="absolute right-2 top-10 z-30 w-40 rounded-lg bg-neutral-900 border border-white/10 shadow-xl p-1"
+                  >
+                    <StatusMenu
+                      value={r.status}
+                      onChange={(next) => {
+                        handleStatusChange(r.game_id, next);
+                        setOpenMenus(prev => {
+                          const nextSet = new Set(prev);
+                          nextSet.delete(r.game_id);
+                          return nextSet;
+                        });
+                      }}
+                    />
+                  </div>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
     </main>

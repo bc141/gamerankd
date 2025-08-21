@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
@@ -95,6 +95,7 @@ export default function ProfileLibraryPage() {
     Dropped: 0,
   });
   const [openMenus, setOpenMenus] = useState<Set<number>>(new Set());
+  const triggerRefs = useRef<Record<number, HTMLButtonElement | null>>({});
 
   // Close menus when clicking outside
   useEffect(() => {
@@ -177,6 +178,24 @@ export default function ProfileLibraryPage() {
       window.localStorage.setItem(`lib:sort:${String(usernameSlug)}`, sort);
     }
   }, [sort, usernameSlug]);
+
+  // Focus management: auto-focus first option when menu opens
+  useEffect(() => {
+    if (!openMenus.size) return;
+    const gameId = Array.from(openMenus)[0];
+    const first = document.querySelector<HTMLButtonElement>(
+      `#menu-${gameId} [role="menuitemradio"]`
+    );
+    first?.focus();
+  }, [openMenus]);
+
+  // Close on scroll (prevents "orphaned" menus)
+  useEffect(() => {
+    if (!openMenus.size) return;
+    const onScroll = () => setOpenMenus(new Set());
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, [openMenus.size]);
 
   // Columns in this query:
   // - updated_at, status are from the base "library" table
@@ -372,7 +391,7 @@ export default function ProfileLibraryPage() {
             const menuOpen = openMenus.has(r.game_id);
             
             return (
-              <li key={`${r.game?.id || r.game_id}-${r.status}-${r.updated_at}`} className="relative z-0">
+              <li key={`${r.game?.id || r.game_id}-${r.status}-${r.updated_at}`} className="relative z-0" data-game-id={r.game_id}>
                 <Link
                   href={`/game/${r.game?.id || r.game_id}`}
                   className="block rounded hover:bg-white/5 p-2"
@@ -411,7 +430,9 @@ export default function ProfileLibraryPage() {
 
                 {/* menu button */}
                 <button
-                  className="absolute top-2 right-2 z-20 rounded-full bg-black/55 hover:bg-black/70 backdrop-blur px-2 py-1 ring-1 ring-white/20 text-white shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                  ref={(el) => { triggerRefs.current[r.game_id] = el; }}
+                  aria-label="Change status"
+                  className="absolute top-2 right-2 z-20 h-8 w-8 grid place-items-center rounded-full bg-black/55 hover:bg-black/70 ring-1 ring-white/20 text-white shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
                   aria-haspopup="menu"
                   aria-expanded={menuOpen}
                   aria-controls={`menu-${r.game_id}`}
@@ -451,7 +472,17 @@ export default function ProfileLibraryPage() {
                   <div
                     id={`menu-${r.game_id}`}
                     role="menu"
-                    className="absolute right-2 top-10 z-30 w-44 rounded-lg bg-neutral-900 border border-white/10 shadow-xl p-1"
+                    className={`absolute top-10 z-30 w-44 rounded-lg bg-neutral-900/96 border border-white/12 shadow-2xl backdrop-blur p-1 ${
+                      (() => {
+                        if (typeof window !== 'undefined') {
+                          const rect = document.querySelector(`[data-game-id="${r.game_id}"]`)?.getBoundingClientRect();
+                          if (rect && rect.right > window.innerWidth - 200) {
+                            return 'left-2';
+                          }
+                        }
+                        return 'right-2';
+                      })()
+                    }`}
                     onClick={(e) => e.stopPropagation()}
                   >
                     <StatusMenuItems
@@ -463,6 +494,8 @@ export default function ProfileLibraryPage() {
                           nextSet.delete(r.game_id);
                           return nextSet;
                         });
+                        // Return focus to trigger
+                        triggerRefs.current[r.game_id]?.focus();
                       }}
                     />
                   </div>

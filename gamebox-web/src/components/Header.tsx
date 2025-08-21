@@ -6,6 +6,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import NotificationsBell from '@/components/NotificationsBell';
 import SearchControl from '@/components/search/SearchControl';
+import AddToLibrarySearch from '@/components/search/AddToLibrarySearch';
 
 type Me = { id: string; email?: string };
 type MiniProfile = { username: string | null; avatar_url: string | null };
@@ -147,6 +148,9 @@ export default function Header() {
 
           {user ? (
             <>
+              {/* Add to Library Search */}
+              <AddToLibrarySearch ownerId={user.id} />
+              
               {/* Notifications */}
               <NotificationsBell />
 

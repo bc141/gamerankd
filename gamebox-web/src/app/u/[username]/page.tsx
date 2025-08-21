@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, usePathname } from 'next/navigation';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import StarRating from '@/components/StarRating';
 import { waitForSession } from '@/lib/waitForSession';
@@ -98,6 +98,12 @@ export default function PublicProfilePage() {
   const blockedEitherWay =
     !!(viewerId && profile?.id && blockSets && (blockSets.iBlocked.has(profile.id) || blockSets.blockedMe.has(profile.id)));
   const iBlocked = !!(viewerId && profile?.id && blockSets?.iBlocked.has(profile.id));
+
+  // Pathname logic for tab highlighting
+  const pathname = usePathname();
+  const base = profile ? `/u/${profile.username}` : '';
+  const isOverview = base && (pathname === base || pathname === `${base}/`);
+  const isLibrary = base && pathname.startsWith(`${base}/library`);
   const isMuted  = !!(viewerId && profile?.id && blockSets?.iMuted.has(profile.id));
 
   // likes
@@ -502,32 +508,11 @@ export default function PublicProfilePage() {
         </div>
       </section>
 
-      {/* Sub-nav */}
-      <div className="mt-6 border-t border-white/10 pt-3">
-        <nav className="flex items-center gap-5 text-sm">
-          <Link href={`/u/${username}`} className="pb-0.5 border-b-2 border-indigo-500 text-white">
-            Overview
-          </Link>
-          <Link
-            href={`/u/${username}/followers`}
-            className="pb-0.5 border-b-2 border-transparent text-white/80 hover:text-white hover:border-white/30"
-          >
-            Followers
-          </Link>
-          <Link
-            href={`/u/${username}/following`}
-            className="pb-0.5 border-b-2 border-transparent text-white/80 hover:text-white hover:border-white/30"
-          >
-            Following
-          </Link>
-          <Link
-            href={`/u/${username}/library`}
-            className="pb-0.5 border-b-2 border-transparent text-white/80 hover:text-white hover:border-white/30"
-          >
-            Library
-          </Link>
-        </nav>
-      </div>
+      {/* Tabs — simplified: Overview | Library */}
+      <nav className="mt-6 flex items-center gap-6 border-b border-white/10">
+        <TabLink href={base} active={Boolean(isOverview)}>Overview</TabLink>
+        <TabLink href={`${base}/library`} active={Boolean(isLibrary)}>Library</TabLink>
+      </nav>
 
       {/* Library preview */}
       <section className="mt-6">
@@ -702,5 +687,30 @@ export default function PublicProfilePage() {
 
       {contextModal}
     </main>
+  );
+}
+
+function TabLink({
+  href,
+  active,
+  children,
+}: {
+  href: string;
+  active?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      aria-current={active ? 'page' : undefined}
+      className={[
+        'px-2 pb-3 -mb-px text-sm',
+        active
+          ? 'text-white border-b-2 border-indigo-500'
+          : 'text-white/60 hover:text-white hover:border-b-2 hover:border-white/20',
+      ].join(' ')}
+    >
+      {children}
+    </Link>
   );
 }

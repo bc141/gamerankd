@@ -473,16 +473,22 @@ export default function NotificationsPage() {
 
                   // --- like roll-up row ---
                   const a = item.actors;
-                  const primary = (a[0]?.display_name || a[0]?.username) ?? 'Someone';
-                  const secondary = a[1]?.display_name || a[1]?.username || null;
-                  const others = Math.max(0, item.count - a.length);
+                  const name = item.game?.name ?? 'this game';
 
-                  const text =
-                    secondary
-                      ? others > 0
-                        ? `${primary}, ${secondary} and ${others} other${others > 1 ? 's' : ''} liked your rating of ${item.game?.name ?? 'this game'}.`
-                        : `${primary} and ${secondary} liked your rating of ${item.game?.name ?? 'this game'}.`
-                      : `${primary} liked your rating of ${item.game?.name ?? 'this game'}.`;
+                  const primary   = a[0]?.display_name || a[0]?.username || 'Someone';
+                  const secondary = a[1]?.display_name || a[1]?.username || null;
+
+                  // Show at most two names in the sentence; everything else becomes "+N other(s)"
+                  const others = Math.max(0, item.count - (secondary ? 2 : 1));
+
+                  let text: string;
+                  if (!secondary) {
+                    text = `${primary} liked your rating of ${name}.`;
+                  } else if (others > 0) {
+                    text = `${primary}, ${secondary} and ${others} other${others > 1 ? 's' : ''} liked your rating of ${name}.`;
+                  } else {
+                    text = `${primary} and ${secondary} liked your rating of ${name}.`;
+                  }
 
                   const canOpenContext = !!me && !!item.game;
 

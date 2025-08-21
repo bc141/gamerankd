@@ -9,7 +9,7 @@ import { timeAgo } from '@/lib/timeAgo';
 import BackToProfile from '@/components/BackToProfile';
 import { applySortToSupabase, applySortToArray, type SupabaseSortMap, type SortKey } from '@/lib/sort';
 import StarRating from '@/components/StarRating';
-import StatusMenu from '@/components/StatusMenu';
+import StatusMenuItems from '@/components/StatusMenuItems';
 
 type Tab = 'All' | LibraryStatus;
 
@@ -451,9 +451,10 @@ export default function ProfileLibraryPage() {
                   <div
                     id={`menu-${r.game_id}`}
                     role="menu"
-                    className="absolute right-2 top-10 z-30 w-40 rounded-lg bg-neutral-900 border border-white/10 shadow-xl p-1"
+                    className="absolute right-2 top-10 z-30 w-44 rounded-lg bg-neutral-900 border border-white/10 shadow-xl p-1"
+                    onClick={(e) => e.stopPropagation()}
                   >
-                    <StatusMenu
+                    <StatusMenuItems
                       value={r.status}
                       onChange={(next) => {
                         handleStatusChange(r.game_id, next);

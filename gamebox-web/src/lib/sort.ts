@@ -7,6 +7,25 @@ export type SortKey =
   | 'ratingHigh'
   | 'ratingLow';
 
+// ✅ NEW: export this so UI components can type their props
+export type SortOption = { key: SortKey; label: string };
+
+// (Optional but handy) shared presets
+export const DEFAULT_SORT: SortKey = 'az';
+
+export const BASE_SORT_OPTIONS: SortOption[] = [
+  { key: 'az',     label: 'A–Z' },
+  { key: 'za',     label: 'Z–A' },
+  { key: 'recent', label: 'Recent' },
+];
+
+export const LIBRARY_SORT_OPTIONS: SortOption[] = [
+  ...BASE_SORT_OPTIONS,
+  { key: 'status',     label: 'By status' },
+  { key: 'ratingHigh', label: 'Your rating (High → Low)' },
+  { key: 'ratingLow',  label: 'Your rating (Low → High)' },
+];
+
 type Orderable<T> = {
   order: (
     column: string,

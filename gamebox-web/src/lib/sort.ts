@@ -1,5 +1,5 @@
 // src/lib/sort.ts
-export type SortKey = 'recent' | 'az' | 'za' | 'status';
+export type SortKey = 'recent' | 'az' | 'za' | 'status' | 'rating_desc' | 'rating_asc';
 
 export type SortOption = {
   key: SortKey;
@@ -22,6 +22,7 @@ export type SupabaseSortMap = {
   recent: { column: string; table?: string };
   name:   { column: string; table?: string };
   status?: { column: string; table?: string };
+  rating?: { column: string; table?: string }; // optional
 };
 
 // Loosen the bound so any Supabase builder with `order` is accepted.
@@ -63,6 +64,24 @@ export function applySortToSupabase<T extends AnyOrderable>(
         ascending: true,
         foreignTable: map.name.table,
       }) as T;
+    }
+
+    case 'rating_desc': {
+      if (!map.rating) return qb;
+      return (qb as any).order(map.rating.column, {
+        ascending: false,
+        foreignTable: map.rating.table,
+        nullsLast: true,
+      });
+    }
+
+    case 'rating_asc': {
+      if (!map.rating) return qb;
+      return (qb as any).order(map.rating.column, {
+        ascending: true,
+        foreignTable: map.rating.table,
+        nullsLast: true,
+      });
     }
 
     default:

@@ -7,10 +7,22 @@ import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { LIBRARY_STATUSES, type LibraryStatus } from '@/lib/library';
 import { timeAgo } from '@/lib/timeAgo';
 import BackToProfile from '@/components/BackToProfile';
-import { applySortToSupabase, type SortKey, type SupabaseSortMap } from '@/lib/sort';
-import SortSelect from '@/components/SortSelect';
+import { applySortToSupabase, type SortKey } from '@/lib/sort';
 
 type Tab = 'All' | LibraryStatus;
+
+// ADD / UPDATE imports near the top
+const SORT_OPTIONS: { key: SortKey; label: string }[] = [
+  { key: 'az',           label: 'A–Z' },
+  { key: 'za',           label: 'Z–A' },
+  { key: 'recent',       label: 'Recent' },
+  { key: 'status',       label: 'By status' },
+  { key: 'rating_desc',  label: 'Your rating (High → Low)' },
+  // { key: 'rating_asc', label: 'Your rating (Low → High)' }, // optional
+];
+
+// choose a sensible default; A–Z is good for libraries
+const DEFAULT_SORT: SortKey = 'az';
 
 type Row = {
   game_id: number;
@@ -18,6 +30,9 @@ type Row = {
   updated_at: string;
   game: { id: number; name: string; cover_url: string | null };
 };
+
+// If your Row type exists, extend it locally to carry the user rating:
+type RowWithRating = Row & { my_rating?: number | null };
 
 export default function ProfileLibraryPage() {
   const supabase = supabaseBrowser();
@@ -28,9 +43,9 @@ export default function ProfileLibraryPage() {
       : ((params as any)?.username ?? '');
 
   const [tab, setTab] = useState<Tab>('All');
-  const [sort, setSort] = useState<SortKey>('recent');
+  const [sort, setSort] = useState<SortKey>(DEFAULT_SORT);
   const [owner, setOwner] = useState<{ id: string; display: string } | null>(null);
-  const [rows, setRows] = useState<Row[] | null>(null);
+  const [rows, setRows] = useState<RowWithRating[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [libCounts, setLibCounts] = useState<{ total: number; Backlog: number; Playing: number; Completed: number; Dropped: number }>({
     total: 0,
@@ -43,11 +58,6 @@ export default function ProfileLibraryPage() {
   // Columns in this query:
   // - updated_at, status are from the base "library" table
   // - name comes from the joined games table
-  const LIBRARY_SORT_MAP: SupabaseSortMap = {
-    recent: { column: 'updated_at' },       // base table
-    name:   { column: 'name', table: 'games' }, // joined table
-    status: { column: 'status' },           // base table
-  };
 
   useEffect(() => {
     let cancelled = false;
@@ -82,11 +92,20 @@ export default function ProfileLibraryPage() {
         .select('game_id,status,updated_at,game:games(id,name,cover_url)')
         .eq('user_id', prof.id);
 
-      q = applySortToSupabase(q, sort, LIBRARY_SORT_MAP);
-
-      // (optional) still keep your .eq(tab) filter logic here
+      // Apply filter first (if any)
       if (tab !== 'All') {
         q = q.eq('status', tab);
+      }
+
+      // Server sort for non-rating choices
+      if (sort !== 'rating_desc' && sort !== 'rating_asc') {
+        q = applySortToSupabase(q, sort, {
+          // supabase sort map for this view
+          recent: { table: 'user_game_library', column: 'updated_at' },
+          name:   { table: 'games',             column: 'name' },
+          status: { table: 'user_game_library', column: 'status' },
+          // no rating map here: we're sorting client-side for rating
+        });
       }
 
       const { data, error } = await q.limit(200);
@@ -99,7 +118,36 @@ export default function ProfileLibraryPage() {
         return;
       }
 
-      const normalized: Row[] = (data ?? []).map((r: any) => {
+      let rows = (data ?? []) as any[];
+
+      // If rating sort is selected, fetch your ratings and sort client-side
+      if (sort === 'rating_desc' || sort === 'rating_asc') {
+        const ids = rows.map(r => r.game?.id).filter(Boolean) as number[];
+        if (ids.length) {
+          const { data: myRatings } = await supabase
+            .from('reviews')
+            .select('game_id,rating')
+            .eq('user_id', prof.id)
+            .in('game_id', ids);
+
+          const ratingMap = new Map<number, number>();
+          for (const r of myRatings ?? []) ratingMap.set(r.game_id, r.rating);
+
+          rows = rows.map(r => ({
+            ...r,
+            my_rating: r.game?.id ? (ratingMap.get(r.game.id) ?? null) : null,
+          }));
+
+          rows.sort((a, b) => {
+            const ra = a.my_rating ?? -Infinity;
+            const rb = b.my_rating ?? -Infinity;
+            const diff = rb - ra; // high → low
+            return sort === 'rating_desc' ? diff : -diff;
+          });
+        }
+      }
+
+      const normalized: RowWithRating[] = rows.map((r: any) => {
         const g = r?.game ?? {};
         return {
           game_id: Number(r?.game_id),
@@ -110,6 +158,7 @@ export default function ProfileLibraryPage() {
             name: String(g?.name ?? 'Unknown'),
             cover_url: (g?.cover_url ?? null) as string | null,
           },
+          my_rating: r?.my_rating ?? null,
         };
       }).filter(r => Number.isFinite(r.game.id));
 
@@ -129,13 +178,16 @@ export default function ProfileLibraryPage() {
     return () => { cancelled = true; };
   }, [supabase, usernameSlug, sort, tab]);
 
-  const TAB_META: {key: LibraryStatus | 'All'; label: string; count: number}[] = [
-    { key: 'All',       label: 'All',       count: libCounts.total },
-    { key: 'Backlog',   label: 'Backlog',   count: libCounts.Backlog ?? 0 },
-    { key: 'Playing',   label: 'Playing',   count: libCounts.Playing ?? 0 },
-    { key: 'Completed', label: 'Completed', count: libCounts.Completed ?? 0 },
-    { key: 'Dropped',   label: 'Dropped',   count: libCounts.Dropped ?? 0 },
+  // Most helpful flow: Playing → Backlog → Completed → Dropped
+  const TAB_ORDER: Array<'All' | 'Playing' | 'Backlog' | 'Completed' | 'Dropped'> = [
+    'All', 'Playing', 'Backlog', 'Completed', 'Dropped'
   ];
+
+  const TAB_META: {key: LibraryStatus | 'All'; label: string; count: number}[] = TAB_ORDER.map(key => ({
+    key,
+    label: key,
+    count: key === 'All' ? libCounts.total : (libCounts as any)[key] ?? 0,
+  }));
 
   const filtered = rows;
 
@@ -163,9 +215,20 @@ export default function ProfileLibraryPage() {
             </button>
           ))}
         </div>
-        <div className="ml-auto">
-          <SortSelect value={sort} onChange={(s) => setSort(s)} />
-        </div>
+        <label className="flex items-center gap-2 text-white/70">
+          <span>Sort</span>
+          <select
+            value={sort}
+            onChange={(e) => setSort(e.target.value as SortKey)}
+            className="rounded-md border border-white/15 bg-neutral-900 px-2 py-1 text-white/90"
+          >
+            {SORT_OPTIONS.map(o => (
+              <option key={o.key} value={o.key}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
       {err && <p className="text-red-400 mb-3">{err}</p>}

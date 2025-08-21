@@ -7,6 +7,7 @@ import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { waitForSession } from '@/lib/waitForSession';
 import { timeAgo } from '@/lib/timeAgo';
 import { LIBRARY_STATUSES, type LibraryStatus } from '@/lib/library';
+import Badge from '@/components/ui/Badge';
 
 type Tab = 'All' | LibraryStatus;
 
@@ -163,9 +164,9 @@ export default function LibraryPageClient() {
                   {r.game.name}
                 </div>
                 <div className="mt-1 text-xs text-white/50 flex items-center gap-2">
-                  <span className="px-1.5 py-0.5 rounded bg-white/10">
+                  <Badge tone={r.status === 'Completed' ? 'success' : 'neutral'}>
                     {r.status}
-                  </span>
+                  </Badge>
                   <span>· {timeAgo(r.updated_at)}</span>
                 </div>
               </Link>

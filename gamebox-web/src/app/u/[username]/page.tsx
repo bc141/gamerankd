@@ -27,6 +27,7 @@ import { useReviewContextModal } from '@/components/ReviewContext/useReviewConte
 import OverflowActions from '@/components/OverflowActions';
 import { getBlockSets, unblockUser, broadcastBlockSync, unmuteUser } from '@/lib/blocks';
 import { LIBRARY_STATUSES, type LibraryStatus } from '@/lib/library';
+import Badge from '@/components/ui/Badge';
 
 const from100 = (n: number) => n / 20;
 
@@ -542,7 +543,7 @@ export default function PublicProfilePage() {
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={g.cover_url || '/cover-fallback.png'} alt={g.name} className="h-28 w-20 object-cover" />
                   <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/60 to-transparent" />
-                  <span className="absolute left-2 bottom-2 text-[11px] rounded bg-white/15 px-1.5 py-0.5">{g.status}</span>
+                  <Badge tone="neutral" className="absolute left-2 bottom-2">{g.status}</Badge>
                 </div>
                 <div className="px-2 py-1 flex items-center gap-2">
                   <time className="text-[11px] text-white/40">{timeAgo(g.updated_at)}</time>
@@ -604,9 +605,9 @@ export default function PublicProfilePage() {
                       {gameName}
                     </Link>
                     {statusChip && (
-                      <span className="text-[11px] px-2 py-0.5 rounded border border-white/10 bg-white/5">
+                      <Badge tone="neutral" className="ml-2">
                         {statusChip}
-                      </span>
+                      </Badge>
                     )}
                   </div>
 

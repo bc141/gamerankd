@@ -128,7 +128,8 @@ export default function Header() {
 
   return (
     <header className="border-b border-white/10 sticky top-0 z-40 bg-black/60 backdrop-blur supports-[backdrop-filter]:bg-black/40">
-      <div className="mx-auto max-w-5xl px-4 h-14 flex items-center justify-between">
+      <div className="mx-auto max-w-5xl px-4 h-14 flex items-center gap-4">
+        {/* Left: Logo + Nav */}
         <div className="flex items-center gap-6">
           <Link href="/" className="font-semibold" aria-label="Home">
             gamdit
@@ -141,16 +142,15 @@ export default function Header() {
           </nav>
         </div>
 
-        {/* Right side */}
-        <div className="flex items-center gap-3">
-          {/* Global Search — show for everyone */}
+        {/* Center: Single Search */}
+        <div className="flex-1 max-w-2xl">
           <SearchControl />
+        </div>
 
+        {/* Right: User Actions */}
+        <div className="flex items-center gap-3">
           {user ? (
             <>
-              {/* Add to Library Search */}
-              <AddToLibrarySearch ownerId={user.id} />
-              
               {/* Notifications */}
               <NotificationsBell />
 

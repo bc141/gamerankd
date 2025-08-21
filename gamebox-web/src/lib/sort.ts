@@ -1,90 +1,59 @@
 // src/lib/sort.ts
-export type SortKey = 'recent' | 'az' | 'za' | 'status' | 'rating_desc' | 'rating_asc';
+export type SortKey =
+  | 'recent'
+  | 'az'
+  | 'za'
+  | 'status'
+  | 'ratingHigh'
+  | 'ratingLow';
 
-export type SortOption = {
-  key: SortKey;
-  label: string;
-  hint?: string;
-};
-
-export const BASE_SORTS: SortOption[] = [
-  { key: 'recent', label: 'Recently updated' },
-  { key: 'az',     label: 'A → Z' },
-  { key: 'za',     label: 'Z → A' },
-];
-
-export const LIBRARY_SORTS: SortOption[] = [
-  ...BASE_SORTS,
-  { key: 'status', label: 'Status' },
-];
-
-export type SupabaseSortMap = {
-  recent: { column: string; table?: string }; // table optional (base table when undefined)
-  name:   { column: string; table?: string }; // relation alias (e.g., 'game')
-  status?: { column: string; table?: string }; // optional; base table when undefined
-  rating?: { column: string; table?: string }; // optional
-};
-
-// helper to only add foreignTable when present
-function orderOpts(table: string | undefined, ascending: boolean) {
-  return table ? { ascending, foreignTable: table as string } : { ascending };
-}
-
-// Loosen the bound so any Supabase builder with `order` is accepted.
-type AnyOrderable = {
+type Orderable<T> = {
   order: (
     column: string,
-    options?: {
-      ascending?: boolean;
-      nullsFirst?: boolean;
-      foreignTable?: string;
-    }
-  ) => any;
+    opts?: { ascending?: boolean; foreignTable?: string }
+  ) => Orderable<T>;
 };
 
-/**
- * Apply sort to a Supabase query builder (chainable).
- */
-export function applySortToSupabase<T extends AnyOrderable>(
-  qb: T,
+export type SupabaseSortMap = {
+  recent: { column: string; table?: string };
+  name: { column: string; table: string };   // <-- must be the alias used in .select(...)
+  status?: { column: string; table?: string };
+};
+
+export function applySortToSupabase<T>(
+  qb: Orderable<T>,
   sort: SortKey,
   map: SupabaseSortMap
-): T {
+): Orderable<T> {
   switch (sort) {
     case 'recent':
-      // base table column: DO NOT pass foreignTable
-      return qb.order(map.recent.column, orderOpts(map.recent.table, false));
+      return qb.order(map.recent.column, {
+        ascending: false,
+        foreignTable: map.recent.table,
+      });
 
     case 'az':
-      return qb.order(map.name.column, orderOpts(map.name.table, true));
+      return qb.order(map.name.column, {
+        ascending: true,
+        foreignTable: map.name.table, // e.g. 'game' (the alias), not 'games'
+      });
 
     case 'za':
-      return qb.order(map.name.column, orderOpts(map.name.table, false));
-
-    case 'status': {
-      if (!map.status) return qb;
-
-      // 1) order by status (base), 2) stable sort by name (relation)
-      const q1 = (qb as any).order(map.status.column, orderOpts(map.status.table, true));
-      const q2 = (q1 as any).order(map.name.column, orderOpts(map.name.table, true));
-      return q2;
-    }
-
-    case 'rating_desc': {
-      if (!map.rating) return qb;
-      return (qb as any).order(map.rating.column, {
+      return qb.order(map.name.column, {
         ascending: false,
-        foreignTable: map.rating.table,
-        nullsLast: true,
+        foreignTable: map.name.table,
       });
-    }
 
-    case 'rating_asc': {
-      if (!map.rating) return qb;
-      return (qb as any).order(map.rating.column, {
+    // We'll do status ranking client-side for custom order; here just a stable secondary.
+    case 'status': {
+      // Group by status, then stable by name (client will re-rank buckets)
+      const q2 = qb.order(map.status?.column ?? 'status', {
         ascending: true,
-        foreignTable: map.rating.table,
-        nullsLast: true,
+        foreignTable: map.status?.table,
+      });
+      return q2.order(map.name.column, {
+        ascending: true,
+        foreignTable: map.name.table,
       });
     }
 
@@ -93,45 +62,73 @@ export function applySortToSupabase<T extends AnyOrderable>(
   }
 }
 
-/**
- * Apply sort to an in-memory list (client-only / fallback).
- */
-export function applySortToArray<T>(
+// -------- client-side fallback / refiners --------
+
+export function applySortToArray<T extends object>(
   items: T[],
   sort: SortKey,
-  accessors: {
-    updatedAt: (x: T) => string | number | Date | null | undefined;
-    name: (x: T) => string | null | undefined;
-    status?: (x: T) => string | null | undefined;
+  get: (row: T) => {
+    name: string;          // for A-Z / Z-A
+    recent: string;        // ISO date
+    status: string;        // 'Playing' | 'Backlog' | 'Completed' | 'Dropped'
+    rating?: number | null; // 0..100 (if you store /100)
   }
-) {
-  const safeTime = (v: any) => (v ? new Date(v).getTime() : 0);
-  const safeStr  = (v: any) => (v ?? '').toString().toLowerCase();
-
-  const arr = [...items];
+): T[] {
+  const by = (fn: (x: T) => any, asc = true) =>
+    [...items].sort((a, b) => {
+      const av = fn(a);
+      const bv = fn(b);
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      if (av < bv) return asc ? -1 : 1;
+      if (av > bv) return asc ? 1 : -1;
+      return 0;
+    });
 
   switch (sort) {
-    case 'recent':
-      arr.sort((a, b) => safeTime(accessors.updatedAt(b)) - safeTime(accessors.updatedAt(a)));
-      break;
-
-    case 'az':
-      arr.sort((a, b) => safeStr(accessors.name(a)).localeCompare(safeStr(accessors.name(b))));
-      break;
-
-    case 'za':
-      arr.sort((a, b) => safeStr(accessors.name(b)).localeCompare(safeStr(accessors.name(a))));
-      break;
-
-    case 'status':
-      if (accessors.status) {
-        arr.sort((a, b) => {
-          const s = safeStr(accessors.status!(a)).localeCompare(safeStr(accessors.status!(b)));
-          if (s !== 0) return s;
-          return safeStr(accessors.name(a)).localeCompare(safeStr(accessors.name(b)));
-        });
-      }
-      break;
+    case 'recent': {
+      // recent first (desc)
+      return by((r) => get(r).recent, false);
+    }
+    case 'az': {
+      return by((r) => get(r).name.toLowerCase(), true);
+    }
+    case 'za': {
+      return by((r) => get(r).name.toLowerCase(), false);
+    }
+    case 'status': {
+      const rank: Record<string, number> = {
+        Playing: 0,
+        Backlog: 1,
+        Completed: 2,
+        Dropped: 3,
+      };
+      return [...items].sort((a, b) => {
+        const ga = get(a);
+        const gb = get(b);
+        const ra = rank[ga.status] ?? 999;
+        const rb = rank[gb.status] ?? 999;
+        if (ra !== rb) return ra - rb;
+        return ga.name.localeCompare(gb.name);
+      });
+    }
+    case 'ratingHigh': {
+      // rating is /100; higher first; keep nulls last
+      return [...items].sort((a, b) => {
+        const ra = get(a).rating ?? -1;
+        const rb = get(b).rating ?? -1;
+        return rb - ra || get(a).name.localeCompare(get(b).name);
+      });
+    }
+    case 'ratingLow': {
+      return [...items].sort((a, b) => {
+        const ra = get(a).rating ?? 101;
+        const rb = get(b).rating ?? 101;
+        return ra - rb || get(a).name.localeCompare(get(b).name);
+      });
+    }
+    default:
+      return items;
   }
-  return arr;
 }

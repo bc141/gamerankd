@@ -7,7 +7,8 @@ import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { LIBRARY_STATUSES, type LibraryStatus } from '@/lib/library';
 import { timeAgo } from '@/lib/timeAgo';
 import BackToProfile from '@/components/BackToProfile';
-import { applySortToSupabase, type SortKey, type SupabaseSortMap } from '@/lib/sort';
+import { applySortToSupabase, applySortToArray, type SupabaseSortMap, type SortKey } from '@/lib/sort';
+import StarRating from '@/components/StarRating';
 
 type Tab = 'All' | LibraryStatus;
 
@@ -17,28 +18,51 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: 'za',           label: 'Z–A' },
   { key: 'recent',       label: 'Recent' },
   { key: 'status',       label: 'By status' },
-  { key: 'rating_desc',  label: 'Your rating (High → Low)' },
-  // { key: 'rating_asc', label: 'Your rating (Low → High)' }, // optional
+  { key: 'ratingHigh',   label: 'Your rating (High → Low)' },
+  { key: 'ratingLow',    label: 'Your rating (Low → High)' },
 ];
 
 // choose a sensible default; A–Z is good for libraries
 const DEFAULT_SORT: SortKey = 'az';
 
 const LIBRARY_SORT_MAP: SupabaseSortMap = {
-  recent: { column: 'updated_at' },          // base table (no foreignTable)
-  name:   { column: 'name', table: 'game' }, // relation alias 'game'
-  status: { column: 'status' },              // base table (no foreignTable)
+  recent: { column: 'updated_at' },            // from user_game_library
+  name:   { column: 'name', table: 'game' },   // <-- MUST match the alias in .select('game:games(...)')
+  status: { column: 'status' },
 };
 
 type Row = {
   game_id: number;
   status: LibraryStatus;
   updated_at: string;
-  game: { id: number; name: string; cover_url: string | null };
+  game: { id: number; name: string; cover_url: string | null } | null;
 };
 
 // If your Row type exists, extend it locally to carry the user rating:
 type RowWithRating = Row & { my_rating?: number | null };
+
+// Add this helper in the same file:
+async function fetchRatingsMap(
+  supabase: ReturnType<typeof import('@/lib/supabaseBrowser').supabaseBrowser>,
+  userId: string,
+  gameIds: number[]
+): Promise<Record<number, number>> {
+  if (gameIds.length === 0) return {};
+  const { data, error } = await supabase
+    .from('reviews')
+    .select('game_id, rating')
+    .eq('user_id', userId)
+    .in('game_id', gameIds)
+    .not('rating', 'is', null);
+
+  if (error) return {};
+  const map: Record<number, number> = {};
+  for (const row of data ?? []) {
+    // if multiple, keep latest rating is fine; for now first wins
+    if (map[row.game_id] == null) map[row.game_id] = row.rating as number;
+  }
+  return map;
+}
 
 export default function ProfileLibraryPage() {
   const supabase = supabaseBrowser();
@@ -92,23 +116,31 @@ export default function ProfileLibraryPage() {
         display: (prof.display_name ?? prof.username) as string,
       });
 
-      // fetch their library
-      let q = supabase
+      // --- fetch their library (data) + counts in parallel ---
+      let qBase = supabase
         .from('user_game_library')
         .select('game_id,status,updated_at,game:games(id,name,cover_url)')
         .eq('user_id', prof.id);
 
-      // Server sort for non-rating choices
-      if (sort !== 'rating_desc' && sort !== 'rating_asc') {
-        q = applySortToSupabase(q, sort, LIBRARY_SORT_MAP);
+      let qData = qBase;
+      if (sort !== 'ratingHigh' && sort !== 'ratingLow') {
+        qData = applySortToSupabase(qData, sort as SortKey, LIBRARY_SORT_MAP) as typeof qData;
       }
-
-      // Apply filter after sorting
       if (tab !== 'All') {
-        q = q.eq('status', tab);
+        qData = qData.eq('status', tab);
       }
 
-      const { data, error } = await q.limit(200);
+      // counts: unfiltered, tiny payload
+      const qCounts = supabase
+        .from('user_game_library')
+        .select('status')
+        .eq('user_id', prof.id)
+        .limit(2000);
+
+      const [{ data, error }, { data: allStatuses, error: cErr }] = await Promise.all([
+        qData.limit(200),
+        qCounts
+      ]);
 
       if (cancelled) return;
 
@@ -118,61 +150,45 @@ export default function ProfileLibraryPage() {
         return;
       }
 
-      let rows = (data ?? []) as any[];
+      // Build safe rows...
+      const list = (data ?? []).map((r: any) => ({
+        game_id: Number(r.game_id),
+        status: (r.status ?? 'Backlog') as LibraryStatus,
+        updated_at: String(r.updated_at),
+        game: r.game ? {
+          id: Number(r.game.id),
+          name: String(r.game.name ?? ''),
+          cover_url: r.game.cover_url ?? null,
+        } : null,
+      }));
 
-      // If rating sort is selected, fetch your ratings and sort client-side
-      if (sort === 'rating_desc' || sort === 'rating_asc') {
-        const ids = rows.map(r => r.game?.id).filter(Boolean) as number[];
-        if (ids.length) {
-          const { data: myRatings } = await supabase
-            .from('reviews')
-            .select('game_id,rating')
-            .eq('user_id', prof.id)
-            .in('game_id', ids);
+      // Ratings (bulk)
+      const ratingMap = await fetchRatingsMap(supabase, prof.id, list.map(x => x.game_id));
+      const withRatings = list.map(r => ({ ...r, my_rating: ratingMap[r.game_id] ?? null }));
 
-          const ratingMap = new Map<number, number>();
-          for (const r of myRatings ?? []) ratingMap.set(r.game_id, r.rating);
+      // Client-side refinement (status ranking, rating sorts, etc.)
+      const needsClientRefine = sort === 'status' || sort === 'ratingHigh' || sort === 'ratingLow';
+      const finalRows = needsClientRefine
+        ? applySortToArray(withRatings, sort as SortKey, (row) => ({
+            name: row.game?.name ?? '',
+            recent: row.updated_at,
+            status: row.status,
+            rating: row.my_rating,
+          }))
+        : withRatings;
 
-          rows = rows.map(r => ({
-            ...r,
-            my_rating: r.game?.id ? (ratingMap.get(r.game.id) ?? null) : null,
-          }));
+      setRows(finalRows);
 
-          rows.sort((a, b) => {
-            const ra = a.my_rating ?? -Infinity;
-            const rb = b.my_rating ?? -Infinity;
-            const diff = rb - ra; // high → low
-            return sort === 'rating_desc' ? diff : -diff;
-          });
-        }
+      // --- global counts from allStatuses (unfiltered) ---
+      const baseCounts = { total: 0, Backlog: 0, Playing: 0, Completed: 0, Dropped: 0 };
+      for (const s of allStatuses ?? []) {
+        baseCounts.total += 1;
+        if (s.status === 'Backlog') baseCounts.Backlog += 1;
+        if (s.status === 'Playing') baseCounts.Playing += 1;
+        if (s.status === 'Completed') baseCounts.Completed += 1;
+        if (s.status === 'Dropped') baseCounts.Dropped += 1;
       }
-
-      const normalized: RowWithRating[] = rows.map((r: any) => {
-        const g = r?.game ?? {};
-        return {
-          game_id: Number(r?.game_id),
-          status: (r?.status ?? 'Backlog') as LibraryStatus,
-          updated_at: String(r?.updated_at ?? new Date(0).toISOString()),
-          game: {
-            id: Number(g?.id ?? r?.game_id),
-            name: String(g?.name ?? 'Unknown'),
-            cover_url: (g?.cover_url ?? null) as string | null,
-          },
-          my_rating: r?.my_rating ?? null,
-        };
-      }).filter(r => Number.isFinite(r.game.id));
-
-      setRows(normalized);
-      
-      // Calculate counts
-      const counts = {
-        total: normalized.length,
-        Backlog: normalized.filter(r => r.status === 'Backlog').length,
-        Playing: normalized.filter(r => r.status === 'Playing').length,
-        Completed: normalized.filter(r => r.status === 'Completed').length,
-        Dropped: normalized.filter(r => r.status === 'Dropped').length,
-      };
-      setLibCounts(counts);
+      setLibCounts(baseCounts);
     })();
 
     return () => { cancelled = true; };
@@ -253,26 +269,35 @@ export default function ProfileLibraryPage() {
       {filtered && filtered.length > 0 && (
         <ul className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
           {filtered.map((r) => (
-            <li key={`${r.game.id}-${r.status}-${r.updated_at}`}>
+            <li key={`${r.game?.id || r.game_id}-${r.status}-${r.updated_at}`}>
               <Link
-                href={`/game/${r.game.id}`}
+                href={`/game/${r.game?.id || r.game_id}`}
                 className="block rounded hover:bg-white/5 p-2"
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={r.game.cover_url || '/cover-fallback.png'}
-                  alt={r.game.name}
+                  src={r.game?.cover_url || '/cover-fallback.png'}
+                  alt={r.game?.name || 'Unknown Game'}
                   className="h-40 w-full object-cover rounded border border-white/10"
                   loading="lazy"
                   decoding="async"
                 />
                 <div className="mt-2 text-sm text-white truncate">
-                  {r.game.name}
+                  {r.game?.name || 'Unknown Game'}
                 </div>
                 <div className="mt-1 text-xs text-white/50 flex items-center gap-2">
                   <span className="px-1.5 py-0.5 rounded bg-white/10">{r.status}</span>
                   <span>· {timeAgo(r.updated_at)}</span>
                 </div>
+                {/* user rating mini (if exists) */}
+                {r.my_rating != null && (
+                  <div className="mt-1 flex items-center gap-2 text-xs text-white/70" data-ignore-context>
+                    <span className="inline-flex items-center gap-1">
+                      <StarRating value={(r.my_rating as number) / 20} readOnly size={14} />
+                      <span>{((r.my_rating as number) / 20).toFixed(1)} / 5</span>
+                    </span>
+                  </div>
+                )}
               </Link>
             </li>
           ))}

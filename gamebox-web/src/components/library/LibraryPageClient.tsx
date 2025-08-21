@@ -8,6 +8,8 @@ import { waitForSession } from '@/lib/waitForSession';
 import { timeAgo } from '@/lib/timeAgo';
 import { LIBRARY_STATUSES, type LibraryStatus } from '@/lib/library';
 import StatusBadge from '@/components/library/StatusBadge';
+import StarRating from '@/components/StarRating';
+import { fetchUserRatingsMap } from '@/lib/reviews';
 
 // Tabs row
 const TABS = [
@@ -64,6 +66,7 @@ export default function LibraryPageClient() {
   const [tab, setTab] = useState<TabKey>('All');
   const [rows, setRows] = useState<Row[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [ratingsByGame, setRatingsByGame] = useState<Record<number, number>>({});
   const [libCounts, setLibCounts] = useState<{ total: number; Backlog: number; Playing: number; Completed: number; Dropped: number }>({
     total: 0,
     Backlog: 0,
@@ -145,6 +148,18 @@ export default function LibraryPageClient() {
       };
       setLibCounts(counts);
       setRows(filtered);
+
+      // collect game ids we actually show
+      const gameIds = (filtered ?? [])
+        .map((r) => Number(r?.game?.id))
+        .filter((n) => Number.isFinite(n)) as number[];
+
+      if (gameIds.length) {
+        const ratingsMap = await fetchUserRatingsMap(supabase, uid, gameIds);
+        setRatingsByGame(ratingsMap);
+      } else {
+        setRatingsByGame({});
+      }
     })();
 
     return () => {
@@ -228,30 +243,41 @@ export default function LibraryPageClient() {
 
       {rows && rows.length > 0 && (
         <ul className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-          {rows.map((r) => (
-            <li key={`${r.game.id}-${r.status}`}>
-              <Link
-                href={`/game/${r.game.id}`}
-                className="block rounded hover:bg-white/5 p-2"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={r.game.cover_url || '/cover-fallback.png'}
-                  alt={r.game.name}
-                  className="h-40 w-full object-cover rounded border border-white/10"
-                  loading="lazy"
-                  decoding="async"
-                />
-                <div className="mt-2 text-sm text-white truncate">
-                  {r.game.name}
-                </div>
-                <div className="mt-1 text-xs text-white/50 flex items-center gap-2">
-                  <StatusBadge status={r.status} />
-                  <span>· {timeAgo(r.updated_at)}</span>
-                </div>
-              </Link>
-            </li>
-          ))}
+          {rows.map((r) => {
+            const gid = Number(r.game?.id);
+            const myRating100 = Number.isFinite(gid) ? ratingsByGame[gid] : undefined;
+
+            return (
+              <li key={`${r.game.id}-${r.status}`}>
+                <Link
+                  href={`/game/${r.game.id}`}
+                  className="block rounded hover:bg-white/5 p-2"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={r.game.cover_url || '/cover-fallback.png'}
+                    alt={r.game.name}
+                    className="h-40 w-full object-cover rounded border border-white/10"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                  <div className="mt-2 text-sm text-white truncate">
+                    {r.game.name}
+                  </div>
+                  <div className="mt-1 text-xs text-white/50 flex items-center gap-2">
+                    <StatusBadge status={r.status} />
+                    <span>· {timeAgo(r.updated_at)}</span>
+                  </div>
+                  {typeof myRating100 === 'number' && (
+                    <div className="mt-1 flex items-center gap-1 text-xs text-white/80">
+                      <StarRating value={myRating100 / 20} size={14} readOnly />
+                      <span className="text-white/60">{(myRating100 / 20).toFixed(1)}</span>
+                    </div>
+                  )}
+                </Link>
+              </li>
+            );
+          })}
         </ul>
       )}
     </main>

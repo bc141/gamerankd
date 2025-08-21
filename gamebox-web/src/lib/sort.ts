@@ -19,11 +19,16 @@ export const LIBRARY_SORTS: SortOption[] = [
 ];
 
 export type SupabaseSortMap = {
-  recent: { column: string; table?: string };
-  name:   { column: string; table?: string };
-  status?: { column: string; table?: string };
+  recent: { column: string; table?: string }; // table optional (base table when undefined)
+  name:   { column: string; table?: string }; // relation alias (e.g., 'game')
+  status?: { column: string; table?: string }; // optional; base table when undefined
   rating?: { column: string; table?: string }; // optional
 };
+
+// helper to only add foreignTable when present
+function orderOpts(table: string | undefined, ascending: boolean) {
+  return table ? { ascending, foreignTable: table as string } : { ascending };
+}
 
 // Loosen the bound so any Supabase builder with `order` is accepted.
 type AnyOrderable = {
@@ -37,7 +42,9 @@ type AnyOrderable = {
   ) => any;
 };
 
-// Return the same builder type T, unchanged.
+/**
+ * Apply sort to a Supabase query builder (chainable).
+ */
 export function applySortToSupabase<T extends AnyOrderable>(
   qb: T,
   sort: SortKey,
@@ -45,25 +52,22 @@ export function applySortToSupabase<T extends AnyOrderable>(
 ): T {
   switch (sort) {
     case 'recent':
-      return qb.order(map.recent.column, { ascending: false, foreignTable: map.recent.table });
+      // base table column: DO NOT pass foreignTable
+      return qb.order(map.recent.column, orderOpts(map.recent.table, false));
 
     case 'az':
-      return qb.order(map.name.column, { ascending: true, foreignTable: map.name.table });
+      return qb.order(map.name.column, orderOpts(map.name.table, true));
 
     case 'za':
-      return qb.order(map.name.column, { ascending: false, foreignTable: map.name.table });
+      return qb.order(map.name.column, orderOpts(map.name.table, false));
 
     case 'status': {
       if (!map.status) return qb;
-      // group by status, then stable by name
-      const q2 = qb.order(map.status.column, {
-        ascending: true,
-        foreignTable: map.status.table,
-      });
-      return q2.order(map.name.column, {
-        ascending: true,
-        foreignTable: map.name.table,
-      }) as T;
+
+      // 1) order by status (base), 2) stable sort by name (relation)
+      const q1 = (qb as any).order(map.status.column, orderOpts(map.status.table, true));
+      const q2 = (q1 as any).order(map.name.column, orderOpts(map.name.table, true));
+      return q2;
     }
 
     case 'rating_desc': {

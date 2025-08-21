@@ -7,7 +7,7 @@ import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { LIBRARY_STATUSES, type LibraryStatus } from '@/lib/library';
 import { timeAgo } from '@/lib/timeAgo';
 import BackToProfile from '@/components/BackToProfile';
-import { applySortToSupabase, type SortKey } from '@/lib/sort';
+import { applySortToSupabase, type SortKey, type SupabaseSortMap } from '@/lib/sort';
 
 type Tab = 'All' | LibraryStatus;
 
@@ -23,6 +23,12 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
 
 // choose a sensible default; A–Z is good for libraries
 const DEFAULT_SORT: SortKey = 'az';
+
+const LIBRARY_SORT_MAP: SupabaseSortMap = {
+  recent: { column: 'updated_at' },          // base table (no foreignTable)
+  name:   { column: 'name', table: 'game' }, // relation alias 'game'
+  status: { column: 'status' },              // base table (no foreignTable)
+};
 
 type Row = {
   game_id: number;
@@ -92,20 +98,14 @@ export default function ProfileLibraryPage() {
         .select('game_id,status,updated_at,game:games(id,name,cover_url)')
         .eq('user_id', prof.id);
 
-      // Apply filter first (if any)
-      if (tab !== 'All') {
-        q = q.eq('status', tab);
-      }
-
       // Server sort for non-rating choices
       if (sort !== 'rating_desc' && sort !== 'rating_asc') {
-        q = applySortToSupabase(q, sort, {
-          // supabase sort map for this view
-          recent: { table: 'user_game_library', column: 'updated_at' },
-          name:   { table: 'games',             column: 'name' },
-          status: { table: 'user_game_library', column: 'status' },
-          // no rating map here: we're sorting client-side for rating
-        });
+        q = applySortToSupabase(q, sort, LIBRARY_SORT_MAP);
+      }
+
+      // Apply filter after sorting
+      if (tab !== 'All') {
+        q = q.eq('status', tab);
       }
 
       const { data, error } = await q.limit(200);

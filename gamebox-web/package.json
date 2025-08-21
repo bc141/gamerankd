@@ -2,10 +2,11 @@
   "name": "gamebox-web",
   "version": "0.1.0",
   "private": true,
-"scripts": {
-  "dev": "next dev",
-  "build": "next build",
-  "start": "next start"
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "typecheck": "tsc --noEmit"
 },
   "dependencies": {
     "@supabase/auth-helpers-nextjs": "^0.10.0",

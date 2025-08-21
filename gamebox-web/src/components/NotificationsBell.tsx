@@ -1,0 +1,141 @@
+// src/app/(whatever-your-path-is)/NotificationsBell.tsx
+'use client';
+
+import Link from 'next/link';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { supabaseBrowser } from '@/lib/supabaseBrowser';
+import { getUnreadCount, NOTIF_SYNC_KEY } from '@/lib/notifications';
+import { BellIcon } from '@/components/icons';
+
+
+export default function NotificationsBell() {
+  const supabase = supabaseBrowser();
+
+  const mounted = useRef(false);
+  const [me, setMe] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
+  const [count, setCount] = useState(0);
+
+  // Auth + count (re)compute
+  const refreshAuthAndCount = useCallback(async () => {
+    const { data } = await supabase.auth.getUser();
+    if (!mounted.current) return;
+
+    const uid = data.user?.id ?? null;
+    setMe(uid);
+    setReady(true);
+
+    if (!uid) {
+      setCount(0);
+      return;
+    }
+    const c = await getUnreadCount(supabase);
+    if (mounted.current) setCount(typeof c === 'number' ? c : 0);
+  }, [supabase]);
+
+  // Initial load + auth changes + visibility/focus refresh
+  useEffect(() => {
+    mounted.current = true;
+    refreshAuthAndCount();
+
+    const { data: authSub } = supabase.auth.onAuthStateChange(() => {
+      refreshAuthAndCount();
+      try { localStorage.setItem('gb-auth-sync', String(Date.now())); } catch {}
+    });
+
+    const onFocus = () => { if (me) refreshAuthAndCount(); };
+    const onVis = () => { if (!document.hidden && me) refreshAuthAndCount(); };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVis);
+
+    return () => {
+      mounted.current = false;
+      authSub.subscription.unsubscribe();
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, [supabase, refreshAuthAndCount, me]);
+
+  // Realtime updates (INSERT/UPDATE/DELETE) – tolerate legacy recipient_id
+  useEffect(() => {
+    if (!me) return;
+  
+    const channel = supabase
+      .channel(`notif-bell-${me}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${me}` },
+        () => refreshAuthAndCount()
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'notifications', filter: `user_id=eq.${me}` },
+        // if unread -> read or any change on my rows
+        () => refreshAuthAndCount()
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'notifications', filter: `user_id=eq.${me}` },
+        () => refreshAuthAndCount()
+      )
+      .subscribe();
+  
+    return () => { supabase.removeChannel(channel); };
+  }, [supabase, me, refreshAuthAndCount]);
+
+  // Cross-tab sync (mark-all, auth, blocks)
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (!me) return;
+      if (e.key === NOTIF_SYNC_KEY || e.key === 'gb-auth-sync' || e.key === 'gb-block-sync') {
+        refreshAuthAndCount();
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [refreshAuthAndCount, me]);
+
+  // UI
+  if (!ready) {
+    return <div className="relative h-8 w-8 rounded-full bg-white/10 animate-pulse" aria-hidden />;
+  }
+
+  if (!me) {
+    return (
+      <button
+        onClick={() => window.location.href = '/login'}
+        className="relative p-2 rounded hover:bg-white/10"
+        aria-label="Sign in"
+        title="Sign in"
+      >
+        <BellIcon className="h-5 w-5 opacity-90" />
+      </button>
+    );
+  }
+
+  const badge = count > 99 ? '99+' : String(count);
+
+  return (
+    <button
+      onClick={() => window.location.href = '/notifications'}
+      className="relative p-2 rounded hover:bg-white/10"
+      aria-label={count > 0 ? `${count} unread notifications` : 'Notifications'}
+      title="Notifications"
+    >
+              <BellIcon className="h-5 w-5 opacity-90" />
+      {count > 0 && (
+        <span
+          className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-[11px] leading-[18px] text-white text-center shadow"
+          aria-hidden
+        >
+          {badge}
+        </span>
+      )}
+      {/* SR-only live region so screen readers get count updates */}
+      <span className="sr-only" aria-live="polite">
+        {count} unread notifications
+      </span>
+    </button>
+  );
+}
+

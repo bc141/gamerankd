@@ -1,6 +1,7 @@
 // src/app/settings/profile/page.tsx
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
@@ -14,12 +15,46 @@ type Profile = {
   avatar_url: string | null; // stored as public URL
 };
 
+function useUnsavedPrompt(enabled: boolean) {
+  useEffect(() => {
+    if (!enabled) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [enabled]);
+}
+
 export default function EditProfilePage() {
   const supabase = supabaseBrowser();
   const router = useRouter();
 
-  const [me, setMe] = useState<{ id: string; email?: string } | null>(null);
+  const [me, setMe] = useState<{ id: string; email?: string; user_metadata?: any } | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+
+  /**
+   * Derive username for profile URL:
+   * - If you already have `profile.username`, use that.
+   * - Otherwise pull it from the session/profile load you're doing.
+   */
+  const profileUsername = (profile?.username ?? me?.user_metadata?.username ?? '').toString();
+  const profileUrl = useMemo(
+    () => (profileUsername ? `/u/${profileUsername}` : '/me'),
+    [profileUsername]
+  );
+
+  /**
+   * Capture the original values after you load them from DB once.
+   * INITIALIZE THESE right after you set the form fields from Supabase.
+   * For example, wherever you currently do:
+   *   setDisplayName(db.display_name ?? '');
+   *   setBio(db.bio ?? '');
+   * ALSO add:
+   *   setInitial({ name: db.display_name ?? '', bio: db.bio ?? '' });
+   */
+  const [initial, setInitial] = useState<{ name: string; bio: string } | null>(null);
 
   const [displayName, setDisplayName] = useState('');
   const [bio, setBio] = useState('');
@@ -29,6 +64,49 @@ export default function EditProfilePage() {
   const [avatarVersion, setAvatarVersion] = useState<number>(0); // bust <img> cache after upload
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  /**
+   * Replace these variable names with your actual state if different.
+   * Example assumes:
+   *   const [displayName, setDisplayName] = useState('');
+   *   const [bio, setBio] = useState('');
+   * If you also track avatar changes, OR them into `dirty` with your own flag.
+   */
+  const dirty = useMemo(() => {
+    if (!initial) return false;
+    return (displayName ?? '') !== initial.name || (bio ?? '') !== initial.bio;
+    // ^ if you don't track avatarDirty, remove it.
+  }, [initial, displayName, bio]);
+
+  // Warn on tab close while dirty
+  useUnsavedPrompt(dirty);
+
+  // Cmd/Ctrl+S shortcut to save
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        if (!saving && dirty) handleSaveAndExit();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [saving, dirty]);
+
+  /** Back/cancel handler with confirm */
+  function handleBackToProfile() {
+    if (dirty && !confirm('Discard unsaved changes?')) return;
+    router.push(profileUrl);
+  }
+
+  /** Save handler wrapper — call your existing save function, then redirect */
+  async function handleSaveAndExit() {
+    // If you already have a `save()` or `onSave()` function, call it here.
+    // It should return a truthy value (or no error) on success.
+    const ok = await saveBasics(); // <-- replace with your actual save function
+    if (!ok) return;           // if your save throws, wrap in try/catch
+    router.push(profileUrl);
+  }
 
   // Load session + profile
   useEffect(() => {
@@ -67,6 +145,7 @@ export default function EditProfilePage() {
       setProfile(p);
       setDisplayName(p.display_name ?? '');
       setBio(p.bio ?? '');
+      setInitial({ name: p.display_name ?? '', bio: p.bio ?? '' });
     })();
 
     return () => {
@@ -81,7 +160,7 @@ export default function EditProfilePage() {
   }, [profile?.avatar_url, avatarVersion]);
 
   async function saveBasics() {
-    if (!me) return;
+    if (!me) return false;
     setError(null);
     setSaving(true);
 
@@ -100,7 +179,7 @@ export default function EditProfilePage() {
 
     if (updErr) {
       setError(updErr.message);
-      return;
+      return false;
     }
 
     setProfile((prev) =>
@@ -112,6 +191,8 @@ export default function EditProfilePage() {
           }
         : prev
     );
+
+    return true;
   }
 
   function onPickFile() {
@@ -185,6 +266,15 @@ export default function EditProfilePage() {
 
   return (
     <main className="p-8 max-w-2xl mx-auto">
+      <div className="mb-4">
+        <button
+          type="button"
+          onClick={handleBackToProfile}
+          className="inline-flex items-center gap-2 text-white/80 hover:text-white text-sm"
+        >
+          <span aria-hidden>←</span> Back to profile
+        </button>
+      </div>
       <h1 className="text-2xl font-bold mb-6">Edit profile</h1>
 
       {/* Avatar */}
@@ -238,16 +328,14 @@ export default function EditProfilePage() {
 
       <div className="mt-6 flex gap-3">
         <button
-          onClick={saveBasics}
-          disabled={saving}
+          onClick={handleSaveAndExit}
+          disabled={!dirty || saving}
           className="bg-indigo-600 text-white px-4 py-2 rounded disabled:opacity-50"
         >
           {saving ? 'Saving…' : 'Save changes'}
         </button>
         <button
-          onClick={() =>
-            router.push(profile.username ? `/u/${profile.username}` : '/')
-          }
+          onClick={handleBackToProfile}
           className="bg-white/10 px-4 py-2 rounded"
         >
           Cancel

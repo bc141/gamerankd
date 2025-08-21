@@ -1,0 +1,363 @@
+'use client';
+
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import Link from 'next/link';
+import { supabaseBrowser } from '@/lib/supabaseBrowser';
+import { waitForSession } from '@/lib/waitForSession';
+import { timeAgo } from '@/lib/timeAgo';
+import { useReviewContextModal } from '@/components/ReviewContext/useReviewContextModal';
+import { getBlockSets } from '@/lib/blocks';
+import { toInList } from '@/lib/sql';            // ✅ NEW
+
+type NotifMeta = { preview?: string } | null;
+
+type Notif = {
+  id: number;
+  type: 'like' | 'comment' | 'follow';
+  user_id: string;
+  actor_id: string;
+  game_id: number | null;
+  comment_id: string | null;
+  meta: NotifMeta;
+  read_at: string | null;
+  created_at: string;
+};
+
+type Profile = {
+  id: string;
+  username: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
+};
+
+type Game = { id: number; name: string; cover_url: string | null };
+
+function shouldOpenContext(target: EventTarget | null) {
+  const el = target as HTMLElement | null;
+  if (el?.closest('a,button,[data-ignore-context],input,textarea,svg')) return false;
+  const sel = window.getSelection?.();
+  if (sel && !sel.isCollapsed) return false;
+  return true;
+}
+
+export default function NotificationsPage() {
+  const supabase = supabaseBrowser();
+  const [ready, setReady] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [rows, setRows] = useState<Notif[]>([]);
+  const [actors, setActors] = useState<Record<string, Profile>>({});
+  const [games, setGames] = useState<Record<number, Game>>({});
+  const [error, setError] = useState<string | null>(null);
+  const [me, setMe] = useState<string | null>(null);
+
+  const { open: openContext, modal: contextModal } = useReviewContextModal(supabase, me);
+
+  const broadcastNotifSync = () => {
+    try { localStorage.setItem('gb-notif-sync', String(Date.now())); } catch {}
+  };
+
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'gb-notif-sync' || e.key === 'gb-block-sync') {
+        fetchAll();
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const fetchAll = async () => {
+    setLoading(true);
+    setError(null);
+
+    const session = await waitForSession(supabase);
+    const uid = session?.user?.id ?? null;
+    setMe(uid);
+    setReady(true);
+
+    if (!uid) {
+      setRows([]); setActors({}); setGames({}); setLoading(false);
+      return;
+    }
+
+    // ⛔️ gather block/mute sets first
+    const { iBlocked, blockedMe, iMuted } = await getBlockSets(supabase, uid);
+
+    // DB query (exclude muted actors server-side)
+    let q = supabase
+      .from('notifications')
+      .select('id,type,user_id,actor_id,game_id,comment_id,meta,read_at,created_at')
+      .eq('user_id', uid)
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    const mutedIds = Array.from(iMuted ?? new Set<string>());
+    if (mutedIds.length) {
+      q = q.not('actor_id', 'in', toInList(mutedIds));   // ✅ DB-level exclusion
+    }
+
+    const { data, error } = await q;
+
+    if (error) {
+      setError(error.message);
+      setRows([]);
+      setLoading(false);
+      return;
+    }
+
+    // Final client filter: blocked either way OR muted (belt & suspenders)
+    const isHidden = (aid?: string | null) =>
+      !!aid && (iBlocked.has(aid) || blockedMe.has(aid) || iMuted.has(aid));
+
+    const all = (data ?? []) as Notif[];
+    const visible = all.filter(n => !isHidden(n.actor_id));
+    setRows(visible);
+
+    // hydrate (profiles + games) based on filtered list
+    const actorIds = Array.from(new Set(visible.map(n => n.actor_id)));
+    const gameIds  = Array.from(new Set(
+      visible.map(n => n.game_id).filter((x): x is number => typeof x === 'number')
+    ));
+
+    const [profsRes, gamesRes] = await Promise.all([
+      actorIds.length
+        ? supabase.from('profiles')
+            .select('id,username,display_name,avatar_url')
+            .in('id', actorIds)
+        : Promise.resolve({ data: [] as any[] }),
+      gameIds.length
+        ? supabase.from('games')
+            .select('id,name,cover_url')
+            .in('id', gameIds)
+        : Promise.resolve({ data: [] as any[] }),
+    ]);
+
+    const profMap: Record<string, Profile> = {};
+    (profsRes.data ?? []).forEach((p: any) => { profMap[p.id] = p; });
+    setActors(profMap);
+
+    const gameMap: Record<number, Game> = {};
+    (gamesRes.data ?? []).forEach((g: any) => { gameMap[g.id] = g; });
+    setGames(gameMap);
+
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => { if (!cancelled) await fetchAll(); })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase]);
+
+  useEffect(() => {
+    const onFocus = () => fetchAll();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [me]);
+
+  async function handleRowClick(n: Notif) {
+    if (n.read_at) return;
+    const now = new Date().toISOString();
+    setRows(prev => prev.map(x => (x.id === n.id ? { ...x, read_at: now } : x)));
+    const { error } = await supabase
+      .from('notifications')
+      .update({ read_at: now })
+      .eq('id', n.id)
+      .is('read_at', null);
+    if (error) {
+      setRows(prev => prev.map(x => (x.id === n.id ? { ...x, read_at: null } : x)));
+      return;
+    }
+    broadcastNotifSync();
+  }
+
+  async function handleMarkAll() {
+    if (!rows.some(r => !r.read_at)) return;
+    const now = new Date().toISOString();
+    const before = rows;
+    setRows(prev => prev.map(x => (x.read_at ? x : { ...x, read_at: now })));
+    const { error } = await supabase
+      .from('notifications')
+      .update({ read_at: now })
+      .eq('user_id', me)
+      .is('read_at', null);
+    if (error) {
+      setRows(before);
+      return;
+    }
+    broadcastNotifSync();
+  }
+
+  const title = useMemo(() => 'Notifications', []);
+
+  if (!ready) return <main className="p-8">Loading…</main>;
+
+  return (
+    <main className="mx-auto max-w-3xl px-4 py-6">
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-2xl font-bold">{title}</h1>
+        {rows.length > 0 && rows.some(r => !r.read_at) && (
+          <button
+            onClick={handleMarkAll}
+            className="text-sm rounded px-3 py-1.5 bg-white/10 hover:bg-white/15"
+          >
+            Mark all read
+          </button>
+        )}
+      </div>
+
+      {error && <p className="text-red-500 mb-4">{error}</p>}
+
+      {loading ? (
+        <p className="text-white/70">Loading…</p>
+      ) : rows.length === 0 ? (
+        <p className="text-white/70">You’re all caught up.</p>
+      ) : (
+        <ul className="divide-y divide-white/10">
+          {rows.map((n) => {
+            const actor = actors[n.actor_id];
+            const actorName = actor?.display_name || actor?.username || 'Someone';
+            const actorHref = actor?.username ? `/u/${actor.username}` : null;
+            const avatar = actor?.avatar_url || '/avatar-placeholder.svg';
+
+            const game = n.game_id != null ? games[n.game_id] ?? null : null;
+            const gameHref = game ? `/game/${game.id}` : null;
+
+            const ActorName = actorHref ? (
+              <Link href={actorHref} prefetch={false} className="font-medium hover:underline">
+                {actorName}
+              </Link>
+            ) : (
+              <span className="font-medium">{actorName}</span>
+            );
+
+            const GameName =
+              gameHref && game ? (
+                <Link href={gameHref} prefetch={false} className="font-medium hover:underline">
+                  {game.name}
+                </Link>
+              ) : game ? (
+                <span className="font-medium">{game.name}</span>
+              ) : null;
+
+            let text: ReactNode = null;
+            if (n.type === 'like') {
+              text = (
+                <>
+                  {ActorName} liked your rating{GameName ? <> of {GameName}</> : null}.
+                </>
+              );
+            } else if (n.type === 'comment') {
+              const preview = n.meta?.preview ? String(n.meta.preview) : null;
+              text = (
+                <>
+                  {ActorName} commented on your rating{GameName ? <> of {GameName}</> : null}.
+                  {preview ? (
+                    <span className="text-white/60">
+                      {' '}
+                      — “{preview.slice(0, 80)}
+                      {preview.length > 80 ? '…' : ''}”
+                    </span>
+                  ) : null}
+                </>
+              );
+            } else {
+              text = <>{ActorName} started following you.</>;
+            }
+
+            const unread = !n.read_at;
+            const canOpenContext =
+              (n.type === 'like' || n.type === 'comment') &&
+              typeof n.game_id === 'number' &&
+              !!me;
+
+            const absTime = new Date(n.created_at).toLocaleString();
+
+            return (
+              <li
+                key={n.id}
+                role="button"
+                tabIndex={0}
+                onClick={(e) => {
+                  handleRowClick(n);
+                  if (canOpenContext && shouldOpenContext(e.target)) {
+                    openContext(me!, n.game_id!);
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    handleRowClick(n);
+                    if (canOpenContext) openContext(me!, n.game_id!);
+                  }
+                }}
+                className={`flex items-start gap-3 py-4 rounded-lg -mx-3 px-3 transition-colors cursor-pointer ${
+                  unread ? 'bg-white/5 hover:bg-white/10' : 'hover:bg-white/5'
+                }`}
+              >
+                {actorHref ? (
+                  <Link
+                    href={actorHref}
+                    prefetch={false}
+                    className="shrink-0 mt-0.5"
+                    onClick={(e) => e.stopPropagation()}
+                    aria-label={`Open ${actorName}'s profile`}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={avatar}
+                      alt=""
+                      className="h-9 w-9 rounded-full object-cover border border-white/10"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  </Link>
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={avatar}
+                    alt=""
+                    className="h-9 w-9 rounded-full object-cover border border-white/10 mt-0.5"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                )}
+
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm text-white/90">{text}</div>
+                  <div className={`text-xs mt-0.5 ${unread ? 'text-white/60' : 'text-white/40'}`}>
+                    <time title={absTime}>{timeAgo(n.created_at)}</time>
+                  </div>
+                </div>
+
+                {game?.cover_url ? (
+                  <Link
+                    href={`/game/${game.id}`}
+                    prefetch={false}
+                    aria-label={`Open ${game.name}`}
+                    className="shrink-0"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={game.cover_url}
+                      alt={game.name}
+                      className="h-14 w-10 rounded object-cover border border-white/10"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  </Link>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {contextModal}
+    </main>
+  );
+}

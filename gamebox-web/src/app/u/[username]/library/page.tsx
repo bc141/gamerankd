@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
@@ -9,6 +9,7 @@ import { timeAgo } from '@/lib/timeAgo';
 import BackToProfile from '@/components/BackToProfile';
 import { applySortToSupabase, applySortToArray, type SupabaseSortMap, type SortKey } from '@/lib/sort';
 import StarRating from '@/components/StarRating';
+import StatusMenu from '@/components/StatusMenu';
 
 type Tab = 'All' | LibraryStatus;
 
@@ -93,6 +94,57 @@ export default function ProfileLibraryPage() {
     Completed: 0,
     Dropped: 0,
   });
+
+  // Add handlers inside the component
+  const handleStatusChange = useCallback(async (gameId: number, next: LibraryStatus) => {
+    // optimistic local update
+    setRows(prev => {
+      if (!prev) return prev;
+      const nextRows = prev.map(r => r.game_id === gameId ? { ...r, status: next, updated_at: new Date().toISOString() } : r);
+      // re-sort if needed
+      return applySortToArray(nextRows, sort, (row) => ({
+        name: row.game?.name ?? '',
+        recent: row.updated_at,
+        status: row.status,
+        rating: row.my_rating,
+      }));
+    });
+
+    // persist
+    await supabase
+      .from('user_game_library')
+      .upsert(
+        { user_id: owner!.id, game_id: gameId, status: next, updated_at: new Date().toISOString() },
+        { onConflict: 'user_id,game_id' }
+      );
+
+    // update global counts optimistically (optional)
+    setLibCounts(c => {
+      const diff: Record<LibraryStatus, number> = { Playing:0, Backlog:0, Completed:0, Dropped:0 };
+      // compute old status from current rows if needed – simple approach: refetch next paint or skip
+      return c; // keep simple; counts refresh on next navigation anyway
+    });
+  }, [owner, sort, supabase]);
+
+  const handleSetRating = useCallback(async (gameId: number, value0to5: number) => {
+    const rating = Math.round((value0to5 ?? 0) * 20); // store out of 100
+    // optimistic
+    setRows(prev => {
+      if (!prev) return prev;
+      const nextRows = prev.map(r => r.game_id === gameId ? { ...r, my_rating: rating } : r);
+      // re-sort if rating sort
+      return applySortToArray(nextRows, sort, (row) => ({
+        name: row.game?.name ?? '',
+        recent: row.updated_at,
+        status: row.status,
+        rating: row.my_rating,
+      }));
+    });
+
+    await supabase
+      .from('reviews')
+      .upsert({ user_id: owner!.id, game_id: gameId, rating }, { onConflict: 'user_id,game_id' });
+  }, [owner, sort, supabase]);
 
   // Persist sort preference to localStorage
   useEffect(() => {
@@ -295,8 +347,9 @@ export default function ProfileLibraryPage() {
             <li key={`${r.game?.id || r.game_id}-${r.status}-${r.updated_at}`}>
               <Link
                 href={`/game/${r.game?.id || r.game_id}`}
-                className="block rounded hover:bg-white/5 p-2"
+                className="block rounded hover:bg-white/5 p-2 relative"
               >
+                {/* cover */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={r.game?.cover_url || '/cover-fallback.png'}
@@ -305,22 +358,35 @@ export default function ProfileLibraryPage() {
                   loading="lazy"
                   decoding="async"
                 />
+
+                {/* top-right status menu */}
+                <div className="absolute right-3 top-3">
+                  <StatusMenu
+                    value={r.status}
+                    onChange={(next) => handleStatusChange(r.game_id, next)}
+                  />
+                </div>
+
+                {/* name */}
                 <div className="mt-2 text-sm text-white truncate">
                   {r.game?.name || 'Unknown Game'}
                 </div>
+
+                {/* meta row */}
                 <div className="mt-1 text-xs text-white/50 flex items-center gap-2">
                   <span className="px-1.5 py-0.5 rounded bg-white/10">{r.status}</span>
                   <span>· {timeAgo(r.updated_at)}</span>
                 </div>
-                {/* user rating mini (if exists) */}
-                {r.my_rating != null && (
-                  <div className="mt-1 flex items-center gap-2 text-xs text-white/70" data-ignore-context>
-                    <span className="inline-flex items-center gap-1">
-                      <StarRating value={(r.my_rating as number) / 20} readOnly size={14} />
-                      <span>{((r.my_rating as number) / 20).toFixed(1)} / 5</span>
-                    </span>
-                  </div>
-                )}
+
+                {/* rating row – editable */}
+                <div className="mt-1 flex items-center gap-2 text-xs text-white/70" data-ignore-context>
+                  <StarRating
+                    value={(r.my_rating ?? 0) / 20}
+                    size={14}
+                    onChange={(v) => handleSetRating(r.game_id, v)}
+                  />
+                  {r.my_rating != null && <span>{((r.my_rating as number) / 20).toFixed(1)} / 5</span>}
+                </div>
               </Link>
             </li>
           ))}

@@ -7,7 +7,7 @@ import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { waitForSession } from '@/lib/waitForSession';
 import { timeAgo } from '@/lib/timeAgo';
 import { LIBRARY_STATUSES, type LibraryStatus } from '@/lib/library';
-import Badge from '@/components/ui/Badge';
+import StatusBadge from '@/components/library/StatusBadge';
 
 type Tab = 'All' | LibraryStatus;
 
@@ -31,6 +31,13 @@ export default function LibraryPageClient() {
   const [tab, setTab] = useState<Tab>('All');
   const [rows, setRows] = useState<Row[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [libCounts, setLibCounts] = useState<{ total: number; Backlog: number; Playing: number; Completed: number; Dropped: number }>({
+    total: 0,
+    Backlog: 0,
+    Playing: 0,
+    Completed: 0,
+    Dropped: 0,
+  });
 
   // load session once
   useEffect(() => {
@@ -91,6 +98,15 @@ export default function LibraryPageClient() {
       const filtered =
         tab === 'All' ? normalized : normalized.filter((r) => r.status === tab);
 
+      // Calculate library counts
+      const counts = {
+        total: normalized.length,
+        Backlog: normalized.filter(r => r.status === 'Backlog').length,
+        Playing: normalized.filter(r => r.status === 'Playing').length,
+        Completed: normalized.filter(r => r.status === 'Completed').length,
+        Dropped: normalized.filter(r => r.status === 'Dropped').length,
+      };
+      setLibCounts(counts);
       setRows(filtered);
     })();
 
@@ -106,21 +122,37 @@ export default function LibraryPageClient() {
       <h1 className="text-2xl font-bold mb-4">{header}</h1>
 
       {/* Tabs */}
-      <div className="flex items-center gap-2 mb-4">
-        {TABS.map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            aria-pressed={tab === t}
-            className={`px-3 py-1.5 rounded text-sm ${
-              tab === t
-                ? 'bg-indigo-600 text-white'
-                : 'bg-white/10 hover:bg-white/15 text-white/80'
-            }`}
-          >
-            {t}
-          </button>
-        ))}
+      <div className="mt-4 mb-6 flex gap-2 overflow-x-auto no-scrollbar snap-x">
+        {(['All', 'Backlog', 'Playing', 'Completed', 'Dropped'] as const).map((t) => {
+          const isAll = t === 'All';
+          const count =
+            t === 'All' ? libCounts.total : (libCounts as any)[t] ?? 0;
+          const disabled = !isAll && count === 0;
+          const active = tab === t;
+
+          return (
+            <button
+              key={t}
+              type="button"
+              disabled={disabled}
+              aria-pressed={active}
+              onClick={() => {
+                if (active && !isAll) {
+                  setTab('All'); // clicking the active filter toggles back to All
+                } else {
+                  setTab(t);
+                }
+              }}
+              className={`snap-start rounded-lg px-3 py-1.5 text-sm border
+                ${active ? 'bg-indigo-600 text-white border-indigo-500' : 'bg-white/5 text-white/90 border-white/10 hover:bg-white/10'}
+                ${disabled ? 'opacity-40 pointer-events-none' : ''}
+              `}
+            >
+              {t} {!isAll && <span className="opacity-70">({count})</span>}
+              {isAll && <span className="opacity-70">({libCounts.total})</span>}
+            </button>
+          );
+        })}
       </div>
 
       {/* Error */}
@@ -164,9 +196,7 @@ export default function LibraryPageClient() {
                   {r.game.name}
                 </div>
                 <div className="mt-1 text-xs text-white/50 flex items-center gap-2">
-                  <Badge tone={r.status === 'Completed' ? 'success' : 'neutral'}>
-                    {r.status}
-                  </Badge>
+                  <StatusBadge status={r.status} />
                   <span>· {timeAgo(r.updated_at)}</span>
                 </div>
               </Link>

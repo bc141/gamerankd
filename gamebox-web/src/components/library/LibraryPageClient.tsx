@@ -9,7 +9,42 @@ import { timeAgo } from '@/lib/timeAgo';
 import { LIBRARY_STATUSES, type LibraryStatus } from '@/lib/library';
 import StatusBadge from '@/components/library/StatusBadge';
 
-type Tab = 'All' | LibraryStatus;
+// Tabs row
+const TABS = [
+  { key: 'All',       label: 'All' },
+  { key: 'Backlog',   label: 'Backlog' },
+  { key: 'Playing',   label: 'Playing' },
+  { key: 'Completed', label: 'Completed' },
+  { key: 'Dropped',   label: 'Dropped' },
+] as const;
+
+type TabKey = typeof TABS[number]['key'];
+
+function EmptyState({ tab }: { tab: TabKey }) {
+  const copy: Record<TabKey, { title: string; hint: string }> = {
+    All:       { title: 'No games in your library yet',      hint: 'Open any game page and use the Library status to add it.' },
+    Backlog:   { title: 'Nothing in Backlog yet',            hint: 'Set a game\'s status to Backlog from its page.' },
+    Playing:   { title: 'Nothing in Playing yet',            hint: 'Set a game\'s status to Playing from its page.' },
+    Completed: { title: 'No games Completed yet',            hint: 'Mark a finished game as Completed on its page.' },
+    Dropped:   { title: 'No games Dropped yet',              hint: 'Set Dropped on a game you stopped playing.' },
+  };
+
+  const c = copy[tab];
+
+  return (
+    <div className="mt-8 rounded-2xl border border-white/10 bg-white/5 p-8 text-center max-w-lg">
+      <div className="text-3xl mb-2">🗂️</div>
+      <h3 className="text-white text-lg font-semibold">{c.title}</h3>
+      <p className="text-white/70 mt-1">{c.hint}</p>
+      <a
+        href="/search"
+        className="inline-block mt-4 px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-500"
+      >
+        Find games
+      </a>
+    </div>
+  );
+}
 
 type Row = {
   game_id: number;
@@ -22,13 +57,11 @@ type Row = {
   };
 };
 
-const TABS: Tab[] = ['All', ...LIBRARY_STATUSES];
-
 export default function LibraryPageClient() {
   const supabase = supabaseBrowser();
 
   const [uid, setUid] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>('All');
+  const [tab, setTab] = useState<TabKey>('All');
   const [rows, setRows] = useState<Row[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [libCounts, setLibCounts] = useState<{ total: number; Backlog: number; Playing: number; Completed: number; Dropped: number }>({
@@ -38,6 +71,10 @@ export default function LibraryPageClient() {
     Completed: 0,
     Dropped: 0,
   });
+
+  function countFor(k: TabKey) {
+    return k === 'All' ? libCounts.total : (libCounts as any)[k] ?? 0;
+  }
 
   // load session once
   useEffect(() => {
@@ -122,34 +159,47 @@ export default function LibraryPageClient() {
       <h1 className="text-2xl font-bold mb-4">{header}</h1>
 
       {/* Tabs */}
-      <div className="mt-4 mb-6 flex gap-2 overflow-x-auto no-scrollbar snap-x">
-        {(['All', 'Backlog', 'Playing', 'Completed', 'Dropped'] as const).map((t) => {
-          const isAll = t === 'All';
-          const count =
-            t === 'All' ? libCounts.total : (libCounts as any)[t] ?? 0;
-          const disabled = !isAll && count === 0;
-          const active = tab === t;
+      <div
+        role="tablist"
+        aria-label="Library filters"
+        className="flex gap-2 overflow-x-auto no-scrollbar"
+      >
+        {TABS.map(({ key, label }) => {
+          const n = countFor(key);
+          const selected = tab === key;
+          const muted = key !== 'All' && n === 0 && !selected;
 
           return (
             <button
-              key={t}
+              key={key}
+              role="tab"
               type="button"
-              disabled={disabled}
-              aria-pressed={active}
-              onClick={() => {
-                if (active && !isAll) {
-                  setTab('All'); // clicking the active filter toggles back to All
-                } else {
-                  setTab(t);
-                }
-              }}
-              className={`snap-start rounded-lg px-3 py-1.5 text-sm border
-                ${active ? 'bg-indigo-600 text-white border-indigo-500' : 'bg-white/5 text-white/90 border-white/10 hover:bg-white/10'}
-                ${disabled ? 'opacity-40 pointer-events-none' : ''}
-              `}
+              aria-selected={selected}
+              onClick={() => setTab(key)}
+              className={[
+                'px-3 py-1.5 rounded-lg border text-sm transition-colors',
+                selected
+                  ? 'bg-indigo-600 text-white border-transparent'
+                  : muted
+                    ? 'text-white/55 border-white/10 hover:bg-white/5'
+                    : 'text-white/90 border-white/10 hover:bg-white/10',
+              ].join(' ')}
             >
-              {t} {!isAll && <span className="opacity-70">({count})</span>}
-              {isAll && <span className="opacity-70">({libCounts.total})</span>}
+              <span className="inline-flex items-center gap-2">
+                {label}
+                <span
+                  className={[
+                    'text-xs px-1.5 py-0.5 rounded',
+                    selected
+                      ? 'bg-white/20 text-white'
+                      : muted
+                        ? 'bg-white/5 text-white/50'
+                        : 'bg-white/10 text-white/70',
+                  ].join(' ')}
+                >
+                  {n}
+                </span>
+              </span>
             </button>
           );
         })}
@@ -173,7 +223,7 @@ export default function LibraryPageClient() {
 
       {/* Content */}
       {rows && rows.length === 0 && !err && (
-        <p className="text-white/60">No games yet in this view.</p>
+        <EmptyState tab={tab} />
       )}
 
       {rows && rows.length > 0 && (

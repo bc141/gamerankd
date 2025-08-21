@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
-import { LIBRARY_STATUSES, type LibraryStatus } from '@/lib/library';
+import { type LibraryStatus } from '@/lib/library';
 import { timeAgo } from '@/lib/timeAgo';
 import BackToProfile from '@/components/BackToProfile';
 import { applySortToSupabase, applySortToArray, type SupabaseSortMap, type SortKey } from '@/lib/sort';
@@ -26,9 +26,9 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
 const DEFAULT_SORT: SortKey = 'az';
 
 const LIBRARY_SORT_MAP: SupabaseSortMap = {
-  recent: { column: 'updated_at' },            // from user_game_library
-  name:   { column: 'name', table: 'game' },   // <-- MUST match the alias in .select('game:games(...)')
-  status: { column: 'status' },
+  recent: { column: 'updated_at' },            // base table column
+  name:   { column: 'name', table: 'games' },  // relation key, not the alias
+  status: { column: 'status' },                // base table column
 };
 
 type Row = {
@@ -123,7 +123,9 @@ export default function ProfileLibraryPage() {
         .eq('user_id', prof.id);
 
       let qData = qBase;
-      if (sort !== 'ratingHigh' && sort !== 'ratingLow') {
+      // Only send sorts to the server when it actually helps.
+      // A–Z / Z–A are handled client-side for correctness.
+      if (sort === 'recent' || sort === 'status') {
         qData = applySortToSupabase(qData, sort as SortKey, LIBRARY_SORT_MAP) as typeof qData;
       }
       if (tab !== 'All') {
@@ -167,7 +169,12 @@ export default function ProfileLibraryPage() {
       const withRatings = list.map(r => ({ ...r, my_rating: ratingMap[r.game_id] ?? null }));
 
       // Client-side refinement (status ranking, rating sorts, etc.)
-      const needsClientRefine = sort === 'status' || sort === 'ratingHigh' || sort === 'ratingLow';
+      const needsClientRefine =
+        sort === 'status' ||
+        sort === 'ratingHigh' ||
+        sort === 'ratingLow' ||
+        sort === 'az' ||
+        sort === 'za';
       const finalRows = needsClientRefine
         ? applySortToArray(withRatings, sort as SortKey, (row) => ({
             name: row.game?.name ?? '',

@@ -12,6 +12,7 @@ export default async function Home() {
   const { data: games, error } = await supabase
     .from('games')
     .select('id,name,cover_url')
+    .is('parent_igdb_id', null) // Only show base titles
     .order('name', { ascending: true })
     .limit(32);
 

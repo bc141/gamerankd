@@ -44,8 +44,16 @@ export async function GET(req: NextRequest) {
     }
 
     // After upserting, fetch the results with parent_igdb_id for collapsing
+    const fetchQs = new URLSearchParams({
+      select: 'igdb_id,parent_igdb_id,name,cover_url,release_year,summary,aliases',
+    });
+    // Only show base titles (not editions)
+    fetchQs.append('parent_igdb_id', 'is.null');
+    // Filter to the games we just upserted
+    fetchQs.append('or', `(igdb_id.eq.${payload.map(p => p.igdb_id).join(',igdb_id.eq.')})`);
+    
     const fetchRes = await fetch(
-      `${SB_URL}/rest/v1/games?select=igdb_id,parent_igdb_id,name,cover_url,release_year,summary,aliases&or=(igdb_id.eq.${payload.map(p => p.igdb_id).join(',igdb_id.eq.')})`,
+      `${SB_URL}/rest/v1/games?${fetchQs.toString()}`,
       { headers: { apikey: SB, Authorization: `Bearer ${SB}` } }
     );
 

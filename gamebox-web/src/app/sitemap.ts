@@ -26,6 +26,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         supabase
           .from('games')
           .select('id,updated_at')
+          .is('parent_igdb_id', null) // Only show base titles
           .order('updated_at', { ascending: false })
           .limit(1000),
         supabase

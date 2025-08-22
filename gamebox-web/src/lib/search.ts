@@ -1,7 +1,18 @@
 // src/lib/search.ts
 
-export type SearchUser = { id: string; username: string | null; display_name: string | null; avatar_url: string | null; score: number };
-export type SearchGame = { id: number; name: string; cover_url: string | null; score: number };
+export type SearchUser = {
+  id: string;
+  username: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
+  score: number;
+};
+export type SearchGame = {
+  id: number;
+  name: string;
+  cover_url: string | null;
+  score: number;
+};
 
 export type Scope = 'all' | 'users' | 'games';
 
@@ -20,25 +31,25 @@ export function parseQuery(raw: string): { q: string; scopeBias: Scope } {
 }
 
 let token = 0;
-export function nextToken() { token += 1; return token; }
+export function nextToken() {
+  token += 1;
+  return token;
+}
 
 export async function apiSearchUsers(q: string, limit = 8): Promise<SearchUser[]> {
   if (!q) return [];
-  
   try {
-    const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&limit=${limit}`, {
+    const res = await fetch(`/api/search?scope=users&q=${encodeURIComponent(q)}&limit=${limit}`, {
       cache: 'no-store',
       next: { revalidate: 0 },
     });
     const { items } = await res.json();
-    
-    // Transform API response to match SearchUser type
     return (items || []).map((r: any) => ({
       id: String(r.id),
       username: r.username ?? null,
       display_name: r.display_name ?? null,
       avatar_url: r.avatar_url ?? null,
-      score: Number(r.score ?? 0),
+      score: 0, // No score field in user search results
     }));
   } catch (error) {
     console.error('User search error:', error);
@@ -48,15 +59,12 @@ export async function apiSearchUsers(q: string, limit = 8): Promise<SearchUser[]
 
 export async function apiSearchGames(q: string, limit = 8): Promise<SearchGame[]> {
   if (!q) return [];
-  
   try {
-    const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&limit=${limit}`, {
+    const res = await fetch(`/api/search?scope=games&q=${encodeURIComponent(q)}&limit=${limit}`, {
       cache: 'no-store',
       next: { revalidate: 0 },
     });
     const { items } = await res.json();
-    
-    // Transform API response to match SearchGame type
     return (items || []).map((r: any) => ({
       id: Number(r.id),
       name: String(r.name ?? ''),

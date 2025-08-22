@@ -6,12 +6,13 @@ import type { LibraryStatus } from '@/lib/library';
 type Props = {
   value: LibraryStatus;
   onChange: (next: LibraryStatus) => void;
+  onRemove?: () => void;           // <-- NEW (optional)
   size?: 'sm' | 'md';
 };
 
 const ALL: LibraryStatus[] = ['Playing', 'Backlog', 'Completed', 'Dropped'];
 
-export default function StatusMenu({ value, onChange, size = 'sm' }: Props) {
+export default function StatusMenu({ value, onChange, onRemove, size = 'sm' }: Props) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -54,6 +55,19 @@ export default function StatusMenu({ value, onChange, size = 'sm' }: Props) {
               </button>
             );
           })}
+
+          {onRemove && (
+            <>
+              <div role="separator" className="my-1 h-px bg-white/10" />
+              <button
+                role="menuitem"
+                className="w-full px-3 py-2 text-left text-sm text-red-300 hover:bg-red-500/10"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); onRemove(); setOpen(false); }}
+              >
+                Remove from library
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>

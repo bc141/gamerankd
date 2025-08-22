@@ -172,6 +172,36 @@ export default function ProfileLibraryPage() {
       .upsert({ user_id: owner!.id, game_id: gameId, rating }, { onConflict: 'user_id,game_id' });
   }, [owner, sort, supabase]);
 
+  const handleRemove = useCallback(async (gameId: number, oldStatus: LibraryStatus) => {
+    if (!owner) return;
+
+    // keep for rollback
+    const prevRows = rows;
+    const prevCounts = libCounts;
+
+    // optimistic UI: drop the card + update counts
+    setRows(prev => (prev ? prev.filter(r => r.game_id !== gameId) : prev));
+    setLibCounts(c => ({
+      ...c,
+      total: Math.max(0, c.total - 1),
+      [oldStatus]: Math.max(0, (c as any)[oldStatus] - 1),
+    } as any));
+
+    // persist delete
+    const { error } = await supabase
+      .from('user_game_library')
+      .delete()
+      .eq('user_id', owner.id)
+      .eq('game_id', gameId)
+      .limit(1);
+
+    if (error) {
+      // rollback on failure
+      setRows(prevRows ?? null);
+      setLibCounts(prevCounts);
+    }
+  }, [owner, rows, libCounts]);
+
   // Persist sort preference to localStorage
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -496,6 +526,14 @@ export default function ProfileLibraryPage() {
                         });
                         // Return focus to trigger
                         triggerRefs.current[r.game_id]?.focus();
+                      }}
+                      onRemove={() => {
+                        handleRemove(r.game_id, r.status);
+                        setOpenMenus(prev => {
+                          const nextSet = new Set(prev);
+                          nextSet.delete(r.game_id);
+                          return nextSet;
+                        });
                       }}
                     />
                   </div>

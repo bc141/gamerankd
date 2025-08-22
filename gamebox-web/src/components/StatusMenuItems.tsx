@@ -10,6 +10,7 @@ export const STATUS_OPTIONS: LibraryStatus[] = [
 type Props = {
   value: LibraryStatus;
   onChange: (next: LibraryStatus) => void;
+  onRemove?: () => void;           // <-- NEW (optional)
   className?: string;
 };
 
@@ -17,7 +18,7 @@ type Props = {
  * Renders *only* the list of options (no trigger, no portal).
  * Use inside your own popover/panel.
  */
-export default function StatusMenuItems({ value, onChange, className }: Props) {
+export default function StatusMenuItems({ value, onChange, onRemove, className }: Props) {
   const listRef = useRef<HTMLDivElement | null>(null);
 
   return (
@@ -56,6 +57,19 @@ export default function StatusMenuItems({ value, onChange, className }: Props) {
           </button>
         );
       })}
+
+      {onRemove && (
+        <>
+          <div role="separator" className="my-1 h-px bg-white/10" />
+          <button
+            role="menuitem"
+            className="w-full text-left px-3 py-2 rounded text-red-300 hover:bg-red-500/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onRemove(); }}
+          >
+            Remove from library
+          </button>
+        </>
+      )}
     </div>
   );
 }

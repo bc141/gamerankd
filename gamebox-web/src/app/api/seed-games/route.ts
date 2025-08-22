@@ -3,6 +3,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { igdbSearch } from '@/app/api/_lib/igdb'; // or use a relative path: '../../_lib/igdb'
 
 export async function POST(req: NextRequest) {
+  const KEY = process.env.SEED_SECRET;
+  if (KEY && req.headers.get('x-seed-secret') !== KEY) {
+    return NextResponse.json({ ok: false }, { status: 404 });
+  }
+
   try {
     const { names = [] } = await req.json(); // e.g. ["Half-Life 2","Hades","Aquaria"]
     const SB_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;

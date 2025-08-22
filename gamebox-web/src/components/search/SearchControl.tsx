@@ -30,13 +30,9 @@ export default function SearchControl({ className }: Props) {
   const focusRef = useRef<HTMLInputElement>(null);
   const reqRef = useRef<number>(0);
 
-  // keyboard: "/" focus, Esc close, ⌘/Ctrl+1..3 scope
+  // keyboard: Esc close, ⌘/Ctrl+1..3 scope
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === '/' && !/input|textarea/i.test((document.activeElement?.tagName ?? ''))) {
-        e.preventDefault();
-        focusRef.current?.focus();
-      }
       if (e.key === 'Escape') setOpen(false);
       if ((e.metaKey || e.ctrlKey) && e.key === '1') setScope('all');
       if ((e.metaKey || e.ctrlKey) && e.key === '2') setScope('games');
@@ -142,7 +138,8 @@ export default function SearchControl({ className }: Props) {
             onKeyDown={onKeyDown}
             placeholder="Search games or players…"
             className="bg-transparent px-2 py-1.5 outline-none w-64"
-            aria-label="Search"
+            aria-label="Search games or players"
+            role="search"
           />
           {q && (
             <button

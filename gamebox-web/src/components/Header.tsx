@@ -21,6 +21,7 @@ export default function Header() {
 
   // menu state/refs
   const [open, setOpen] = useState(false);
+  const [searchOverlayOpen, setSearchOverlayOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
@@ -70,6 +71,25 @@ export default function Header() {
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
   }, []);
+
+  // Keyboard shortcuts: focus search on "/", close overlay on Escape
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        const searchInput = document.querySelector('input[aria-label="Search games or players"]') as HTMLInputElement;
+        if (searchInput) {
+          searchInput.focus();
+        }
+      }
+      if (e.key === 'Escape' && searchOverlayOpen) {
+        setSearchOverlayOpen(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [searchOverlayOpen]);
 
   // Refresh mini-profile on route change; close menu
   useEffect(() => {
@@ -130,7 +150,7 @@ export default function Header() {
     <header className="border-b border-white/10 sticky top-0 z-40 bg-black/60 backdrop-blur supports-[backdrop-filter]:bg-black/40">
       <div className="mx-auto max-w-5xl px-4 h-14 flex items-center gap-4">
         {/* Left: Logo + Nav */}
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-3">
           <Link href="/" className="font-semibold" aria-label="Home">
             gamdit
           </Link>
@@ -142,13 +162,24 @@ export default function Header() {
           </nav>
         </div>
 
-        {/* Center: Single Search */}
-        <div className="flex-1 max-w-2xl">
+        {/* Center: Single Search (desktop only) */}
+        <div className="flex-1 max-w-3xl hidden md:block">
           <SearchControl />
         </div>
 
         {/* Right: User Actions */}
         <div className="flex items-center gap-3">
+          {/* Mobile Search Button */}
+          <button 
+            className="md:hidden p-2 rounded-md hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            aria-label="Search"
+            onClick={() => setSearchOverlayOpen(true)}
+          >
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </button>
+
           {user ? (
             <>
               {/* Notifications */}
@@ -228,6 +259,29 @@ export default function Header() {
            {/* remove: {navLink('/search', 'Search')} */}
         </nav>
       </div>
+
+      {/* Mobile Search Overlay */}
+      {searchOverlayOpen && (
+        <div className="md:hidden fixed inset-0 z-50 bg-black/80 backdrop-blur">
+          <div className="flex items-center justify-center min-h-screen p-4">
+            <div className="w-full max-w-lg">
+              <div className="flex items-center gap-3 mb-4">
+                <button
+                  onClick={() => setSearchOverlayOpen(false)}
+                  className="p-2 rounded-md hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  aria-label="Close search"
+                >
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+                <span className="text-white/80 text-sm">Search games or players</span>
+              </div>
+              <SearchControl />
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 }

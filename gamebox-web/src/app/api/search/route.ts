@@ -1,4 +1,6 @@
-// src/app/api/igdb-search/route.ts
+// src/app/api/search/route.ts
+export const dynamic = 'force-dynamic';
+
 import { NextRequest, NextResponse } from 'next/server';
 
 type UpsertGame = {

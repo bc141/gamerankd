@@ -7,7 +7,18 @@ import StatusMenu from '@/components/StatusMenu';
 import { type LibraryStatus } from '@/lib/library';
 import Link from 'next/link';
 
-type Row = { id: number; name: string; cover_url: string | null; release_year: number | null };
+type Row = { id: number; igdb_id: number; parent_igdb_id: number | null; name: string; cover_url: string | null; release_year: number | null };
+
+// UI: guard-rail dedupe (belt & suspenders)
+function dedupeByBaseId(rows: Array<{ igdb_id: number; parent_igdb_id: number | null }>) {
+  const seen = new Set<number>();
+  return rows.filter(r => {
+    const base = r.parent_igdb_id ?? r.igdb_id;
+    if (seen.has(base)) return false;
+    seen.add(base);
+    return true;
+  });
+}
 
 export default function AddToLibrarySearch({ ownerId }: { ownerId: string }) {
   const supabase = supabaseBrowser();
@@ -35,8 +46,13 @@ export default function AddToLibrarySearch({ ownerId }: { ownerId: string }) {
         local = again ?? local;
       }
 
-      setRows(local.map((r: any) => ({
+      // Apply client-side deduplication as guard-rail
+      const deduped = dedupeByBaseId(local);
+      
+      setRows(deduped.map((r: any) => ({
         id: Number(r.id),
+        igdb_id: Number(r.igdb_id),
+        parent_igdb_id: r.parent_igdb_id ? Number(r.parent_igdb_id) : null,
         name: String(r.name),
         cover_url: r.cover_url ?? null,
         release_year: r.release_year ?? null,

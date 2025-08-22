@@ -47,26 +47,37 @@ export async function POST(req: NextRequest) {
     }
 
     // Pull newest games that have igdb_id and no parent_igdb_id
-    const listUrl = new URL(`${SB_URL}/rest/v1/games`);
-    listUrl.searchParams.set('select', 'igdb_id,name,created_at,parent_igdb_id');
-    listUrl.searchParams.set('igdb_id', 'is.not.null');     // igdb_id is NOT null
-    listUrl.searchParams.set('parent_igdb_id', 'is.null');  // parent_igdb_id IS null
-    listUrl.searchParams.set('order', 'created_at.desc');
-    listUrl.searchParams.set('limit', String(limit));
-
-    const listRes = await fetch(listUrl, {
-      headers: { apikey: SB_SERVICE, Authorization: `Bearer ${SB_SERVICE}` },
+    // build PostgREST query correctly
+    const qs = new URLSearchParams({
+      select: 'id,igdb_id,parent_igdb_id,name,release_year,cover_url,created_at',
+      limit: String(Math.min(Number(limit ?? 400), 1000)),
+      order: 'created_at.desc',
     });
-    if (!listRes.ok) {
-      return NextResponse.json(
-        { scanned: 0, updated: 0, error: `list failed: ${await listRes.text()}` },
-        { status: 500 }
-      );
-    }
 
-    const list = (await listRes.json()) as Array<{ igdb_id: number; name?: string | null }>;
-    const ids = list.map((g) => g.igdb_id).filter((n): n is number => Number.isFinite(n));
-    if (!ids.length) return NextResponse.json({ scanned: 0, updated: 0 });
+    // Only rows that actually have an IGDB id…
+    qs.append('igdb_id', 'not.is.null');      // ✅ correct negation
+    // …and haven't been assigned a parent yet
+    qs.append('parent_igdb_id', 'is.null');   // ✅ correct is-null
+
+    const restUrl = `${SB_URL}/rest/v1/games?${qs.toString()}`;
+
+    const headers = {
+      apikey: SB_SERVICE,
+      Authorization: `Bearer ${SB_SERVICE}`,
+      Prefer: 'count=exact',
+    };
+
+    const listRes = await fetch(restUrl, { headers });
+    if (!listRes.ok) {
+      const errText = await listRes.text();
+      return NextResponse.json({ scanned: 0, updated: 0, error: `list failed: ${errText}` }, { status: 500 });
+    }
+    const candidates: Array<{ id:number; igdb_id:number; parent_igdb_id:number|null; name:string }> = await listRes.json();
+    
+    if (candidates.length === 0) return NextResponse.json({ updated: 0, scanned: 0 });
+
+    const ids = candidates.map((g) => g.igdb_id).filter((n): n is number => typeof n === 'number');
+    if (ids.length === 0) return NextResponse.json({ updated: 0, scanned: 0 });
 
     const parents = await fetchParents(ids);
 
@@ -80,16 +91,15 @@ export async function POST(req: NextRequest) {
     const updates = uniform.filter((u) => u.parent_igdb_id !== null);
 
     if (dryRun) {
-      // Never touches DB on dryRun
       return NextResponse.json({
         route: 'backfill-games/v2',
-        scanned: ids.length,
-        willUpdate: updates.length,
-        preview: updates.slice(0, 10),
+        scanned: candidates.length,
+        updated: Object.values(parents).filter(v => v != null).length,
+        sample: updates.slice(0, 5),
       });
     }
 
-    if (!updates.length) return NextResponse.json({ scanned: ids.length, updated: 0 });
+    if (!updates.length) return NextResponse.json({ scanned: candidates.length, updated: 0 });
 
     const upsertRes = await fetch(`${SB_URL}/rest/v1/games?on_conflict=igdb_id`, {
       method: 'POST',
@@ -104,12 +114,12 @@ export async function POST(req: NextRequest) {
 
     if (!upsertRes.ok) {
       return NextResponse.json(
-        { scanned: ids.length, updated: 0, error: await upsertRes.text() },
+        { scanned: candidates.length, updated: 0, error: await upsertRes.text() },
         { status: 500 }
       );
     }
 
-    return NextResponse.json({ scanned: ids.length, updated: updates.length });
+    return NextResponse.json({ scanned: candidates.length, updated: updates.length });
   } catch (e: any) {
     return NextResponse.json({ scanned: 0, updated: 0, error: String(e?.message ?? e) }, { status: 500 });
   }

@@ -13,26 +13,35 @@ A Next.js web application for managing your game library and reviews.
 
 ### Backfill Games Endpoint
 
-The `/api/backfill-games` endpoint helps populate missing data for existing games in your database. It:
+The `/api/backfill-games` endpoint helps populate missing data and establish parent-child relationships for existing games in your database. It:
 
-1. Finds games missing summary or cover data
-2. Refetches them from IGDB by name
-3. Updates only the missing fields (preserves existing data)
-4. Includes rate limiting to be respectful to IGDB
+1. **Parent-Child Relationships**: Finds games without `parent_igdb_id` and queries IGDB to establish edition relationships
+2. **Data Enrichment**: Can also refetch missing summary/cover data from IGDB
+3. **Smart Updates**: Only updates fields that are actually missing (preserves existing data)
+4. **Rate Limiting**: Includes throttling to be respectful to IGDB
 
 **Usage:**
 ```bash
-curl -X POST https://YOUR_HOST/api/backfill-games
+# Establish parent-child relationships (default)
+curl -X POST https://YOUR_HOST/api/backfill-games \
+  -H "Content-Type: application/json" \
+  -d '{"op": "parents", "limit": 200}'
+
+# Dry run to see what would be updated
+curl -X POST https://YOUR_HOST/api/backfill-games \
+  -H "Content-Type: application/json" \
+  -d '{"op": "parents", "limit": 200, "dryRun": true}'
 ```
 
 **Response:**
 ```json
 {
-  "updated": 42
+  "updated": 42,
+  "scanned": 200
 }
 ```
 
-This endpoint is useful for one-time data enrichment of your existing game database.
+This endpoint is essential for establishing the edition hierarchy that enables the collapsed search results.
 
 ## Environment Variables
 
@@ -52,7 +61,8 @@ npm run dev
 
 ## Features
 
-- **Collapsed Editions**: Search results prefer base titles over remasters/ports
-- **Rich Game Data**: Stores summaries, release years, aliases, and cover images
+- **Collapsed Editions**: Search results automatically group editions by canonical parent, showing only the best version
+- **Rich Game Data**: Stores summaries, release years, aliases, cover images, and parent-child relationships
 - **Smart Upserts**: Never overwrites existing data with null values
 - **Rate Limiting**: Respectful API usage with built-in throttling
+- **Edition Management**: Tracks parent-child relationships between base games and remasters/ports

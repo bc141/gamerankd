@@ -1,6 +1,6 @@
 // src/app/api/backfill-games/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { igdbSearch, mapIgdbToUpsert } from '../_lib/igdb';
+import { igdbSearch } from '../_lib/igdb';
 
 export const maxDuration = 60; // Vercel: give it some time
 
@@ -22,14 +22,13 @@ export async function POST(req: NextRequest) {
     try {
       const [best] = await igdbSearch(r.name, 1);
       if (!best) continue;
-      const mapped = mapIgdbToUpsert(best);
 
       // only include fields we WANT to update & only if non-null
-      const out: any = { igdb_id: mapped.igdb_id, name: mapped.name };
-      if (!r.cover_url && mapped.cover_url) out.cover_url = mapped.cover_url;
-      if (!r.summary && mapped.summary) out.summary = mapped.summary;
-      if (mapped.release_year != null) out.release_year = mapped.release_year;
-      if (mapped.aliases?.length) out.aliases = mapped.aliases;
+      const out: any = { igdb_id: best.igdb_id, name: best.name };
+      if (!r.cover_url && best.cover_url) out.cover_url = best.cover_url;
+      if (!r.summary && best.summary) out.summary = best.summary;
+      if (best.release_year != null) out.release_year = best.release_year;
+      if (best.aliases?.length) out.aliases = best.aliases;
       upserts.push(out);
       await new Promise(r => setTimeout(r, 150)); // gentle throttle
     } catch {}

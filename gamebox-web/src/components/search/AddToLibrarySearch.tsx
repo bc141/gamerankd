@@ -29,7 +29,7 @@ export default function AddToLibrarySearch({ ownerId }: { ownerId: string }) {
 
       // 2) fallback hydrate (server) if thin
       if (local.length < 5) {
-        await fetch(`/api/igdb-search?q=${encodeURIComponent(query)}&limit=10`).then(() => null).catch(() => null);
+        await fetch(`/api/search?q=${encodeURIComponent(query)}&limit=10`).then(() => null).catch(() => null);
         // re-run local (should pick up new rows)
         const { data: again } = await supabase.rpc('game_search', { q: query, lim: 12 });
         local = again ?? local;

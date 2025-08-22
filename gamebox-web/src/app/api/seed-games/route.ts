@@ -33,7 +33,18 @@ export async function POST(req: NextRequest) {
           return aYear - bYear;
         })[0];
 
-      if (best) upserts.push(best);
+      if (best) {
+        // Strip nulls so we never send null -> overwrite
+        const out: any = {
+          igdb_id: best.igdb_id,
+          name: best.name,
+          release_year: best.release_year ?? undefined,
+          aliases: best.aliases ?? undefined,
+        };
+        if (best.cover_url) out.cover_url = best.cover_url;
+        if (best.summary) out.summary = best.summary;
+        upserts.push(out);
+      }
 
       // gentle throttle to be nice to IGDB
       await new Promise(resolve => setTimeout(resolve, 200));

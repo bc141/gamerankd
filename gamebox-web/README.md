@@ -1,36 +1,58 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# GameBox Web
 
-## Getting Started
+A Next.js web application for managing your game library and reviews.
 
-First, run the development server:
+## API Endpoints
 
+### Search
+- `GET /api/search?q=<query>&limit=<number>` - Search for games via IGDB and upsert to database
+
+### Games Management
+- `POST /api/seed-games` - Bulk import games by name (requires `x-seed-secret` header)
+- `POST /api/backfill-games` - One-time backfill of existing games missing summary/cover data
+
+### Backfill Games Endpoint
+
+The `/api/backfill-games` endpoint helps populate missing data for existing games in your database. It:
+
+1. Finds games missing summary or cover data
+2. Refetches them from IGDB by name
+3. Updates only the missing fields (preserves existing data)
+4. Includes rate limiting to be respectful to IGDB
+
+**Usage:**
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+curl -X POST https://YOUR_HOST/api/backfill-games
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+**Response:**
+```json
+{
+  "updated": 42
+}
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+This endpoint is useful for one-time data enrichment of your existing game database.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Environment Variables
 
-## Learn More
+Required environment variables:
+- `IGDB_CLIENT_ID` - IGDB API client ID
+- `IGDB_CLIENT_SECRET` - IGDB API client secret
+- `NEXT_PUBLIC_SUPABASE_URL` - Supabase project URL
+- `SUPABASE_SERVICE_ROLE_KEY` - Supabase service role key
+- `SEED_SECRET` - Secret key for seed-games endpoint (optional)
 
-To learn more about Next.js, take a look at the following resources:
+## Development
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm install
+npm run dev
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Features
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Collapsed Editions**: Search results prefer base titles over remasters/ports
+- **Rich Game Data**: Stores summaries, release years, aliases, and cover images
+- **Smart Upserts**: Never overwrites existing data with null values
+- **Rate Limiting**: Respectful API usage with built-in throttling

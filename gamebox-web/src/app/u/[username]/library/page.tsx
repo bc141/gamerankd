@@ -421,7 +421,11 @@ export default function ProfileLibraryPage() {
             const menuOpen = openMenus.has(r.game_id);
             
             return (
-              <li key={`${r.game?.id || r.game_id}-${r.status}-${r.updated_at}`} className="relative z-0" data-game-id={r.game_id}>
+              <li
+                key={`${r.game?.id || r.game_id}-${r.status}-${r.updated_at}`}
+                className={`relative ${menuOpen ? 'z-50' : 'z-0'}`}   // <-- raise when open
+                data-game-id={r.game_id}
+              >
                 <Link
                   href={`/game/${r.game?.id || r.game_id}`}
                   className="block rounded hover:bg-white/5 p-2"
@@ -499,44 +503,33 @@ export default function ProfileLibraryPage() {
                 </button>
 
                 {menuOpen && (
-                  <div
-                    id={`menu-${r.game_id}`}
-                    role="menu"
-                    className={`absolute top-10 z-30 w-44 rounded-lg bg-neutral-900/96 border border-white/12 shadow-2xl backdrop-blur p-1 ${
-                      (() => {
-                        if (typeof window !== 'undefined') {
-                          const rect = document.querySelector(`[data-game-id="${r.game_id}"]`)?.getBoundingClientRect();
-                          if (rect && rect.right > window.innerWidth - 200) {
-                            return 'left-2';
-                          }
-                        }
-                        return 'right-2';
-                      })()
-                    }`}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <StatusMenuItems
-                      value={r.status}
-                      onChange={(next) => {
-                        handleStatusChange(r.game_id, next);
-                        setOpenMenus(prev => {
-                          const nextSet = new Set(prev);
-                          nextSet.delete(r.game_id);
-                          return nextSet;
-                        });
-                        // Return focus to trigger
-                        triggerRefs.current[r.game_id]?.focus();
-                      }}
-                      onRemove={() => {
-                        handleRemove(r.game_id, r.status);
-                        setOpenMenus(prev => {
-                          const nextSet = new Set(prev);
-                          nextSet.delete(r.game_id);
-                          return nextSet;
-                        });
-                      }}
+                  <>
+                    {/* optional backdrop to block clicks + help outside-close */}
+                    <button
+                      aria-hidden
+                      className="fixed inset-0 z-40 cursor-default"
+                      onClick={() => setOpenMenus(new Set())}
                     />
-                  </div>
+
+                    <div
+                      id={`menu-${r.game_id}`}
+                      role="menu"
+                      className="absolute right-2 top-10 z-60 w-44 rounded-lg bg-neutral-900 border border-white/10 shadow-2xl p-1"
+                      onMouseDown={(e) => e.preventDefault()} // keep focus; avoid Link click
+                    >
+                      <StatusMenuItems
+                        value={r.status}
+                        onChange={(next: LibraryStatus) => {
+                          handleStatusChange(r.game_id, next);
+                          setOpenMenus(prev => { const s = new Set(prev); s.delete(r.game_id); return s; });
+                        }}
+                        onRemove={() => {
+                          handleRemove(r.game_id, r.status);
+                          setOpenMenus(prev => { const s = new Set(prev); s.delete(r.game_id); return s; });
+                        }}
+                      />
+                    </div>
+                  </>
                 )}
               </li>
             );

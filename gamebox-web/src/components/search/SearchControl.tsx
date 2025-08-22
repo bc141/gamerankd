@@ -2,11 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import {
   parseQuery,
-  rpcSearchGames,
-  rpcSearchUsers,
+  apiSearchGames,
+  apiSearchUsers,
   nextToken,
   type Scope,
   type SearchGame,
@@ -19,7 +18,6 @@ type Props = {
 };
 
 export default function SearchControl({ className }: Props) {
-  const supabase = supabaseBrowser();
   const [open, setOpen] = useState(false);
   const [scope, setScope] = useState<Scope>('all');
   const [q, setQ] = useState('');
@@ -61,11 +59,11 @@ export default function SearchControl({ className }: Props) {
 
     const doUsers =
       scope === 'all' || scope === 'users'
-        ? rpcSearchUsers(supabase, derived.q, 5)
+        ? apiSearchUsers(derived.q, 5)
         : Promise.resolve([]);
     const doGames =
       scope === 'all' || scope === 'games'
-        ? rpcSearchGames(supabase, derived.q, 5)
+        ? apiSearchGames(derived.q, 5)
         : Promise.resolve([]);
 
     const h = setTimeout(() => {
@@ -87,7 +85,7 @@ export default function SearchControl({ className }: Props) {
     }, 250);
 
     return () => clearTimeout(h);
-  }, [q, scope, supabase, derived.q]);
+  }, [q, scope, derived.q]);
 
   // computed rows for keyboard nav (linearize)
   const linear: Array<{ type: 'user' | 'game'; key: string }> = useMemo(() => {

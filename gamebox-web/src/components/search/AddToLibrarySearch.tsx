@@ -34,33 +34,33 @@ export default function AddToLibrarySearch({ ownerId }: { ownerId: string }) {
       if (!query) { setRows([]); return; }
       setLoading(true);
 
-      // 1) local
-      let { data: local } = await supabase.rpc('game_search', { q: query, lim: 12 });
-      local = local ?? [];
-
-      // 2) fallback hydrate (server) if thin
-      if (local.length < 5) {
-        await fetch(`/api/search?q=${encodeURIComponent(query)}&limit=10`).then(() => null).catch(() => null);
-        // re-run local (should pick up new rows)
-        const { data: again } = await supabase.rpc('game_search', { q: query, lim: 12 });
-        local = again ?? local;
+      try {
+        const res = await fetch(`/api/search?q=${encodeURIComponent(query)}&limit=12`, {
+          cache: 'no-store',
+          next: { revalidate: 0 },
+        });
+        const { items } = await res.json();
+        
+        // Apply client-side deduplication as guard-rail
+        const deduped = dedupeByBaseId(items || []);
+        
+        setRows(deduped.map((r: any) => ({
+          id: Number(r.id),
+          igdb_id: Number(r.igdb_id),
+          parent_igdb_id: r.parent_igdb_id ? Number(r.parent_igdb_id) : null,
+          name: String(r.name),
+          cover_url: r.cover_url ?? null,
+          release_year: r.release_year ?? null,
+        })));
+      } catch (error) {
+        console.error('Search error:', error);
+        setRows([]);
+      } finally {
+        setLoading(false);
       }
-
-      // Apply client-side deduplication as guard-rail
-      const deduped = dedupeByBaseId(local);
-      
-      setRows(deduped.map((r: any) => ({
-        id: Number(r.id),
-        igdb_id: Number(r.igdb_id),
-        parent_igdb_id: r.parent_igdb_id ? Number(r.parent_igdb_id) : null,
-        name: String(r.name),
-        cover_url: r.cover_url ?? null,
-        release_year: r.release_year ?? null,
-      })));
-      setLoading(false);
     }, 180);
     return () => clearTimeout(t);
-  }, [q, supabase]);
+  }, [q]);
 
   async function upsertStatus(game_id: number, status: LibraryStatus) {
     await supabase.from('user_game_library').upsert(

@@ -4,11 +4,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import {
   parseQuery,
-  rpcSearchGames,
-  rpcSearchUsers,
+  apiSearchGames,
+  apiSearchUsers,
   nextToken,
   type Scope,
   type SearchUser,
@@ -17,7 +16,6 @@ import {
 import { SearchIcon, XMarkIcon } from '@/components/icons';
 
 export default function SearchPageClient() {
-  const supabase = supabaseBrowser();
   const router = useRouter();
   const sp = useSearchParams();
 
@@ -33,7 +31,7 @@ export default function SearchPageClient() {
   const [games, setGames] = useState<SearchGame[]>([]);
   const reqRef = useRef<number>(0);
 
-  // derive “@” / “game:” bias
+  // derive "@" / "game:" bias
   const derived = useMemo(() => parseQuery(q), [q]);
   const effScope: Scope =
     scope === 'all' && derived.scopeBias !== 'all' ? derived.scopeBias : scope;
@@ -66,8 +64,8 @@ export default function SearchPageClient() {
 
     const timer = setTimeout(() => {
       Promise.all([
-        wantUsers ? rpcSearchUsers(supabase, derived.q, 20) : Promise.resolve([]),
-        wantGames ? rpcSearchGames(supabase, derived.q, 20) : Promise.resolve([]),
+        wantUsers ? apiSearchUsers(derived.q, 20) : Promise.resolve([]),
+        wantGames ? apiSearchGames(derived.q, 20) : Promise.resolve([]),
       ])
         .then(([u, g]) => {
           if (reqRef.current !== t) return; // a newer request finished
@@ -84,7 +82,7 @@ export default function SearchPageClient() {
     }, 250);
 
     return () => clearTimeout(timer);
-  }, [q, effScope, supabase, derived.q]);
+  }, [q, effScope, derived.q]);
 
   // helpers
   const hasUsers = effScope !== 'games' && users.length > 0;

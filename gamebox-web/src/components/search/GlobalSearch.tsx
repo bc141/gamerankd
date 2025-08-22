@@ -3,7 +3,6 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { SearchIcon, XMarkIcon } from '@/components/icons';
 
 type Result = {
@@ -16,7 +15,6 @@ type Result = {
 };
 
 export default function GlobalSearch({ className }: { className?: string }) {
-  const supabase = supabaseBrowser();
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -36,22 +34,42 @@ export default function GlobalSearch({ className }: { className?: string }) {
         return;
       }
       setLoading(true);
-      const { data, error } = await supabase.rpc('search_all', { q: debouncedQ, lim: 8 });
-      if (!cancelled) {
-        setRows((data as Result[]) ?? []);
-        setLoading(false);
-        setOpen(true);
-        setIdx(-1);
-      }
-      if (error) {
-        // eslint-disable-next-line no-console
-        console.error('search_all error', error);
+      
+      try {
+        const res = await fetch(`/api/search?q=${encodeURIComponent(debouncedQ)}&limit=8`, {
+          cache: 'no-store',
+          next: { revalidate: 0 },
+        });
+        const { items } = await res.json();
+        
+        if (!cancelled) {
+          // Transform the API response to match the expected Result type
+          const transformedResults = (items || []).map((item: any) => ({
+            kind: 'game' as const,
+            id: String(item.id),
+            label: item.name,
+            sublabel: item.release_year ? String(item.release_year) : null,
+            image_url: item.cover_url,
+            rank: null,
+          }));
+          
+          setRows(transformedResults);
+          setLoading(false);
+          setOpen(true);
+          setIdx(-1);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Search error:', error);
+          setRows([]);
+          setLoading(false);
+        }
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [debouncedQ, supabase, canSearch]);
+  }, [debouncedQ, canSearch]);
 
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (!open || rows.length === 0) return;

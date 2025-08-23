@@ -52,7 +52,7 @@ type LibRow = {
   game: Game | null;
 };
 
-type Scope = 'following' | 'global' | 'foryou';
+type Scope = 'following' | 'foryou';
 
 // ---------- component ----------
 export default function HomeClient() {
@@ -67,8 +67,8 @@ export default function HomeClient() {
   const [feedErr, setFeedErr] = useState<string | null>(null);
   const [scope, setScope] = useState<Scope>(() => {
     if (typeof window === 'undefined') return 'following';
-    const p = new URLSearchParams(window.location.search).get('feed');
-    return p === 'global' ? 'global' : p === 'foryou' ? 'foryou' : 'following';
+    const p = new URLSearchParams(window.location.search).get('tab');
+    return p === 'foryou' ? 'foryou' : 'following';
   });
 
   // right rail
@@ -119,6 +119,11 @@ export default function HomeClient() {
     };
   }, [supabase]);
 
+  // after session fetch, if signed-out and currently on 'following', switch to 'foryou'
+  useEffect(() => {
+    if (ready && !me && scope === 'following') setScope('foryou');
+  }, [ready, me, scope]);
+
   // cross-tab / same-tab like sync
   useEffect(() => {
     const off = addLikeListener(({ reviewUserId, gameId, liked, delta }) => {
@@ -140,13 +145,12 @@ export default function HomeClient() {
     return off;
   }, []);
 
-  // keep URL in sync + (re)load feed on scope changes / login state ready
+    // keep URL in sync + (re)load feed on scope changes / login state ready
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const qs = new URLSearchParams(window.location.search);
-      if (scope === 'following') qs.delete('feed');
-      else qs.set('feed', scope);
-      const next = qs.size ? `?${qs.toString()}` : window.location.pathname;
+      qs.set('tab', scope);
+      const next = `?${qs.toString()}`;
       window.history.replaceState(null, '', next);
     }
 
@@ -162,21 +166,18 @@ export default function HomeClient() {
 
     const load = async () => {
       try {
-                 if (scope === 'following') {
-           const { data } = await fetchFollowingFeed(supabase, me!);
-           setFeed(data);
-         } else if (scope === 'global') {
-           const { data } = await fetchGlobalFeed(supabase, me);
-           setFeed(data);
-         } else {
-           const { data } = await fetchForYou(supabase, me);
-           setFeed(data);
-         }
-       } catch (e: any) {
-         setFeedErr(String(e?.message ?? e));
-       }
-     };
-     load();
+        if (scope === 'following') {
+          const { data } = await fetchFollowingFeed(supabase, me!);
+          setFeed(data);
+        } else {
+          const { data } = await fetchForYou(supabase, me);
+          setFeed(data);
+        }
+      } catch (e: any) {
+        setFeedErr(String(e?.message ?? e));
+      }
+    };
+    load();
   }, [scope, me, ready, supabase]);
 
   // Preload likes & comment counts when feed changes
@@ -246,25 +247,42 @@ export default function HomeClient() {
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
         {/* CENTER */}
         <section>
-          <div className="mb-3 flex items-center justify-between">
-            <h1 className="text-2xl font-bold">Home</h1>
-            <div className="flex rounded-lg border border-white/10 bg-white/5 p-1">
-              {(['following', 'foryou', 'global'] as Scope[]).map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setScope(s)}
-                  className={`px-3 py-1.5 text-sm rounded transition-colors ${
-                    scope === s
-                      ? 'bg-white/20 text-white'
-                      : 'text-white/60 hover:text-white/80'
-                  }`}
-                  aria-pressed={scope === s}
-                >
-                  {s === 'following' ? 'Following' : s === 'foryou' ? 'For You' : 'Everyone'}
-                </button>
-              ))}
+          {/* Header */}
+          <h1 className="text-2xl font-bold sr-only">Home</h1>
+
+          {/* Sticky tab bar */}
+          <nav
+            className="sticky top-14 z-10 -mx-3 mb-3 px-3 backdrop-blur supports-[backdrop-filter]:bg-black/40"
+            aria-label="Feed tabs"
+          >
+            <div className="flex w-full rounded-lg border border-white/10 bg-white/[0.04] overflow-hidden">
+              {(['following', 'foryou'] as const).map((s) => {
+                const active = scope === s;
+                return (
+                  <button
+                    key={s}
+                    onClick={() => setScope(s)}
+                    aria-pressed={active}
+                    className={[
+                      'flex-1 px-4 py-2 text-sm transition-colors focus:outline-none',
+                      active ? 'bg-white/10 text-white' : 'text-white/70 hover:text-white',
+                    ].join(' ')}
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      {s === 'following' ? 'Following' : 'For You'}
+                    </span>
+                    {/* active underline */}
+                    <span
+                      className={[
+                        'block h-[2px] mt-2 rounded-full',
+                        active ? 'bg-white/70' : 'bg-transparent',
+                      ].join(' ')}
+                    />
+                  </button>
+                );
+              })}
             </div>
-          </div>
+          </nav>
 
           {!ready ? (
             <p className="text-white/60">Loading…</p>
@@ -297,7 +315,7 @@ export default function HomeClient() {
                 return (
                   <li
                     key={`${r.user_id}-${r.game_id}-${r.created_at}-${i}`}
-                    className="group p-3 hover:bg-white/5 focus-within:bg-white/5 transition rounded-[6px]"
+                    className="group p-3 hover:bg-white/5 focus-within:bg-white/5 transition rounded-[6px] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20"
                     onClick={(e) =>
                       onRowClick(e, () => {
                         if (a?.id) openContext(a.id, r.game_id);
@@ -633,42 +651,7 @@ async function fetchFollowingFeed(sb: ReturnType<typeof supabaseBrowser>, uid: s
   return { data: safe };
 }
 
-async function fetchGlobalFeed(sb: ReturnType<typeof supabaseBrowser>, viewerId?: string | null) {
-  // optional blocks/mutes (viewer may be null)
-  let hidden = new Set<string>();
-  let mutedIds: string[] = [];
-  if (viewerId) {
-    const { iBlocked, blockedMe, iMuted } = await getBlockSets(sb, viewerId);
-    hidden = new Set([...iBlocked, ...blockedMe].map(String));
-    mutedIds = Array.from(iMuted ?? new Set<string>()).map(String);
-  }
 
-  const since = new Date();
-  since.setDate(since.getDate() - 7);
-
-  let q = sb
-    .from('reviews')
-    .select(`
-      user_id, game_id, rating, review, created_at,
-      author:profiles!reviews_user_id_profiles_fkey ( id, username, display_name, avatar_url ),
-      game:games ( id, name, cover_url )
-    `)
-    .gte('created_at', since.toISOString())
-    .order('created_at', { ascending: false })
-    .limit(60);
-
-  if (mutedIds.length) q = q.not('user_id', 'in', toInList(mutedIds));
-
-  const { data, error } = await q;
-  if (error) throw error;
-
-  const safe = normalizeReviews(data).filter(r => {
-    const uid = r.author?.id;
-    return !(uid && (hidden.has(uid) || mutedIds.includes(uid)));
-  });
-
-  return { data: safe };
-}
 
 /** “For You”: recent reviews, lightly boosted if you follow the author. */
 async function fetchForYou(sb: ReturnType<typeof supabaseBrowser>, uid: string | null) {

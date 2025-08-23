@@ -486,6 +486,13 @@ export default function HomeClient() {
             })}
           </nav>
 
+          {/* Composer (temporary lightweight) */}
+          <QuickComposer onPosted={()=> {
+            // quick refresh posts list after posting
+            // you can also re-run the post fetch effect or just hard reload
+            window.location.reload();
+          }} />
+
           {!ready ? (
             <FeedSkeleton />
           ) : !me && scope === 'following' ? (
@@ -857,6 +864,48 @@ export default function HomeClient() {
 }
 
 // ---------- small pieces ----------
+function QuickComposer({ onPosted }: { onPosted?: () => void }) {
+  const sb = supabaseBrowser();
+  const [body, setBody] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  return (
+    <div className="mb-4 rounded-lg border border-white/10 bg-white/5 p-3">
+      <textarea
+        value={body}
+        onChange={(e)=>setBody(e.target.value)}
+        placeholder="Share a thought, clip link, or screenshot URL…"
+        rows={3}
+        className="w-full border border-white/10 bg-black/20 text-white rounded px-3 py-2"
+      />
+      <div className="mt-2 flex justify-end">
+        <button
+          disabled={busy || body.trim().length === 0}
+          onClick={async ()=>{
+            setBusy(true);
+            try {
+              const session = await waitForSession(sb);
+              const uid = session?.user?.id;
+              if (!uid) { window.location.href = '/login'; return; }
+              const { error } = await sb.from('posts').insert({
+                id: crypto.randomUUID(),
+                user_id: uid,
+                body: body.trim(),
+                tags: null,
+                game_id: null
+              });
+              if (!error) { setBody(''); onPosted?.(); }
+            } finally { setBusy(false); }
+          }}
+          className="px-3 py-1.5 rounded bg-indigo-600 text-white disabled:opacity-50"
+        >
+          {busy ? 'Posting…' : 'Post'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function Panel({
   title,
   rightAction,

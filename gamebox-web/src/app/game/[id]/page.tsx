@@ -34,8 +34,9 @@ export default async function GamePage({ params }: { params: Promise<{ id: strin
       .eq('igdb_id', game.parent_igdb_id)
       .single();
 
+    // pass the child *page id* so we can highlight it on the parent
     if (parent?.id && parent.id !== game.id) {
-      redirect(`/game/${parent.id}`);
+      redirect(`/game/${parent.id}?edition=${gameId}`);
     }
   }
 

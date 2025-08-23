@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { waitForSession } from '@/lib/waitForSession';
 import StarRating from '@/components/StarRating';
@@ -84,29 +84,56 @@ type Edition = {
 
 // Editions component
 function Editions({ items }: { items: Edition[] }) {
+  const router = useRouter();
+  const sp = useSearchParams();
+  const selected = sp.get('edition'); // edition id (game.id) to highlight
+
+  // when a selection exists, ensure the section is open and visible
+  useEffect(() => {
+    if (!selected) return;
+    const el = document.getElementById('editions');
+    el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [selected]);
+
+  const pick = (e: Edition) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('edition', String(e.id));
+    router.replace(url.pathname + '?' + url.searchParams.toString(), { scroll: false });
+  };
+
   if (!items?.length) return null;
+
   return (
-    <details className="mt-6 rounded-lg border border-white/10">
+    <details id="editions" className="mt-6 rounded-lg border border-white/10" open={Boolean(selected)}>
       <summary className="cursor-pointer px-3 py-2 text-sm text-white/80 hover:bg-white/5">
         Editions &amp; bundles ({items.length})
       </summary>
+
       <ul className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-3">
-        {items.map(e => (
-          <li key={e.id}>
-            <a href={`/game/${e.id}`} className="block rounded hover:bg-white/5 p-2">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={e.cover_url || '/cover-fallback.png'}
-                alt=""
-                className="h-28 w-full object-cover rounded border border-white/10"
-                loading="lazy"
-                decoding="async"
-              />
-              <div className="mt-2 text-xs text-white truncate">{e.name}</div>
-              {e.release_year && <div className="text-[11px] text-white/50">{e.release_year}</div>}
-            </a>
-          </li>
-        ))}
+        {items.map(e => {
+          const isActive = selected === String(e.id);
+          return (
+            <li key={e.id}>
+              <button
+                type="button"
+                onClick={() => pick(e)}
+                className={`block w-full rounded p-2 text-left hover:bg-white/5 focus:outline-none
+                  ${isActive ? 'ring-2 ring-indigo-500 ring-offset-2 ring-offset-neutral-900' : ''}`}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={e.cover_url || '/cover-fallback.png'}
+                  alt=""
+                  className="h-28 w-full object-cover rounded border border-white/10"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <div className="mt-2 text-xs text-white truncate">{e.name}</div>
+                {e.release_year && <div className="text-[11px] text-white/50">{e.release_year}</div>}
+              </button>
+            </li>
+          );
+        })}
       </ul>
     </details>
   );
@@ -161,6 +188,10 @@ export default function GamePageClient({
   // 📚 library
   const [myLibStatus, setMyLibStatus] = useState<LibraryStatus | null>(null);
   const [libBusy, setLibBusy] = useState(false);
+
+  // replace the old derived avgStars/ratingsCount with explicit state
+  const [avgStars, setAvgStars] = useState<number | null>(null);
+  const [ratingsCount, setRatingsCount] = useState<number>(0);
 
   // 🔎 View-in-context modal hook
   const { open: openContext, modal: contextModal } = useReviewContextModal(
@@ -229,9 +260,15 @@ export default function GamePageClient({
         if (mounted) setMyLibStatus(null);
       }
 
-      // My rating text/stars
-      if (user && gameData?.reviews?.length) {
-        const mine = gameData.reviews.find((r: any) => r.user_id === user.id);
+      // Load my review (don't depend on embedded join)
+      if (user && validId) {
+        const { data: mine } = await supabase
+          .from('reviews')
+          .select('rating,review')
+          .eq('user_id', user.id)
+          .eq('game_id', gameId)
+          .maybeSingle();
+
         if (mine) {
           const stars = from100(mine.rating);
           setMyStars(stars);
@@ -251,6 +288,9 @@ export default function GamePageClient({
         setTempText('');
       }
 
+      // Always compute header stats from the table directly
+      await refetchStats();
+
       await refetchRecent(user ? user.id : null);
     })();
 
@@ -269,6 +309,30 @@ export default function GamePageClient({
       .single();
     setGame(data as Game);
   };
+
+  async function refetchStats() {
+    const { data, error } = await supabase
+      .from('reviews')
+      .select('rating')      // pull ratings only; small payload
+      .eq('game_id', gameId);
+
+    if (error) {
+      setAvgStars(null);
+      setRatingsCount(0);
+      return;
+    }
+
+    const rows = data ?? [];
+    setRatingsCount(rows.length);
+    if (rows.length) {
+      const avg100 =
+        rows.reduce((t, r) => t + (typeof r.rating === 'number' ? r.rating : 0), 0) /
+        rows.length;
+      setAvgStars(Number((avg100 / 20).toFixed(1))); // convert 0–100 → 0–5
+    } else {
+      setAvgStars(null);
+    }
+  }
 
   const refetchRecent = async (viewerId: string | null) => {
     setRecentErr(null);
@@ -359,14 +423,7 @@ export default function GamePageClient({
     setCommentCounts(commentsMap ?? {});
   };
 
-  const avgStars = useMemo(() => {
-    const list = game?.reviews ?? [];
-    if (!list.length) return null;
-    const sum = list.reduce((t, r) => t + (r.rating || 0), 0);
-    return Number((sum / list.length / 20).toFixed(1));
-  }, [game]);
 
-  const ratingsCount = game?.reviews?.length ?? 0;
 
   // 3) actions
   async function saveRating() {
@@ -402,7 +459,7 @@ export default function GamePageClient({
       setMyText(trimmed);
       setEditing(false);
 
-      await Promise.all([refetchGame(), refetchRecent(me.id)]);
+      await Promise.all([refetchGame(), refetchRecent(me.id), refetchStats()]);
     } finally {
       setSaving(false);
     }
@@ -431,7 +488,7 @@ export default function GamePageClient({
     setMyText('');
     setTempText('');
     setEditing(false);
-    await Promise.all([refetchGame(), refetchRecent(me.id)]);
+    await Promise.all([refetchGame(), refetchRecent(me.id), refetchStats()]);
   }
 
   // Like/Unlike handler

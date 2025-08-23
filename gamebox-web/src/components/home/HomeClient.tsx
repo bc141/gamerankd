@@ -22,6 +22,8 @@ import {
   fetchCommentCountsBulk,
   addCommentListener,
 } from '@/lib/comments';
+import { postLikeKey, fetchPostLikesBulk, togglePostLike as togglePostLikeApi, addPostLikeListener, broadcastPostLike, type LikeEntry as PostLikeEntry } from '@/lib/postLikes';
+import { postCommentKey as postCKey, fetchPostCommentCountsBulk } from '@/lib/postComments';
 import { getBlockSets } from '@/lib/blocks';
 import { toInList } from '@/lib/sql';
 
@@ -49,6 +51,21 @@ type LibRow = {
   status: 'Playing' | 'Backlog' | 'Completed' | 'Dropped';
   updated_at: string;
   game: Game | null;
+};
+
+type PostRow = {
+  id: string;
+  created_at: string;
+  body: string | null;
+  tags: string[] | null;
+  like_count: number;
+  comment_count: number;
+  username: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
+  game_id: number | null;
+  game_name: string | null;
+  game_cover_url: string | null;
 };
 
 type Scope = 'following' | 'foryou';
@@ -96,6 +113,12 @@ export default function HomeClient() {
   // 💬 comment counts
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
 
+  // posts state
+  const [posts, setPosts] = useState<PostRow[] | null>(null);
+  const [postLikes, setPostLikes] = useState<Record<string, PostLikeEntry>>({});
+  const [postLikeBusy, setPostLikeBusy] = useState<Record<string, boolean>>({});
+  const [postCommentCounts, setPostCommentCounts] = useState<Record<string, number>>({});
+
   // selection (keyboard nav)
   const [sel, setSel] = useState<number>(-1);
 
@@ -123,6 +146,29 @@ export default function HomeClient() {
       fetchTrending().then((g) => !cancelled && setTrending(g));
       fetchContinue(uid).then((rows) => !cancelled && setContinueList(rows));
       fetchWhoToFollow(uid).then((p) => !cancelled && setWhoToFollow(p));
+
+      // fetch posts
+      if (!cancelled) {
+        const { data, error } = await supabase
+          .from('post_feed')
+          .select('id, created_at, body, tags, like_count, comment_count, username, display_name, avatar_url, game_id, game_name, game_cover_url')
+          .order('created_at', { ascending: false })
+          .limit(20);
+
+        if (!cancelled) {
+          if (error) { setPosts([]); return; }
+          setPosts(data as PostRow[]);
+
+          const ids = (data ?? []).map((r:any) => String(r.id));
+          const userId = uid ?? null;
+          const [likesMap, cMap] = await Promise.all([
+            fetchPostLikesBulk(supabase, userId, ids),
+            fetchPostCommentCountsBulk(supabase, ids),
+          ]);
+          setPostLikes(likesMap ?? {});
+          setPostCommentCounts(cMap ?? {});
+        }
+      }
     })();
     return () => {
       cancelled = true;
@@ -151,6 +197,18 @@ export default function HomeClient() {
     const off = addCommentListener(({ reviewUserId, gameId, delta }) => {
       const k = commentKey(reviewUserId, gameId);
       setCommentCounts(prev => ({ ...prev, [k]: Math.max(0, (prev[k] ?? 0) + delta) }));
+    });
+    return off;
+  }, []);
+
+  // Live like sync for posts
+  useEffect(() => {
+    const off = addPostLikeListener(({ postId, liked, delta }) => {
+      const k = postLikeKey(postId);
+      setPostLikes(prev => {
+        const cur = prev[k] ?? { liked: false, count: 0 };
+        return { ...prev, [k]: { liked, count: Math.max(0, cur.count + delta) } };
+      });
     });
     return off;
   }, []);
@@ -261,6 +319,29 @@ export default function HomeClient() {
       }, 120);
     } finally {
       setLikeBusy((p) => ({ ...p, [k]: false }));
+    }
+  }
+
+  // Toggle like for a post
+  async function onTogglePostLike(postId: string) {
+    if (!me) { window.location.href = '/login'; return; }
+    const k = postLikeKey(postId);
+    if (postLikeBusy[k]) return;
+    const before = postLikes[k] ?? { liked: false, count: 0 };
+
+    setPostLikes(p => ({ ...p, [k]: { liked: !before.liked, count: before.count + (before.liked ? -1 : 1) } }));
+    setPostLikeBusy(p => ({ ...p, [k]: true }));
+
+    try {
+      const { liked, count, error } = await togglePostLikeApi(supabase, me, postId);
+      if (error) {
+        setPostLikes(p => ({ ...p, [k]: before }));
+        return;
+      }
+      setPostLikes(p => ({ ...p, [k]: { liked, count } }));
+      broadcastPostLike(postId, liked, liked ? 1 : -1);
+    } finally {
+      setPostLikeBusy(p => ({ ...p, [k]: false }));
     }
   }
 
@@ -547,6 +628,92 @@ export default function HomeClient() {
                   );
                 })}
               </ul>
+
+              {/* Latest posts section */}
+              {posts && (
+                <section className="mt-8">
+                  <h2 className="text-lg font-semibold mb-3">Latest posts</h2>
+                  {posts.length === 0 ? (
+                    <p className="text-white/60">No posts yet.</p>
+                  ) : (
+                    <ul className="divide-y divide-white/10 rounded-lg border border-white/10">
+                      {posts.map((p) => {
+                        const actorHref = p.username ? `/u/${p.username}` : '#';
+                        const gameHref = p.game_id ? `/game/${p.game_id}` : '#';
+                        const likeK = postLikeKey(p.id);
+                        const entry = postLikes[likeK] ?? { liked: false, count: (p.like_count || 0) };
+                        const cKey = postCKey(p.id);
+                        const cCount = postCommentCounts[cKey] ?? (p.comment_count || 0);
+
+                        return (
+                          <li key={p.id} className="group -mx-2 md:-mx-3 px-2 md:px-3 py-3 hover:bg-white/5 rounded-[6px]">
+                            <div className="flex items-center gap-3">
+                              {/* avatar */}
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={p.avatar_url || '/avatar-placeholder.svg'}
+                                alt=""
+                                className="h-9 w-9 rounded-full object-cover border border-white/10"
+                                loading="lazy"
+                                decoding="async"
+                              />
+                              <div className="min-w-0">
+                                <div className="text-sm text-white/90">
+                                  <Link href={actorHref} className="font-medium hover:underline">
+                                    {p.display_name || p.username || 'Player'}
+                                  </Link>{' '}
+                                  posted
+                                  {p.game_id ? (
+                                    <>
+                                      {' about '}
+                                      <Link href={gameHref} className="font-medium hover:underline">{p.game_name}</Link>
+                                    </>
+                                  ) : null}
+                                </div>
+                                <div className="text-xs text-white/40">{timeAgo(p.created_at)}</div>
+                              </div>
+
+                              {p.game_cover_url && (
+                                <Link href={gameHref} className="ml-auto shrink-0">
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img
+                                    src={p.game_cover_url}
+                                    alt=""
+                                    className="h-12 w-9 rounded object-cover border border-white/10"
+                                    loading="lazy"
+                                    decoding="async"
+                                  />
+                                </Link>
+                              )}
+                            </div>
+
+                            {p.body?.trim() && (
+                              <p className="mt-2 whitespace-pre-wrap text-white/85">{p.body.trim()}</p>
+                            )}
+
+                            {/* actions */}
+                            <div className="mt-2 flex items-center gap-2">
+                              <LikePill
+                                liked={entry.liked}
+                                count={entry.count}
+                                busy={postLikeBusy[likeK]}
+                                onClick={() => onTogglePostLike(p.id)}
+                              />
+                              <button
+                                className="text-xs px-2 py-1 rounded border border-white/10 bg-white/5"
+                                title="Comments"
+                                aria-label="Comments"
+                              >
+                                💬 {cCount}
+                              </button>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </section>
+              )}
 
               {/* infinite loader row */}
               <div ref={loaderRef} className="py-4 flex items-center justify-center">

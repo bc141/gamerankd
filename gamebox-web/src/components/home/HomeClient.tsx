@@ -487,11 +487,16 @@ export default function HomeClient() {
           </nav>
 
           {/* Composer (temporary lightweight) */}
-          <QuickComposer onPosted={()=> {
-            // quick refresh posts list after posting
-            // you can also re-run the post fetch effect or just hard reload
-            window.location.reload();
-          }} />
+          <QuickComposer
+            onPosted={(row) => {
+              // show it instantly
+              setPosts(prev => [row, ...(prev ?? [])]);
+              // optional: jump to the posts section
+              setTimeout(() => {
+                document.getElementById('latest-posts')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }, 0);
+            }}
+          />
 
           {!ready ? (
             <FeedSkeleton />
@@ -638,7 +643,7 @@ export default function HomeClient() {
 
               {/* Latest posts section */}
               {posts && (
-                <section className="mt-8">
+                <section id="latest-posts" className="mt-8">
                   <h2 className="text-lg font-semibold mb-3">Latest posts</h2>
                   {posts.length === 0 ? (
                     <p className="text-white/60">No posts yet.</p>
@@ -864,10 +869,49 @@ export default function HomeClient() {
 }
 
 // ---------- small pieces ----------
-function QuickComposer({ onPosted }: { onPosted?: () => void }) {
+function QuickComposer({ onPosted }: { onPosted?: (row: PostRow) => void }) {
   const sb = supabaseBrowser();
   const [body, setBody] = useState('');
   const [busy, setBusy] = useState(false);
+
+  async function handlePost() {
+    if (busy || !body.trim()) return;
+    setBusy(true);
+    try {
+      const session = await waitForSession(sb);
+      const uid = session?.user?.id;
+      if (!uid) { window.location.href = '/login'; return; }
+
+      // Insert (let DB generate id/created_at)
+      const { data: inserted, error: insErr } = await sb
+        .from('posts')
+        .insert({ user_id: uid, body: body.trim(), tags: null, game_id: null })
+        .select('id')
+        .single();
+
+      if (insErr || !inserted?.id) {
+        console.error('post insert failed', insErr);
+        alert('Failed to post. Please try again.');
+        return;
+      }
+
+      // Read the hydrated row from the view so counts/user/game fields are present
+      const { data: full, error: fetchErr } = await sb
+        .from('post_feed')
+        .select('id, created_at, body, tags, like_count, comment_count, username, display_name, avatar_url, game_id, game_name, game_cover_url')
+        .eq('id', inserted.id)
+        .single();
+
+      if (fetchErr) {
+        console.error('post fetch failed', fetchErr);
+      } else if (full) {
+        onPosted?.(full as PostRow);
+      }
+      setBody('');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <div className="mb-4 rounded-lg border border-white/10 bg-white/5 p-3">
@@ -880,23 +924,9 @@ function QuickComposer({ onPosted }: { onPosted?: () => void }) {
       />
       <div className="mt-2 flex justify-end">
         <button
+          type="button"
           disabled={busy || body.trim().length === 0}
-          onClick={async ()=>{
-            setBusy(true);
-            try {
-              const session = await waitForSession(sb);
-              const uid = session?.user?.id;
-              if (!uid) { window.location.href = '/login'; return; }
-              const { error } = await sb.from('posts').insert({
-                id: crypto.randomUUID(),
-                user_id: uid,
-                body: body.trim(),
-                tags: null,
-                game_id: null
-              });
-              if (!error) { setBody(''); onPosted?.(); }
-            } finally { setBusy(false); }
-          }}
+          onClick={handlePost}
           className="px-3 py-1.5 rounded bg-indigo-600 text-white disabled:opacity-50"
         >
           {busy ? 'Posting…' : 'Post'}

@@ -247,41 +247,32 @@ export default function HomeClient() {
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
         {/* CENTER */}
         <section>
-          {/* Header */}
-          <h1 className="text-2xl font-bold sr-only">Home</h1>
+          {/* Title */}
+          <h1 className="text-2xl font-bold mb-3">Home</h1>
 
-          {/* Sticky tab bar */}
+          {/* Segmented tabs – full width */}
           <nav
-            className="sticky top-14 z-10 -mx-3 mb-3 px-3 backdrop-blur supports-[backdrop-filter]:bg-black/40"
+            className="grid grid-cols-2 gap-2 rounded-lg border border-white/10 bg-white/5 p-1 mb-4"
+            role="tablist"
             aria-label="Feed tabs"
           >
-            <div className="flex w-full rounded-lg border border-white/10 bg-white/[0.04] overflow-hidden">
-              {(['following', 'foryou'] as const).map((s) => {
-                const active = scope === s;
-                return (
-                  <button
-                    key={s}
-                    onClick={() => setScope(s)}
-                    aria-pressed={active}
-                    className={[
-                      'flex-1 px-4 py-2 text-sm transition-colors focus:outline-none',
-                      active ? 'bg-white/10 text-white' : 'text-white/70 hover:text-white',
-                    ].join(' ')}
-                  >
-                    <span className="inline-flex items-center gap-2">
-                      {s === 'following' ? 'Following' : 'For You'}
-                    </span>
-                    {/* active underline */}
-                    <span
-                      className={[
-                        'block h-[2px] mt-2 rounded-full',
-                        active ? 'bg-white/70' : 'bg-transparent',
-                      ].join(' ')}
-                    />
-                  </button>
-                );
-              })}
-            </div>
+            {[
+              { key: 'following', label: 'Following' },
+              { key: 'foryou', label: 'For You' },
+            ].map(t => (
+              <button
+                key={t.key}
+                onClick={() => setScope(t.key as any)}
+                aria-pressed={scope === t.key}
+                aria-current={scope === t.key ? 'page' : undefined}
+                className={`w-full px-3 py-1.5 text-sm rounded transition-colors
+                  ${scope === t.key
+                    ? 'bg-white/20 text-white'
+                    : 'text-white/60 hover:text-white/80'}`}
+              >
+                <span className="font-medium">{t.label}</span>
+              </button>
+            ))}
           </nav>
 
           {!ready ? (
@@ -315,7 +306,7 @@ export default function HomeClient() {
                 return (
                   <li
                     key={`${r.user_id}-${r.game_id}-${r.created_at}-${i}`}
-                    className="group p-3 hover:bg-white/5 focus-within:bg-white/5 transition rounded-[6px] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20"
+                    className="group -mx-2 md:-mx-3 px-2 md:px-3 py-3 hover:bg-white/5 focus-within:bg-white/5 transition rounded-[6px] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20"
                     onClick={(e) =>
                       onRowClick(e, () => {
                         if (a?.id) openContext(a.id, r.game_id);
@@ -328,7 +319,7 @@ export default function HomeClient() {
                     }
                     tabIndex={0}
                     role="button"
-                    aria-label="Open rating in context"
+                    aria-label={`${a?.display_name || a?.username || 'Player'} rated ${g?.name || 'a game'}`}
                   >
                     <div className="flex items-center gap-3">
                       {/* avatar */}
@@ -439,7 +430,7 @@ export default function HomeClient() {
         </section>
 
         {/* RIGHT RAIL */}
-        <aside className="space-y-6">
+        <aside className="space-y-6 lg:sticky lg:top-16">
           {/* Continue playing */}
           <Panel title="Continue playing" rightAction={
             me ? (

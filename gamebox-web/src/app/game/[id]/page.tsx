@@ -6,13 +6,14 @@ import GamePageClient from './GamePageClient';
 export const dynamic = 'force-dynamic';
 export const revalidate = 60;
 
-export default async function GamePage({ params }: { params: { id: string } }) {
+export default async function GamePage({ params }: { params: Promise<{ id: string }> }) {
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  const gameId = Number(params.id);
+  const { id } = await params;
+  const gameId = Number(id);
   if (!Number.isFinite(gameId)) notFound();
 
   // Load requested game

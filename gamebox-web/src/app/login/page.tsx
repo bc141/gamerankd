@@ -4,6 +4,7 @@
 import { Auth } from '@supabase/auth-ui-react';
 import { ThemeSupa } from '@supabase/auth-ui-shared';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
+import { siteUrl } from '@/lib/site';
 
 export default function LoginPage() {
   const supabase = supabaseBrowser();
@@ -16,7 +17,7 @@ export default function LoginPage() {
 
   const REDIRECT_BASE = isPreview
     ? (runtimeOrigin ?? 'http://localhost:3000')
-    : (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.gamerankd.com');
+    : siteUrl();
 
   return (
     <main className="max-w-md mx-auto p-8">

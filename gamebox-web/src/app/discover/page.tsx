@@ -1,6 +1,7 @@
 // src/app/discover/page.tsx
 import Image from 'next/image';
 import Link from 'next/link';
+import { siteUrl } from '@/lib/site';
 
 type Game = {
   id: number;
@@ -11,7 +12,7 @@ type Game = {
 };
 
 async function fetchSections(sections = ['trending','new','top'] as const) {
-  const res = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/games/browse?sections=${sections.join(',')}&limit=12`, {
+  const res = await fetch(`${siteUrl()}/api/games/browse?sections=${sections.join(',')}&limit=12`, {
     cache: 'no-store',
     next: { revalidate: 0 },
   });

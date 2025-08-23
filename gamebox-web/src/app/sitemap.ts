@@ -1,16 +1,14 @@
 // src/app/sitemap.ts
 import type { MetadataRoute } from 'next';
 import { createClient } from '@supabase/supabase-js';
+import { siteUrl } from '@/lib/site';
 
 export const dynamic = 'force-static';
 export const revalidate = 3600; // 1 hour literal
 export const runtime = 'nodejs'; // safer for supabase-js
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const base =
-    process.env.NEXT_PUBLIC_SITE_URL ??
-    process.env.NEXT_PUBLIC_APP_URL ??
-    'https://example.com';
+  const base = siteUrl();
 
   const supaUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supaAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;

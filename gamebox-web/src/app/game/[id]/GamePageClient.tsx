@@ -142,11 +142,16 @@ function Editions({ items }: { items: Edition[] }) {
 export default function GamePageClient({ 
   gameId, 
   editions,
-  initialGame
+  initialGame,
+  initialStats
 }: { 
   gameId: number; 
   editions: Edition[];
   initialGame?: Game | null;
+  initialStats?: {
+    ratingsCount: number;
+    avgStars: number | null;
+  };
 }) {
   const supabase = supabaseBrowser();
   const router = useRouter();
@@ -190,8 +195,8 @@ export default function GamePageClient({
   const [libBusy, setLibBusy] = useState(false);
 
   // replace the old derived avgStars/ratingsCount with explicit state
-  const [avgStars, setAvgStars] = useState<number | null>(null);
-  const [ratingsCount, setRatingsCount] = useState<number>(0);
+  const [avgStars, setAvgStars] = useState<number | null>(initialStats?.avgStars ?? null);
+  const [ratingsCount, setRatingsCount] = useState<number>(initialStats?.ratingsCount ?? 0);
 
   // 🔎 View-in-context modal hook
   const { open: openContext, modal: contextModal } = useReviewContextModal(
@@ -288,9 +293,6 @@ export default function GamePageClient({
         setTempText('');
       }
 
-      // Always compute header stats from the table directly
-      await refetchStats();
-
       await refetchRecent(user ? user.id : null);
     })();
 
@@ -312,9 +314,10 @@ export default function GamePageClient({
 
   async function refetchStats() {
     const { data, error } = await supabase
-      .from('reviews')
-      .select('rating')      // pull ratings only; small payload
-      .eq('game_id', gameId);
+      .from('game_agg')
+      .select('ratings_count, avg_stars')
+      .eq('id', gameId)
+      .single();
 
     if (error) {
       setAvgStars(null);
@@ -322,15 +325,12 @@ export default function GamePageClient({
       return;
     }
 
-    const rows = data ?? [];
-    setRatingsCount(rows.length);
-    if (rows.length) {
-      const avg100 =
-        rows.reduce((t, r) => t + (typeof r.rating === 'number' ? r.rating : 0), 0) /
-        rows.length;
-      setAvgStars(Number((avg100 / 20).toFixed(1))); // convert 0–100 → 0–5
+    if (data) {
+      setRatingsCount(data.ratings_count ?? 0);
+      setAvgStars(data.avg_stars ? Number((data.avg_stars / 20).toFixed(1)) : null);
     } else {
       setAvgStars(null);
+      setRatingsCount(0);
     }
   }
 

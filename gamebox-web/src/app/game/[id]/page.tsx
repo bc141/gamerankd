@@ -48,6 +48,13 @@ export default async function GamePage({ params }: { params: Promise<{ id: strin
     .order('release_year', { ascending: false })
     .order('name');
 
+  // Fetch aggregated ratings data for rock-solid numbers
+  const { data: agg } = await supabase
+    .from('game_agg')
+    .select('ratings_count, avg_stars')
+    .eq('id', gameId)
+    .single();
+
   return (
     <GamePageClient
       gameId={game.id}
@@ -58,6 +65,10 @@ export default async function GamePage({ params }: { params: Promise<{ id: strin
         summary: game.summary,
         cover_url: game.cover_url,
         // optional: if you later want initial reviews, add them here too
+      }}
+      initialStats={{
+        ratingsCount: agg?.ratings_count ?? 0,
+        avgStars: agg?.avg_stars ? Number((agg.avg_stars / 20).toFixed(1)) : null,
       }}
     />
   );

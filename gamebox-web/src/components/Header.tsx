@@ -157,7 +157,6 @@ export default function Header() {
           {/* Primary nav */}
           <nav className="hidden sm:flex items-center gap-5">
             {navLink('/', 'Home')}
-            {user && navLink('/feed', 'Feed')}
             {/* remove: {navLink('/search', 'Search')} */}
           </nav>
         </div>
@@ -255,7 +254,6 @@ export default function Header() {
       <div className="sm:hidden border-t border-white/10">
         <nav className="mx-auto max-w-5xl px-4 h-10 flex items-center gap-5">
           {navLink('/', 'Home')}
-          {user && navLink('/feed', 'Feed')}
            {/* remove: {navLink('/search', 'Search')} */}
         </nav>
       </div>

@@ -4,15 +4,40 @@ import { createClient } from '@supabase/supabase-js';
 import GamePageClient from './GamePageClient';
 
 export const dynamic = 'force-dynamic';
-export const revalidate = 60;
+export const revalidate = 0;
 
-export default async function GamePage({ params }: { params: Promise<{ id: string }> }) {
+// Fallback live aggregate function for when materialized view doesn't exist
+async function getCommunityStatsFallback(gameId: number) {
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  const { id } = await params;
+  const { data, error } = await supabase
+    .from('reviews')
+    .select('rating')
+    .eq('game_id', gameId);
+
+  if (error) {
+    console.error('reviews aggregate error', error);
+    return { count: 0, avg5: 0 };
+  }
+
+  const list = (data ?? []).map(r => Number(r.rating) || 0);
+  const count = list.length;
+  const avg100 = count ? list.reduce((a, b) => a + b, 0) / count : 0;
+
+  const avg5 = Number((avg100 / 20).toFixed(1));
+  return { count, avg5 };
+}
+
+export default async function GamePage({ params }: { params: { id: string } }) {
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+
+  const { id } = params;
   const gameId = Number(id);
   if (!Number.isFinite(gameId)) notFound();
 
@@ -48,12 +73,26 @@ export default async function GamePage({ params }: { params: Promise<{ id: strin
     .order('release_year', { ascending: false })
     .order('name');
 
-  // Fetch aggregated ratings data for rock-solid numbers
-  const { data: agg } = await supabase
-    .from('game_agg')
-    .select('ratings_count, avg_stars')
-    .eq('id', gameId)
-    .single();
+  // Try materialized view first, fallback to live aggregate
+  let count = 0;
+  let avg5 = 0;
+  
+  try {
+    const { data: stats } = await supabase
+      .from('game_rating_stats')
+      .select('review_count, avg_rating_100')
+      .eq('game_id', gameId)
+      .maybeSingle();
+
+    count = stats?.review_count ?? 0;
+    avg5 = count ? Number(((Number(stats!.avg_rating_100) || 0) / 20).toFixed(1)) : 0;
+  } catch (error) {
+    // Materialized view doesn't exist yet, use fallback
+    console.log('Materialized view not found, using live aggregate fallback');
+    const fallback = await getCommunityStatsFallback(gameId);
+    count = fallback.count;
+    avg5 = fallback.avg5;
+  }
 
   return (
     <GamePageClient
@@ -67,8 +106,8 @@ export default async function GamePage({ params }: { params: Promise<{ id: strin
         // optional: if you later want initial reviews, add them here too
       }}
       initialStats={{
-        ratingsCount: agg?.ratings_count ?? 0,
-        avgStars: agg?.avg_stars ? Number((agg.avg_stars / 20).toFixed(1)) : null,
+        ratingsCount: count,
+        avgStars: count > 0 ? avg5 : null,
       }}
     />
   );

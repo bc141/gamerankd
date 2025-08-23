@@ -75,6 +75,8 @@ export default function AddToLibrarySearch({ ownerId }: { ownerId: string }) {
       { user_id: ownerId, game_id, rating },
       { onConflict: 'user_id,game_id' }
     );
+    // Refresh the page to update live aggregates
+    window.location.reload();
   }
 
   return (

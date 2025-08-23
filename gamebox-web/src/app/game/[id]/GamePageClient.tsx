@@ -48,7 +48,6 @@ type Game = {
   name: string;
   summary: string | null;
   cover_url: string | null;
-  reviews?: Review[];
 };
 
 type RawRecent = {
@@ -194,21 +193,24 @@ export default function GamePageClient({
   const [myLibStatus, setMyLibStatus] = useState<LibraryStatus | null>(null);
   const [libBusy, setLibBusy] = useState(false);
 
-  // Rating stats - calculated from game reviews with normalization
-  const { avgStars, ratingsCount } = useMemo(() => {
-    const nums = (game?.reviews ?? [])
-      .map(r => Number(r.rating ?? 0))
-      .filter(n => Number.isFinite(n) && n > 0);
+  // Rating stats - use aggregated stats from server
+  const [stats, setStats] = useState(initialStats ?? { ratingsCount: 0, avgStars: null });
 
-    if (!nums.length) return { avgStars: null, ratingsCount: 0 };
+  async function refetchStats() {
+    const { data } = await supabase
+      .from('game_rating_stats')
+      .select('review_count, avg_rating_100')
+      .eq('game_id', gameId)
+      .maybeSingle();
 
-    // Detect scale: if any rating > 5, treat as 1..100 and convert to stars by /20
-    const usesHundred = nums.some(n => n > 5);
-    const avgRaw = nums.reduce((a, b) => a + b, 0) / nums.length;
-    const stars = +(usesHundred ? (avgRaw / 20) : avgRaw).toFixed(1);
-
-    return { avgStars: stars, ratingsCount: nums.length };
-  }, [game]);
+    setStats({
+      ratingsCount: data?.review_count ?? 0,
+      avgStars:
+        data?.avg_rating_100 != null
+          ? Number((Number(data.avg_rating_100) / 20).toFixed(1))
+          : null,
+    });
+  }
 
   // 🔎 View-in-context modal hook
   const { open: openContext, modal: contextModal } = useReviewContextModal(
@@ -249,13 +251,14 @@ export default function GamePageClient({
 
       setMe(user ? { id: user.id } : null);
       setReady(true);
+      await refetchStats();
 
       // Load game + my rating (only if we don't have initial data)
       let gameData = game;
       if (!game) {
         const { data, error } = await supabase
           .from('games')
-          .select('id,name,summary,cover_url,reviews(user_id,rating,review)')
+          .select('id,name,summary,cover_url')
           .eq('id', gameId)
           .single();
 
@@ -318,7 +321,7 @@ export default function GamePageClient({
   const refetchGame = async () => {
     const { data } = await supabase
       .from('games')
-      .select('id,name,summary,cover_url,reviews(user_id,rating,review)')
+      .select('id,name,summary,cover_url')
       .eq('id', gameId)
       .single();
     setGame(data as Game);
@@ -452,6 +455,8 @@ export default function GamePageClient({
       setEditing(false);
 
       await Promise.all([refetchGame(), refetchRecent(me.id)]);
+      router.refresh();
+      await refetchStats();
     } finally {
       setSaving(false);
     }
@@ -481,6 +486,8 @@ export default function GamePageClient({
     setTempText('');
     setEditing(false);
     await Promise.all([refetchGame(), refetchRecent(me.id)]);
+    router.refresh();
+    await refetchStats();
   }
 
   // Like/Unlike handler
@@ -571,9 +578,9 @@ export default function GamePageClient({
 
       {/* Community average + quick CTA + Library */}
       <div className="mt-2 flex items-center gap-2 text-sm text-white/70">
-        <StarRating value={avgStars ?? 0} readOnly size={18} />
-        <span>{avgStars == null ? 'No ratings yet' : `${avgStars} / 5`}</span>
-        <span className="text-white/40">· {ratingsCount} rating{ratingsCount === 1 ? '' : 's'}</span>
+        <StarRating value={stats.avgStars ?? 0} readOnly size={18} />
+        <span>{stats.avgStars == null ? 'No ratings yet' : `${stats.avgStars} / 5`}</span>
+        <span className="text-white/40">· {stats.ratingsCount} rating{stats.ratingsCount === 1 ? '' : 's'}</span>
 
         {showAuthControls && me && (
           <div className="ml-auto flex items-center gap-2">

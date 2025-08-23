@@ -21,10 +21,14 @@ export default function HomeClient() {
 
   const [ready, setReady] = useState(false);
   const [me, setMe] = useState<string | null>(null);
+  const [myUsername, setMyUsername] = useState<string | null>(null);
 
   // Center feed
   const [feed, setFeed] = useState<Review[] | null>(null);
   const [feedErr, setFeedErr] = useState<string | null>(null);
+  const [feedScope, setFeedScope] = useState<'following' | 'global'>(
+    (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('feed') === 'global') ? 'global' : 'following'
+  );
 
   // Right rail
   const [continueList, setContinueList] = useState<LibRow[] | null>(null);
@@ -40,18 +44,62 @@ export default function HomeClient() {
       setMe(uid);
       setReady(true);
 
+      // Get username for the current user
+      if (uid) {
+        const { data } = await supabase
+          .from('profiles')
+          .select('username')
+          .eq('id', uid)
+          .single();
+        if (!cancelled) {
+          setMyUsername(data?.username ?? null);
+        }
+      }
+
       // Fire all panels in parallel (feed only if signed in)
       const tasks: Promise<any>[] = [
         fetchTrending().then(v => { if (!cancelled) setTrending(v); }),
         fetchContinue(uid).then(v => { if (!cancelled) setContinueList(v); }),
         fetchWhoToFollow(uid).then(v => { if (!cancelled) setWhoToFollow(v); }),
       ];
-      if (uid) tasks.push(fetchFeed(uid).then(v => { if (!cancelled) setFeed(v.data); }).catch((e) => !cancelled && setFeedErr(String(e?.message ?? e))));
+      if (uid) {
+        if (feedScope === 'following') {
+          tasks.push(fetchFeed(uid).then(v => { if (!cancelled) setFeed(v.data); }).catch((e) => !cancelled && setFeedErr(String(e?.message ?? e))));
+        } else {
+          tasks.push(fetchGlobalFeed().then(v => { if (!cancelled) setFeed(v.data); }).catch((e) => !cancelled && setFeedErr(String(e?.message ?? e))));
+        }
+      }
       await Promise.all(tasks);
     })();
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase]);
+
+  // Persist feed scope in URL and refetch feed when scope changes
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const url = new URLSearchParams(window.location.search);
+    if (feedScope === 'global') {
+      url.set('feed', 'global');
+    } else {
+      url.delete('feed');
+    }
+    
+    const newUrl = url.size ? `?${url}` : window.location.pathname;
+    window.history.replaceState(null, '', newUrl);
+
+    // Refetch feed when scope changes
+    if (me && ready) {
+      setFeed(null);
+      setFeedErr(null);
+      if (feedScope === 'following') {
+        fetchFeed(me).then(v => setFeed(v.data)).catch((e) => setFeedErr(String(e?.message ?? e)));
+      } else {
+        fetchGlobalFeed().then(v => setFeed(v.data)).catch((e) => setFeedErr(String(e?.message ?? e)));
+      }
+    }
+  }, [feedScope, me, ready]);
 
   // ---------- Fetchers ----------
   async function fetchFeed(uid: string): Promise<{ data: Review[] }> {
@@ -69,6 +117,47 @@ export default function HomeClient() {
         game:games ( id, name, cover_url )
       `)
       .in('user_id', followedIds)
+      .order('created_at', { ascending: false })
+      .limit(30);
+
+    if (error) throw error;
+    const rows = (data ?? []) as any[];
+    // normalize
+    return {
+      data: rows.map(r => ({
+        user_id: String(r.user_id),
+        game_id: Number(r.game_id),
+        rating: Number(r.rating ?? 0),
+        review: r.review ?? null,
+        created_at: String(r.created_at),
+        author: r.author ? {
+          id: String(r.author.id),
+          username: r.author.username ?? null,
+          display_name: r.author.display_name ?? null,
+          avatar_url: r.author.avatar_url ?? null,
+        } : null,
+        game: r.game ? {
+          id: Number(r.game.id),
+          name: String(r.game.name ?? ''),
+          cover_url: r.game.cover_url ?? null,
+        } : null,
+      })),
+    };
+  }
+
+  async function fetchGlobalFeed(): Promise<{ data: Review[] }> {
+    // Recent reviews from everyone (last 7 days), excluding blocks/mutes
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    
+    const { data, error } = await supabase
+      .from('reviews')
+      .select(`
+        user_id, game_id, rating, review, created_at,
+        author:profiles!reviews_user_id_profiles_fkey ( id, username, display_name, avatar_url ),
+        game:games ( id, name, cover_url )
+      `)
+      .gte('created_at', sevenDaysAgo.toISOString())
       .order('created_at', { ascending: false })
       .limit(30);
 
@@ -168,7 +257,33 @@ export default function HomeClient() {
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
         {/* CENTER: Feed */}
         <section>
-          <h1 className="text-2xl font-bold mb-3">Home</h1>
+          <div className="flex items-center justify-between mb-3">
+            <h1 className="text-2xl font-bold">Home</h1>
+            {me && (
+              <div className="flex rounded-lg border border-white/10 bg-white/5 p-1">
+                <button
+                  onClick={() => setFeedScope('following')}
+                  className={`px-3 py-1.5 text-sm rounded transition-colors ${
+                    feedScope === 'following'
+                      ? 'bg-white/20 text-white'
+                      : 'text-white/60 hover:text-white/80'
+                  }`}
+                >
+                  Following
+                </button>
+                <button
+                  onClick={() => setFeedScope('global')}
+                  className={`px-3 py-1.5 text-sm rounded transition-colors ${
+                    feedScope === 'global'
+                      ? 'bg-white/20 text-white'
+                      : 'text-white/60 hover:text-white/80'
+                  }`}
+                >
+                  Everyone
+                </button>
+              </div>
+            )}
+          </div>
           {!ready ? (
             <p className="text-white/60">Loading…</p>
           ) : me == null ? (
@@ -249,7 +364,7 @@ export default function HomeClient() {
           <div className="rounded-lg border border-white/10 bg-white/5">
             <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
               <h2 className="text-sm font-semibold text-white/90">Continue playing</h2>
-              {me && <Link href={`/u/me/library`} className="text-xs text-white/60 hover:text-white">See all</Link>}
+              {me && <Link href={myUsername ? `/u/${myUsername}/library?status=playing` : '/login'} className="text-xs text-white/60 hover:text-white">See all</Link>}
             </div>
             {!me ? (
               <div className="p-3 text-sm text-white/60">Sign in to see your library.</div>

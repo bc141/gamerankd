@@ -194,9 +194,21 @@ export default function GamePageClient({
   const [myLibStatus, setMyLibStatus] = useState<LibraryStatus | null>(null);
   const [libBusy, setLibBusy] = useState(false);
 
-  // replace the old derived avgStars/ratingsCount with explicit state
-  const [avgStars, setAvgStars] = useState<number | null>(initialStats?.avgStars ?? null);
-  const [ratingsCount, setRatingsCount] = useState<number>(initialStats?.ratingsCount ?? 0);
+  // Rating stats - calculated from game reviews with normalization
+  const { avgStars, ratingsCount } = useMemo(() => {
+    const nums = (game?.reviews ?? [])
+      .map(r => Number(r.rating ?? 0))
+      .filter(n => Number.isFinite(n) && n > 0);
+
+    if (!nums.length) return { avgStars: null, ratingsCount: 0 };
+
+    // Detect scale: if any rating > 5, treat as 1..100 and convert to stars by /20
+    const usesHundred = nums.some(n => n > 5);
+    const avgRaw = nums.reduce((a, b) => a + b, 0) / nums.length;
+    const stars = +(usesHundred ? (avgRaw / 20) : avgRaw).toFixed(1);
+
+    return { avgStars: stars, ratingsCount: nums.length };
+  }, [game]);
 
   // 🔎 View-in-context modal hook
   const { open: openContext, modal: contextModal } = useReviewContextModal(
@@ -312,27 +324,7 @@ export default function GamePageClient({
     setGame(data as Game);
   };
 
-  async function refetchStats() {
-    const { data, error } = await supabase
-      .from('game_agg')
-      .select('ratings_count, avg_stars')
-      .eq('id', gameId)
-      .single();
 
-    if (error) {
-      setAvgStars(null);
-      setRatingsCount(0);
-      return;
-    }
-
-    if (data) {
-      setRatingsCount(data.ratings_count ?? 0);
-      setAvgStars(data.avg_stars ? Number((data.avg_stars / 20).toFixed(1)) : null);
-    } else {
-      setAvgStars(null);
-      setRatingsCount(0);
-    }
-  }
 
   const refetchRecent = async (viewerId: string | null) => {
     setRecentErr(null);
@@ -459,7 +451,7 @@ export default function GamePageClient({
       setMyText(trimmed);
       setEditing(false);
 
-      await Promise.all([refetchGame(), refetchRecent(me.id), refetchStats()]);
+      await Promise.all([refetchGame(), refetchRecent(me.id)]);
     } finally {
       setSaving(false);
     }
@@ -488,7 +480,7 @@ export default function GamePageClient({
     setMyText('');
     setTempText('');
     setEditing(false);
-    await Promise.all([refetchGame(), refetchRecent(me.id), refetchStats()]);
+    await Promise.all([refetchGame(), refetchRecent(me.id)]);
   }
 
   // Like/Unlike handler

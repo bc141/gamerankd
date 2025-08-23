@@ -426,7 +426,7 @@ export default function HomeClient() {
             </div>
           ) : (
             <>
-              <ul className="divide-y divide-white/10 rounded-lg border border-white/10">
+              <ul className="divide-y divide-white/10 rounded-lg border border-white/10 overflow-hidden">
                 {feed.map((r, i) => {
                   const a = r.author;
                   const g = r.game;
@@ -440,7 +440,7 @@ export default function HomeClient() {
                     <li
                       id={`feed-row-${i}`}
                       key={`${r.user_id}-${r.game_id}-${r.created_at}-${i}`}
-                      className="group -mx-2 md:-mx-3 px-2 md:px-3 py-3 hover:bg-white/5 focus-within:bg-white/5 transition rounded-[6px] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20"
+                      className="group px-3 md:px-4 py-3 hover:bg-white/5 focus-within:bg-white/5 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 ring-inset"
                       onClick={(e) =>
                         onRowClick(e, () => {
                           if (a?.id) openContext(a.id, r.game_id);
@@ -756,9 +756,9 @@ function Dots() {
 // ---------- skeletons ----------
 function FeedSkeleton() {
   return (
-    <ul className="divide-y divide-white/10 rounded-lg border border-white/10">
+    <ul className="divide-y divide-white/10 rounded-lg border border-white/10 overflow-hidden">
       {Array.from({ length: 5 }).map((_, i) => (
-        <li key={i} className="-mx-3 px-3 py-3">
+        <li key={i} className="px-3 py-3">
           <div className="flex items-center gap-3">
             <div className="h-9 w-9 rounded-full bg-white/10" />
             <div className="flex-1 min-w-0">

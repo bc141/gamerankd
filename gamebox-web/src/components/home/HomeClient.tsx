@@ -1,8 +1,7 @@
-// src/components/home/HomeClient.tsx
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import {useEffect, useMemo, useRef, useState} from 'react';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { waitForSession } from '@/lib/waitForSession';
 import { timeAgo } from '@/lib/timeAgo';
@@ -54,6 +53,8 @@ type LibRow = {
 
 type Scope = 'following' | 'foryou';
 
+const PAGE_SIZE = 30;
+
 // ---------- component ----------
 export default function HomeClient() {
   const supabase = supabaseBrowser();
@@ -66,10 +67,16 @@ export default function HomeClient() {
   const [feed, setFeed] = useState<Review[] | null>(null);
   const [feedErr, setFeedErr] = useState<string | null>(null);
   const [scope, setScope] = useState<Scope>(() => {
-    if (typeof window === 'undefined') return 'following';
+    if (typeof window === 'undefined') return 'foryou';
     const p = new URLSearchParams(window.location.search).get('tab');
-    return p === 'foryou' ? 'foryou' : 'following';
+    return p === 'following' ? 'following' : 'foryou';
   });
+
+  // pagination
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const loaderRef = useRef<HTMLDivElement | null>(null);
 
   // right rail
   const [continueList, setContinueList] = useState<LibRow[] | null>(null);
@@ -88,6 +95,9 @@ export default function HomeClient() {
 
   // 💬 comment counts
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
+
+  // selection (keyboard nav)
+  const [sel, setSel] = useState<number>(-1);
 
   // boot
   useEffect(() => {
@@ -119,7 +129,7 @@ export default function HomeClient() {
     };
   }, [supabase]);
 
-  // after session fetch, if signed-out and currently on 'following', switch to 'foryou'
+  // signed-out default to ForYou
   useEffect(() => {
     if (ready && !me && scope === 'following') setScope('foryou');
   }, [ready, me, scope]);
@@ -145,7 +155,8 @@ export default function HomeClient() {
     return off;
   }, []);
 
-    // keep URL in sync + (re)load feed on scope changes / login state ready
+  // keep URL in sync + (re)load feed on scope changes / login state ready
+  const restoredScrollRef = useRef(false);
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const qs = new URLSearchParams(window.location.search);
@@ -158,25 +169,37 @@ export default function HomeClient() {
 
     setFeed(null);
     setFeedErr(null);
+    setSel(-1);
+    setCursor(null);
+    setHasMore(true);
 
     if (!me && scope === 'following') {
       setFeed([]); // not signed-in: show empty with CTA
+      setHasMore(false);
       return;
     }
 
     const load = async () => {
       try {
-        if (scope === 'following') {
-          const { data } = await fetchFollowingFeed(supabase, me!);
-          setFeed(data);
-        } else {
-          const { data } = await fetchForYou(supabase, me);
-          setFeed(data);
+        const base = scope === 'following'
+          ? await fetchFollowingFeed(supabase, me!, { limit: PAGE_SIZE })
+          : await fetchForYou(supabase, me, { limit: PAGE_SIZE });
+
+        setFeed(base.data);
+        setCursor(base.data.length ? base.data[base.data.length - 1].created_at : null);
+        setHasMore(base.data.length >= PAGE_SIZE);
+        // per-tab scroll restore
+        const key = `home:scroll:${scope}`;
+        const y = Number(sessionStorage.getItem(key) || '0');
+        if (y > 0 && !restoredScrollRef.current) {
+          restoredScrollRef.current = true;
+          requestAnimationFrame(() => window.scrollTo({ top: y }));
         }
       } catch (e: any) {
         setFeedErr(String(e?.message ?? e));
       }
     };
+    restoredScrollRef.current = false;
     load();
   }, [scope, me, ready, supabase]);
 
@@ -189,7 +212,7 @@ export default function HomeClient() {
         return;
       }
       const pairs = feed
-        .filter(r => r.author?.id)
+        .filter(r => r.author?.id && r.game_id)
         .map(r => ({ reviewUserId: r.author!.id, gameId: r.game_id }));
 
       if (!pairs.length) {
@@ -233,12 +256,115 @@ export default function HomeClient() {
 
       // tiny re-fetch to reconcile
       setTimeout(async () => {
-        const map = await fetchLikesBulk(supabase, me, [{ reviewUserId, gameId }]);
+        const map = await fetchLikesBulk(supabase, me!, [{ reviewUserId, gameId }]);
         setLikes((p) => ({ ...p, ...map }));
       }, 120);
     } finally {
       setLikeBusy((p) => ({ ...p, [k]: false }));
     }
+  }
+
+  // Load more (infinite)
+  const loadMore = async () => {
+    if (!hasMore || loadingMore || !cursor) return;
+    setLoadingMore(true);
+    try {
+      const res = scope === 'following'
+        ? await fetchFollowingFeed(supabase, me!, { before: cursor, limit: PAGE_SIZE })
+        : await fetchForYou(supabase, me, { before: cursor, limit: PAGE_SIZE });
+
+      setFeed(prev => {
+        const prevArr = prev ?? [];
+        // de-dupe by composite key
+        const seen = new Set(prevArr.map(r => `${r.user_id}-${r.game_id}-${r.created_at}`));
+        const next = res.data.filter(r => !seen.has(`${r.user_id}-${r.game_id}-${r.created_at}`));
+        return prevArr.concat(next);
+      });
+      if (res.data.length) {
+        setCursor(res.data[res.data.length - 1].created_at);
+      }
+      setHasMore(res.data.length >= PAGE_SIZE);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  // intersection observer for infinite scroll
+  useEffect(() => {
+    const node = loaderRef.current;
+    if (!node) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) loadMore();
+      },
+      { rootMargin: '800px 0px 800px 0px', threshold: 0 }
+    );
+    io.observe(node);
+    return () => io.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaderRef.current, cursor, hasMore, loadingMore, scope]);
+
+  // keyboard shortcuts
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!feed?.length) return;
+      // ignore if typing in an input/textarea
+      const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea') return;
+
+      if (e.key === 'j' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        const next = Math.min(feed.length - 1, Math.max(0, sel + 1));
+        setSel(next);
+        focusRow(next);
+      } else if (e.key === 'k' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        const prev = Math.max(0, (sel === -1 ? 0 : sel - 1));
+        setSel(prev);
+        focusRow(prev);
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        const r = feed[Math.max(0, sel)];
+        if (r?.author?.id && r?.game_id) openContext(r.author.id, r.game_id);
+      } else if (e.key.toLowerCase() === 'l') {
+        e.preventDefault();
+        const r = feed[Math.max(0, sel)];
+        if (r?.author?.id && r?.game_id) onToggleLike(r.author.id, r.game_id);
+      } else if (e.key.toLowerCase() === 'c') {
+        e.preventDefault();
+        const r = feed[Math.max(0, sel)];
+        if (r?.author?.id && r?.game_id) openContext(r.author.id, r.game_id);
+      }
+    };
+    const focusRow = (i: number) => {
+      const el = document.getElementById(`feed-row-${i}`);
+      if (el) {
+        (el as HTMLElement).focus({ preventScroll: true });
+        el.scrollIntoView({ block: 'nearest' });
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [feed, sel, openContext]); // eslint-disable-line
+
+  // remember scroll per tab when switching away
+  const switchScope = (next: Scope) => {
+    if (next === scope) return;
+    try {
+      sessionStorage.setItem(`home:scroll:${scope}`, String(window.scrollY || 0));
+    } catch {}
+    setScope(next);
+  };
+
+  // mark completed (right rail)
+  async function markCompleted(gameId: number) {
+    if (!me) { window.location.href = '/login'; return; }
+    await supabase
+      .from('library')
+      .update({ status: 'Completed' })
+      .eq('user_id', me)
+      .eq('game_id', gameId);
+    setContinueList(list => (list ?? []).filter(r => r.game?.id !== gameId));
   }
 
   // ---------- UI ----------
@@ -250,33 +376,37 @@ export default function HomeClient() {
           {/* Title */}
           <h1 className="text-2xl font-bold mb-3">Home</h1>
 
-          {/* Segmented tabs – full width */}
+          {/* Segmented tabs – full width, short underline */}
           <nav
-            className="grid grid-cols-2 gap-2 rounded-lg border border-white/10 bg-white/5 p-1 mb-4"
+            className="grid grid-cols-2 gap-2 rounded-lg border border-white/10 bg-white/5 p-1 mb-4 sticky top-12 z-10 backdrop-blur supports-[backdrop-filter]:bg-black/30"
             role="tablist"
             aria-label="Feed tabs"
           >
-            {[
+            {([
               { key: 'following', label: 'Following' },
               { key: 'foryou', label: 'For You' },
-            ].map(t => (
-              <button
-                key={t.key}
-                onClick={() => setScope(t.key as any)}
-                aria-pressed={scope === t.key}
-                aria-current={scope === t.key ? 'page' : undefined}
-                className={`w-full px-3 py-1.5 text-sm rounded transition-colors
-                  ${scope === t.key
-                    ? 'bg-white/20 text-white'
-                    : 'text-white/60 hover:text-white/80'}`}
-              >
-                <span className="font-medium">{t.label}</span>
-              </button>
-            ))}
+            ] as {key: Scope, label: string}[]).map(t => {
+              const active = scope === t.key;
+              return (
+                <button
+                  key={t.key}
+                  onClick={() => switchScope(t.key)}
+                  aria-pressed={active}
+                  aria-current={active ? 'page' : undefined}
+                  className={`relative w-full px-3 py-2 text-sm rounded transition-colors
+                    ${active ? 'text-white' : 'text-white/70 hover:text-white'}`}
+                >
+                  <span className="font-medium">{t.label}</span>
+                  {active && (
+                    <span className="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-[2px] block h-[2px] w-12 bg-white/70 rounded" />
+                  )}
+                </button>
+              );
+            })}
           </nav>
 
           {!ready ? (
-            <p className="text-white/60">Loading…</p>
+            <FeedSkeleton />
           ) : !me && scope === 'following' ? (
             <div className="rounded-lg border border-white/10 bg-white/5 p-4">
               <p className="text-white/80">
@@ -287,7 +417,7 @@ export default function HomeClient() {
           ) : feedErr ? (
             <p className="text-red-400">{feedErr}</p>
           ) : feed == null ? (
-            <p className="text-white/60">Loading your feed…</p>
+            <FeedSkeleton />
           ) : feed.length === 0 ? (
             <div className="rounded-lg border border-white/10 bg-white/5 p-4">
               <p className="text-white/80">
@@ -295,134 +425,134 @@ export default function HomeClient() {
               </p>
             </div>
           ) : (
-            <ul className="divide-y divide-white/10 rounded-lg border border-white/10">
-              {feed.map((r, i) => {
-                const a = r.author;
-                const g = r.game;
-                const stars = Number((r.rating / 20).toFixed(1));
-                const actorHref = a?.username ? `/u/${a.username}` : '#';
-                const gameHref = g ? `/game/${g.id}` : '#';
+            <>
+              <ul className="divide-y divide-white/10 rounded-lg border border-white/10">
+                {feed.map((r, i) => {
+                  const a = r.author;
+                  const g = r.game;
+                  const stars = Number((r.rating / 20).toFixed(1));
+                  const actorHref = a?.username ? `/u/${a.username}` : '#';
+                  const gameHref = g ? `/game/${g.id}` : '#';
+                  const cKey = a?.id ? commentKey(a.id, r.game_id) : '';
+                  const likeK = a?.id ? likeKey(a.id, r.game_id) : '';
 
-                return (
-                  <li
-                    key={`${r.user_id}-${r.game_id}-${r.created_at}-${i}`}
-                    className="group -mx-2 md:-mx-3 px-2 md:px-3 py-3 hover:bg-white/5 focus-within:bg-white/5 transition rounded-[6px] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20"
-                    onClick={(e) =>
-                      onRowClick(e, () => {
-                        if (a?.id) openContext(a.id, r.game_id);
-                      })
-                    }
-                    onKeyDown={(e) =>
-                      onRowKeyDown(e, () => {
-                        if (a?.id) openContext(a.id, r.game_id);
-                      })
-                    }
-                    tabIndex={0}
-                    role="button"
-                    aria-label={`${a?.display_name || a?.username || 'Player'} rated ${g?.name || 'a game'}`}
-                  >
-                    <div className="flex items-center gap-3">
-                      {/* avatar */}
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={a?.avatar_url || '/avatar-placeholder.svg'}
-                        alt=""
-                        className="h-9 w-9 rounded-full object-cover border border-white/10"
-                        loading="lazy"
-                        decoding="async"
-                      />
-                      <div className="min-w-0">
-                        <div className="text-sm text-white/90">
-                          <Link
-                            href={actorHref}
-                            className="font-medium hover:underline"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {a?.display_name || a?.username || 'Player'}
-                          </Link>{' '}
-                          rated{' '}
+                  return (
+                    <li
+                      id={`feed-row-${i}`}
+                      key={`${r.user_id}-${r.game_id}-${r.created_at}-${i}`}
+                      className="group -mx-2 md:-mx-3 px-2 md:px-3 py-3 hover:bg-white/5 focus-within:bg-white/5 transition rounded-[6px] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20"
+                      onClick={(e) =>
+                        onRowClick(e, () => {
+                          if (a?.id) openContext(a.id, r.game_id);
+                        })
+                      }
+                      onKeyDown={(e) =>
+                        onRowKeyDown(e, () => {
+                          if (a?.id) openContext(a.id, r.game_id);
+                        })
+                      }
+                      tabIndex={0}
+                      role="button"
+                      aria-label={`${a?.display_name || a?.username || 'Player'} rated ${g?.name || 'a game'}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        {/* avatar */}
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={a?.avatar_url || '/avatar-placeholder.svg'}
+                          alt=""
+                          className="h-9 w-9 rounded-full object-cover border border-white/10"
+                          loading="lazy"
+                          decoding="async"
+                        />
+                        <div className="min-w-0">
+                          <div className="text-sm text-white/90">
+                            <Link
+                              href={actorHref}
+                              className="font-medium hover:underline"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {a?.display_name || a?.username || 'Player'}
+                            </Link>{' '}
+                            rated{' '}
+                            <Link
+                              href={gameHref}
+                              className="font-medium hover:underline"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {g?.name ?? 'a game'}
+                            </Link>
+                            <span className="ml-2 inline-flex items-center gap-1 text-white/70">
+                              <StarRating value={stars} readOnly size={14} />
+                              <span className="text-xs tabular-nums">{stars} / 5</span>
+                            </span>
+                          </div>
+                          <div className="text-xs text-white/40">{timeAgo(r.created_at)}</div>
+                        </div>
+
+                        {g?.cover_url && (
                           <Link
                             href={gameHref}
-                            className="font-medium hover:underline"
+                            className="ml-auto shrink-0"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            {g?.name ?? 'a game'}
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={g.cover_url}
+                              alt=""
+                              className="h-12 w-9 rounded object-cover border border-white/10"
+                              loading="lazy"
+                              decoding="async"
+                            />
                           </Link>
-                          <span className="ml-2 inline-flex items-center gap-1 text-white/70">
-                            <StarRating value={stars} readOnly size={14} />
-                            <span className="text-xs">{stars} / 5</span>
-                          </span>
-                        </div>
-                        <div className="text-xs text-white/40">{timeAgo(r.created_at)}</div>
+                        )}
                       </div>
 
-                      {g?.cover_url && (
-                        <Link
-                          href={gameHref}
-                          className="ml-auto shrink-0"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={g.cover_url}
-                            alt=""
-                            className="h-12 w-9 rounded object-cover border border-white/10"
-                            loading="lazy"
-                            decoding="async"
-                          />
-                        </Link>
-                      )}
-                    </div>
-
-                    {r.review?.trim() && (
-                      <p className="mt-2 whitespace-pre-wrap text-white/85">
-                        {r.review.trim()}
-                      </p>
-                    )}
-
-                    {/* actions */}
-                    <div className="mt-2 flex items-center gap-2 pointer-events-none">
-                      {r.author?.id && (
-                        <span className="pointer-events-auto" data-ignore-context>
-                          {(() => {
-                            const k = likeKey(r.author!.id, r.game_id);
-                            const entry = likes[k] ?? { liked: false, count: 0 };
-                            return (
-                              <LikePill
-                                liked={entry.liked}
-                                count={entry.count}
-                                busy={likeBusy[k]}
-                                onClick={() => onToggleLike(r.author!.id, r.game_id)}
-                              />
-                            );
-                          })()}
-                        </span>
+                      {r.review?.trim() && (
+                        <p className="mt-2 whitespace-pre-wrap text-white/85">
+                          {r.review.trim()}
+                        </p>
                       )}
 
-                      {r.author?.id && (
-                        <span className="pointer-events-auto" data-ignore-context>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openContext(r.author!.id, r.game_id);
-                            }}
-                            className="text-xs px-2 py-1 rounded border border-white/10 bg-white/5 hover:bg-white/10"
-                            title="View comments"
-                            aria-label="View comments"
-                          >
-                            {(() => {
-                              const ck = commentKey(r.author!.id, r.game_id);
-                              const cCount = commentCounts[ck] ?? 0;
-                              return <>💬 {cCount}</>;
-                            })()}
-                          </button>
-                        </span>
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
+                      {/* actions */}
+                      <div className="mt-2 flex items-center gap-2 pointer-events-none">
+                        {a?.id && (
+                          <span className="pointer-events-auto" data-ignore-context>
+                            <LikePill
+                              liked={(likes[likeK]?.liked) ?? false}
+                              count={(likes[likeK]?.count) ?? 0}
+                              busy={!!likeBusy[likeK]}
+                              onClick={() => onToggleLike(a.id!, r.game_id)}
+                            />
+                          </span>
+                        )}
+
+                        {a?.id && (
+                          <span className="pointer-events-auto" data-ignore-context>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openContext(a!.id, r.game_id);
+                              }}
+                              className="text-xs px-2 py-1 rounded border border-white/10 bg-white/5 hover:bg-white/10"
+                              title="View comments"
+                              aria-label="View comments"
+                            >
+                              💬 <span className="tabular-nums">{commentCounts[cKey] ?? 0}</span>
+                            </button>
+                          </span>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+
+              {/* infinite loader row */}
+              <div ref={loaderRef} className="py-4 flex items-center justify-center">
+                {loadingMore ? <Dots /> : hasMore ? <span className="text-xs text-white/40">Loading more…</span> : <span className="text-xs text-white/30">You’re up to date</span>}
+              </div>
+            </>
           )}
 
           {/* mount context modal once */}
@@ -445,13 +575,13 @@ export default function HomeClient() {
             {!me ? (
               <div className="p-3 text-sm text-white/60">Sign in to see your library.</div>
             ) : continueList == null ? (
-              <div className="p-3 text-sm text-white/60">Loading…</div>
+              <TilesSkeleton />
             ) : continueList.length === 0 ? (
               <div className="p-3 text-sm text-white/60">No games yet.</div>
             ) : (
               <ul className="p-2 grid grid-cols-3 gap-2">
                 {continueList.map((r, i) => (
-                  <li key={`${r.game?.id}-${i}`}>
+                  <li key={`${r.game?.id}-${i}`} className="relative group">
                     <Link href={r.game ? `/game/${r.game.id}` : '#'} className="block">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
@@ -466,6 +596,18 @@ export default function HomeClient() {
                         {r.status} · {timeAgo(r.updated_at)}
                       </div>
                     </Link>
+
+                    {/* quick action */}
+                    {r.game?.id && (
+                      <button
+                        onClick={(e) => { e.preventDefault(); markCompleted(r.game!.id); }}
+                        className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition text-[10px] px-1.5 py-0.5 rounded border border-white/20 bg-black/50 hover:bg-black/60"
+                        title="Mark completed"
+                        aria-label="Mark completed"
+                      >
+                        ✓ Done
+                      </button>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -475,7 +617,7 @@ export default function HomeClient() {
           {/* Who to follow */}
           <Panel title="Who to follow">
             {whoToFollow == null ? (
-              <div className="p-3 text-sm text-white/60">Loading…</div>
+              <ListSkeleton rows={3} />
             ) : whoToFollow.length === 0 ? (
               <div className="p-3 text-sm text-white/60">No suggestions right now.</div>
             ) : (
@@ -518,7 +660,7 @@ export default function HomeClient() {
             }
           >
             {trending == null ? (
-              <div className="p-3 text-sm text-white/60">Loading…</div>
+              <TilesSkeleton />
             ) : trending.length === 0 ? (
               <div className="p-3 text-sm text-white/60">Nothing yet.</div>
             ) : (
@@ -601,12 +743,76 @@ function FollowButton({ targetId }: { targetId: string }) {
   );
 }
 
+function Dots() {
+  return (
+    <span className="inline-flex items-center gap-1 text-white/60">
+      <span className="animate-pulse">•</span>
+      <span className="animate-pulse [animation-delay:.15s]">•</span>
+      <span className="animate-pulse [animation-delay:.3s]">•</span>
+    </span>
+  );
+}
+
+// ---------- skeletons ----------
+function FeedSkeleton() {
+  return (
+    <ul className="divide-y divide-white/10 rounded-lg border border-white/10">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <li key={i} className="-mx-3 px-3 py-3">
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-full bg-white/10" />
+            <div className="flex-1 min-w-0">
+              <div className="h-3 w-1/3 bg-white/10 rounded" />
+              <div className="h-3 w-1/5 bg-white/10 rounded mt-2" />
+            </div>
+            <div className="h-12 w-9 rounded bg-white/10" />
+          </div>
+          <div className="h-3 w-2/3 bg-white/10 rounded mt-3" />
+        </li>
+      ))}
+    </ul>
+  );
+}
+function TilesSkeleton() {
+  return (
+    <ul className="p-2 grid grid-cols-3 gap-2">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <li key={i}>
+          <div className="h-24 w-full rounded bg-white/10" />
+          <div className="mt-1 h-3 w-5/6 bg-white/10 rounded" />
+        </li>
+      ))}
+    </ul>
+  );
+}
+function ListSkeleton({ rows = 3 }: { rows?: number }) {
+  return (
+    <ul className="p-2 space-y-2">
+      {Array.from({ length: rows }).map((_, i) => (
+        <li key={i} className="flex items-center gap-2">
+          <div className="h-7 w-7 rounded-full bg-white/10" />
+          <div className="flex-1 min-w-0">
+            <div className="h-3 w-1/2 bg-white/10 rounded" />
+            <div className="h-3 w-1/3 bg-white/10 rounded mt-1" />
+          </div>
+          <div className="h-6 w-14 rounded bg-white/10" />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 // ---------- fetchers ----------
-async function fetchFollowingFeed(sb: ReturnType<typeof supabaseBrowser>, uid: string) {
+async function fetchFollowingFeed(
+  sb: ReturnType<typeof supabaseBrowser>,
+  uid: string,
+  opts?: { before?: string | null; limit?: number }
+) {
+  const limit = opts?.limit ?? 40;
+
   // who I follow
   const fl = await sb.from('follows').select('followee_id').eq('follower_id', uid).limit(1000);
   const followingIds = (fl.data ?? []).map((r: any) => String(r.followee_id));
-
   if (!followingIds.length) return { data: [] as Review[] };
 
   // blocks & mutes
@@ -626,26 +832,31 @@ async function fetchFollowingFeed(sb: ReturnType<typeof supabaseBrowser>, uid: s
     `)
     .in('user_id', allowed)
     .order('created_at', { ascending: false })
-    .limit(40);
+    .limit(limit);
 
   if (mutedIds.length) q = q.not('user_id', 'in', toInList(mutedIds));
+  if (opts?.before) q = q.lt('created_at', opts.before);
 
   const { data, error } = await q;
   if (error) throw error;
 
   // final safety pass
   const safe = normalizeReviews(data).filter(r => {
-    const uid = r.author?.id;
-    return !(uid && (hidden.has(uid) || mutedIds.includes(uid)));
+    const aid = r.author?.id;
+    return !(aid && (hidden.has(aid) || mutedIds.includes(aid)));
   });
 
   return { data: safe };
 }
 
+/** “For You”: recent reviews with small bonuses. */
+async function fetchForYou(
+  sb: ReturnType<typeof supabaseBrowser>,
+  uid: string | null,
+  opts?: { before?: string | null; limit?: number }
+) {
+  const limit = opts?.limit ?? 60;
 
-
-/** “For You”: recent reviews, lightly boosted if you follow the author. */
-async function fetchForYou(sb: ReturnType<typeof supabaseBrowser>, uid: string | null) {
   // gather followees (optional)
   let followSet = new Set<string>();
   if (uid) {
@@ -674,9 +885,10 @@ async function fetchForYou(sb: ReturnType<typeof supabaseBrowser>, uid: string |
     `)
     .gte('created_at', since.toISOString())
     .order('created_at', { ascending: false })
-    .limit(120);
+    .limit(limit);
 
   if (mutedIds.length) q = q.not('user_id', 'in', toInList(mutedIds));
+  if (opts?.before) q = q.lt('created_at', opts.before);
 
   const { data, error } = await q;
   if (error) throw error;
@@ -694,7 +906,7 @@ async function fetchForYou(sb: ReturnType<typeof supabaseBrowser>, uid: string |
     return { r, s: recency + bonus };
   }).sort((a,b) => b.s - a.s);
 
-  return { data: scored.slice(0, 40).map(x => x.r) };
+  return { data: scored.map(x => x.r) };
 }
 
 async function fetchContinue(uid: string | null): Promise<LibRow[]> {

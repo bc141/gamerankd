@@ -970,7 +970,7 @@ function QuickComposer({ onPosted }: { onPosted?: (row: PostRow) => void }) {
       // Insert (let DB generate id/created_at)
       const { data: inserted, error: insErr } = await sb
         .from('posts')
-        .insert({ user_id: uid, body: body.trim(), tags: null, game_id: null })
+        .insert({ user_id: uid, body: body.trim(), tags: [], game_id: null })
         .select('id')
         .single();
 
@@ -981,27 +981,32 @@ function QuickComposer({ onPosted }: { onPosted?: (row: PostRow) => void }) {
       }
 
       // Read the hydrated row from the view so counts/user/game fields are present
-      const tryFetch = async (view: string) => {
-        const { data, error } = await sb
-          .from(view)
-          .select(POST_COLS)
-          .eq('id', inserted.id)
-          .single();
-        return { data, error };
-      };
+      let full: PostRow | undefined;
 
-      let full: any = null;
-      let res = await tryFetch('post_feed_v2');
-      if (res.data) full = res.data;
-      else {
-        res = await tryFetch('post_feed');
-        if (res.data) full = res.data;
+      // 1st try: v2
+      let res = await sb
+        .from(POSTS_VIEW) // 'post_feed_v2'
+        .select('id, user_id, created_at, body, tags, like_count, comment_count, username, display_name, avatar_url, game_id, game_name, game_cover_url')
+        .eq('id', inserted.id)
+        .maybeSingle();
+
+      if (res.error || !res.data) {
+        // fallback: legacy view
+        res = await sb
+          .from('post_feed')
+          .select('id, user_id, created_at, body, tags, like_count, comment_count, username, display_name, avatar_url, game_id, game_name, game_cover_url')
+          .eq('id', inserted.id)
+          .maybeSingle();
       }
+
+      full = res.data as PostRow | undefined;
 
       if (full) {
-        onPosted?.(full as PostRow);
+        onPosted?.(full);
+        setBody('');
+      } else {
+        alert('Posted, but could not fetch the hydrated row.');
       }
-      setBody('');
     } finally {
       setBusy(false);
     }

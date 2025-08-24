@@ -586,12 +586,12 @@ export default function HomeClient() {
           {/* Composer (temporary lightweight) */}
           <QuickComposer
             onPosted={(row) => {
-              // show it instantly in both arrays for consistency
               setPosts(prev => [row, ...(prev ?? [])]);
-              setUnifiedFeed(prev => {
-                const newItem: FeedItem = { kind: 'post' as const, created_at: row.created_at, post: row };
-                return [newItem, ...(prev ?? [])];
-              });
+              setUnifiedFeed(prev => [{ kind: 'post', created_at: row.created_at, post: row }, ...(prev ?? [])]);
+
+              // seed local UI maps
+              setPostLikes(m => ({ ...m, [postLikeKey(row.id)]: { liked: false, count: 0 } }));
+              setPostCommentCounts(m => ({ ...m, [postCKey(row.id)]: 0 }));
             }}
           />
 
@@ -747,7 +747,18 @@ export default function HomeClient() {
                     const cCount = postCommentCounts[cKey] ?? (p.comment_count || 0);
 
                     return (
-                      <li key={`post-${p.id}`} className="group px-3 md:px-4 py-3 hover:bg-white/5 focus-within:bg-white/5 transition-colors">
+                      <li
+                        key={`post-${p.id}`}
+                        id={`feed-row-${i}`}
+                        className="group px-3 md:px-4 py-3 hover:bg-white/5 focus-within:bg-white/5 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 ring-inset"
+                        tabIndex={0}
+                        role="button"
+                        aria-label={`${p.display_name || p.username || 'Player'} posted${p.game_name ? ` about ${p.game_name}` : ''}`}
+                        onClick={() => setOpenPostThread(p.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') setOpenPostThread(p.id);
+                        }}
+                      >
                         <div className="flex items-center gap-3">
                           {/* avatar */}
                           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -804,7 +815,7 @@ export default function HomeClient() {
                             className="text-xs px-2 py-1 rounded border border-white/10 bg-white/5 hover:bg-white/10"
                             title="Comments"
                             aria-label="Comments"
-                            onClick={() => setOpenPostThread(p.id)}
+                            onClick={(e) => { e.stopPropagation(); setOpenPostThread(p.id); }}
                           >
                             💬 {cCount}
                           </button>
@@ -828,12 +839,12 @@ export default function HomeClient() {
           {/* Post comments modal */}
           {openPostThread && (
             <PostCommentThread
-              postId={openPostThread}
               viewerId={me}
+              postId={openPostThread}
               onClose={async () => {
-                // refresh the count for this one post on close
-                const m = await fetchPostCommentCountsBulk(supabase, [openPostThread]);
-                setPostCommentCounts((prev) => ({ ...prev, ...m }));
+                // refresh just this post's count
+                const map = await fetchPostCommentCountsBulk(supabase, [openPostThread]);
+                setPostCommentCounts(prev => ({ ...prev, ...map }));
                 setOpenPostThread(null);
               }}
             />
@@ -1319,23 +1330,9 @@ async function fetchWhoToFollow(uid: string | null): Promise<Profile[]> {
   }));
 }
 
-async function fetchTrending(): Promise<Game[]> {
-  try {
-    const res = await fetch('/api/games/browse?sections=trending&limit=6', {
-      cache: 'no-store',
-      next: { revalidate: 0 },
-    });
-    const json = await res.json();
-    const items: any[] =
-      json?.items ?? json?.trending ?? json?.sections?.trending ?? [];
-    return items.map((g: any) => ({
-      id: Number(g.id),
-      name: String(g.name ?? ''),
-      cover_url: g.cover_url ?? null,
-    }));
-  } catch {
-    return [];
-  }
+async function fetchTrending(): Promise<{id:number; name:string; cover_url:string|null}[]> {
+  // Temporary: don't call the API to silence 500s
+  return [];
 }
 
 async function fetchPostsForScope(

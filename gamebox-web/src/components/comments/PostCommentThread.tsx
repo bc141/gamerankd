@@ -39,10 +39,8 @@ export default function PostCommentThread({
       const { data, error } = await sb
         .from('post_comments')
         .select(`
-          id, created_at, body,
-          author:profiles!post_comments_user_id_profiles_fkey (
-            id, username, display_name, avatar_url
-          )
+          id, post_id, user_id, body, created_at,
+          author:profiles!post_comments_user_id_fkey ( id, username, display_name, avatar_url )
         `)
         .eq('post_id', postId)
         .order('created_at', { ascending: true });
@@ -97,23 +95,25 @@ export default function PostCommentThread({
         .from('post_comments')
         .insert({ post_id: postId, user_id: uid, body })
         .select(`
-          id, created_at, body,
-          author:profiles!post_comments_user_id_profiles_fkey (
-            id, username, display_name, avatar_url
-          )
+          id, post_id, user_id, body, created_at,
+          author:profiles!post_comments_user_id_fkey ( id, username, display_name, avatar_url )
         `)
         .single();
 
       if (error) return;
+      
+      // Handle the author data - it might be an array or single object
+      const authorData = Array.isArray(data!.author) ? data!.author[0] : data!.author;
+      
       setRows((r) => r.concat([{
         id: String(data!.id),
         created_at: String(data!.created_at),
         body: String(data!.body ?? ''),
-        author: data!.author?.[0] ? {
-          id: String(data!.author[0].id),
-          username: data!.author[0].username ?? null,
-          display_name: data!.author[0].display_name ?? null,
-          avatar_url: data!.author[0].avatar_url ?? null,
+        author: authorData ? {
+          id: String(authorData.id),
+          username: authorData.username ?? null,
+          display_name: authorData.display_name ?? null,
+          avatar_url: authorData.avatar_url ?? null,
         } : null
       }]));
       setText('');

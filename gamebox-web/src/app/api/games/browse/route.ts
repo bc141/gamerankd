@@ -23,13 +23,17 @@ function pick<T>(arr: T[], n: number) {
 }
 
 export async function GET(req: NextRequest) {
-  const sb = createClient(SB_URL, SB_SERVICE);
-  const headers = { 'Cache-Control': 'no-store' };
+  try {
+    const sb = createClient(SB_URL, SB_SERVICE);
+    const headers = { 'Cache-Control': 'no-store' };
 
-  const url = new URL(req.url);
-  const sections = (url.searchParams.get('sections') ?? 'trending,new,top').split(',').map(s => s.trim());
-  const limit = Math.min(30, Math.max(4, Number(url.searchParams.get('limit') ?? '12')));
-  const sinceDays = Math.min(30, Math.max(7, Number(url.searchParams.get('sinceDays') ?? '14'))); // for trending window
+    const url = new URL(req.url);
+    const sections = (url.searchParams.get('sections') ?? 'trending,new,top').split(',').map(s => s.trim());
+    const limit = Math.min(30, Math.max(4, Number(url.searchParams.get('limit') ?? '12')));
+    const sinceDays = Math.min(30, Math.max(7, Number(url.searchParams.get('sinceDays') ?? '14'))); // for trending window
+
+    // sanity
+    if (!sections.length) return NextResponse.json({ sections: {}, items: [] }, { headers });
 
   // helper to load canonical games by ids in the same order
   const loadGamesByIds = async (ids: number[]) => {
@@ -108,5 +112,9 @@ export async function GET(req: NextRequest) {
     out.top = await loadGamesByIds(pick(rankedIds, limit));
   }
 
-  return NextResponse.json({ sections: out }, { headers });
+    return NextResponse.json({ sections: out }, { headers });
+  } catch (err: any) {
+    console.error('[/api/games/browse] failed:', err?.message, err);
+    return new Response('Internal Server Error', { status: 500 });
+  }
 }

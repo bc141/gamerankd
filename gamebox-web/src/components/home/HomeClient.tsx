@@ -29,6 +29,31 @@ import { toInList } from '@/lib/sql';
 
 // ---------- constants ----------
 const POSTS_VIEW = 'post_feed_v2'; // fallback to 'post_feed' if v2 isn't present
+const POST_COLS = 'id,user_id,created_at,body,tags,like_count,comment_count,username,display_name,avatar_url,game_id,game_name,game_cover_url';
+
+// ---------- helpers ----------
+async function selectPostsWithFallback(
+  sb: ReturnType<typeof supabaseBrowser>,
+  build: (q: any) => any,
+  limit = 40
+): Promise<PostRow[]> {
+  // try v2
+  let q = build(sb.from('post_feed_v2').select(POST_COLS))
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  let { data, error } = await q;
+  if (!error) return (data ?? []) as PostRow[];
+
+  // fallback to v1
+  q = build(sb.from('post_feed').select(POST_COLS))
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  ({ data } = await q);
+  return (data ?? []) as PostRow[];
+}
+
+const sortByCreated = (a: FeedItem, b: FeedItem) =>
+  Date.parse(b.created_at) - Date.parse(a.created_at);
 
 // ---------- types ----------
 type Profile = {
@@ -254,7 +279,7 @@ export default function HomeClient() {
         const merged: FeedItem[] = [
           ...revs.map(r => ({ kind: 'review' as const, created_at: r.created_at, review: r })),
           ...postsRows.map(p => ({ kind: 'post' as const, created_at: p.created_at, post: p })),
-        ].sort((a,b) => b.created_at.localeCompare(a.created_at));
+        ].sort(sortByCreated);
 
         setFeed(revs);
         setUnifiedFeed(merged);
@@ -303,6 +328,22 @@ export default function HomeClient() {
       setCommentCounts(commentsMap ?? {});
     })();
   }, [feed, me, supabase]);
+
+  // Preload post likes & comment counts when unified feed changes
+  useEffect(() => {
+    (async () => {
+      const ids = (unifiedFeed ?? [])
+        .filter(it => it.kind === 'post')
+        .map(it => it.post.id);
+      if (!ids.length) { setPostLikes({}); setPostCommentCounts({}); return; }
+      const [pl, pc] = await Promise.all([
+        fetchPostLikesBulk(supabase, me, ids),
+        fetchPostCommentCountsBulk(supabase, ids),
+      ]);
+      setPostLikes(pl ?? {});
+      setPostCommentCounts(pc ?? {});
+    })();
+  }, [unifiedFeed, me, supabase]);
 
   // Like/Unlike handler
   async function onToggleLike(reviewUserId: string, gameId: number) {
@@ -376,7 +417,7 @@ export default function HomeClient() {
       const next: FeedItem[] = [
         ...(moreRevs.data ?? []).map(r => ({ kind: 'review' as const, created_at: r.created_at, review: r })),
         ...(morePosts ?? []).map(p => ({ kind: 'post' as const, created_at: p.created_at, post: p })),
-      ].sort((a,b) => b.created_at.localeCompare(a.created_at));
+      ].sort(sortByCreated);
 
       setFeed(prev => {
         const prevArr = prev ?? [];
@@ -386,7 +427,28 @@ export default function HomeClient() {
         return prevArr.concat(nextRevs);
       });
 
-      setUnifiedFeed(prev => (prev ?? []).concat(next));
+      setUnifiedFeed(prev => {
+        const current = prev ?? [];
+        const seen = new Set(
+          current.map(it =>
+            it.kind === 'post'
+              ? `post:${it.post.id}`
+              : `rev:${it.review.user_id}:${it.review.game_id}:${it.review.created_at}`
+          )
+        );
+        const merged = [...current];
+        for (const it of next) {
+          const key =
+            it.kind === 'post'
+              ? `post:${it.post.id}`
+              : `rev:${it.review.user_id}:${it.review.game_id}:${it.review.created_at}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            merged.push(it);
+          }
+        }
+        return merged.sort(sortByCreated);
+      });
       
       if (moreRevs.data?.length)  setCursor (moreRevs.data.at(-1)!.created_at);
       if (morePosts.length)       setPostCursor(morePosts.at(-1)!.created_at);
@@ -919,28 +981,21 @@ function QuickComposer({ onPosted }: { onPosted?: (row: PostRow) => void }) {
       }
 
       // Read the hydrated row from the view so counts/user/game fields are present
-      let full;
-      try {
-        const { data, error: fetchErr } = await sb
-          .from(POSTS_VIEW)
-          .select('id, user_id, created_at, body, tags, like_count, comment_count, username, display_name, avatar_url, game_id, game_name, game_cover_url')
+      const tryFetch = async (view: string) => {
+        const { data, error } = await sb
+          .from(view)
+          .select(POST_COLS)
           .eq('id', inserted.id)
           .single();
-        
-        if (!fetchErr && data) {
-          full = data;
-        }
-      } catch {
-        // fallback to original view
-        const { data, error: fetchErr } = await sb
-          .from('post_feed')
-          .select('id, user_id, created_at, body, tags, like_count, comment_count, username, display_name, avatar_url, game_id, game_name, game_cover_url')
-          .eq('id', inserted.id)
-          .single();
-        
-        if (!fetchErr && data) {
-          full = data;
-        }
+        return { data, error };
+      };
+
+      let full: any = null;
+      let res = await tryFetch('post_feed_v2');
+      if (res.data) full = res.data;
+      else {
+        res = await tryFetch('post_feed');
+        if (res.data) full = res.data;
       }
 
       if (full) {
@@ -1269,7 +1324,6 @@ async function fetchPostsForScope(
 ): Promise<PostRow[]> {
   const limit = opts?.limit ?? 40;
 
-  // time window for For You (mirrors reviews)
   const since = new Date();
   since.setDate(since.getDate() - 14);
 
@@ -1281,43 +1335,27 @@ async function fetchPostsForScope(
     const { iBlocked, blockedMe, iMuted } = await getBlockSets(sb, uid);
     hidden = new Set([...iBlocked, ...blockedMe].map(String));
     mutedIds = Array.from(iMuted ?? new Set<string>()).map(String);
-
     if (scope === 'following') {
       const fl = await sb.from('follows').select('followee_id').eq('follower_id', uid).limit(1000);
       followingIds = (fl.data ?? []).map((r: any) => String(r.followee_id)).filter(id => !hidden.has(id));
+      if (!followingIds.length) return [];
     }
   }
 
-  // try v2 first, fallback to original view
-  let q;
-  try {
-    q = sb.from(POSTS_VIEW)
-      .select('id, user_id, created_at, body, tags, like_count, comment_count, username, display_name, avatar_url, game_id, game_name, game_cover_url');
-  } catch {
-    q = sb.from('post_feed')
-      .select('id, user_id, created_at, body, tags, like_count, comment_count, username, display_name, avatar_url, game_id, game_name, game_cover_url');
-  }
+  const rows = await selectPostsWithFallback(
+    sb,
+    (q) => {
+      if (scope === 'following') q = q.in('user_id', followingIds);
+      else q = q.gte('created_at', since.toISOString());
+      if (mutedIds.length) q = q.not('user_id', 'in', toInList(mutedIds));
+      if (opts?.before) q = q.lt('created_at', opts.before);
+      return q;
+    },
+    limit
+  );
 
-  // filters
-  if (scope === 'following') {
-    if (followingIds.length === 0) return [];
-    q = q.in('user_id', followingIds);
-  } else {
-    q = q.gte('created_at', since.toISOString());
-  }
-
-  if (mutedIds.length) q = q.not('user_id', 'in', toInList(mutedIds));
-  if (opts?.before) q = q.lt('created_at', opts.before);
-
-  const { data, error } = await q
-    .order('created_at', { ascending: false })
-    .limit(limit);
-
-  if (error) return [];
-
-  // safety-pass hidden users
-  const rows = (data ?? []) as PostRow[];
-  return rows.filter(r => !(r.username && hidden.has(String(r.user_id))));
+  // final safety by user_id (not username)
+  return rows.filter(r => !hidden.has(String(r.user_id)));
 }
 
 function normalizeReviews(rows: any[] | null): Review[] {

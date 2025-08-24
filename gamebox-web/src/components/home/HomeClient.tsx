@@ -7,9 +7,10 @@ import { waitForSession } from '@/lib/waitForSession';
 import { timeAgo } from '@/lib/timeAgo';
 import StarRating from '@/components/StarRating';
 import { useReviewContextModal } from '@/components/ReviewContext/useReviewContextModal';
+import { usePostContextModal } from '@/components/PostContext/usePostContextModal';
 import { onRowClick, onRowKeyDown } from '@/lib/safeOpenContext';
 import LikePill from '@/components/LikePill';
-import PostCommentThread from '@/components/comments/PostCommentThread';
+
 import {
   likeKey,
   fetchLikesBulk,
@@ -143,6 +144,14 @@ export default function HomeClient() {
     supabase,
     me ?? null
   );
+  const { open: openPostContext, modal: postContextModal } = usePostContextModal(me ?? null, async () => {
+    // refresh comment counts when modal closes
+    if (posts) {
+      const ids = posts.map(p => String(p.id));
+      const map = await fetchPostCommentCountsBulk(supabase, ids);
+      setPostCommentCounts(prev => ({ ...prev, ...map }));
+    }
+  });
 
   // ❤️ likes for visible items
   const [likes, setLikes] = useState<Record<string, LikeEntry>>({});
@@ -156,7 +165,6 @@ export default function HomeClient() {
   const [postLikes, setPostLikes] = useState<Record<string, PostLikeEntry>>({});
   const [postLikeBusy, setPostLikeBusy] = useState<Record<string, boolean>>({});
   const [postCommentCounts, setPostCommentCounts] = useState<Record<string, number>>({});
-  const [openPostThread, setOpenPostThread] = useState<string | null>(null);
 
   // selection (keyboard nav)
   const [sel, setSel] = useState<number>(-1);
@@ -499,6 +507,8 @@ export default function HomeClient() {
         const item = unifiedFeed[Math.max(0, sel)];
         if (item?.kind === 'review' && item.review?.author?.id && item.review?.game_id) {
           openContext(item.review.author.id, item.review.game_id);
+        } else if (item?.kind === 'post') {
+          openPostContext(item.post.id);
         }
       } else if (e.key.toLowerCase() === 'l') {
         e.preventDefault();
@@ -511,6 +521,8 @@ export default function HomeClient() {
         const item = unifiedFeed[Math.max(0, sel)];
         if (item?.kind === 'review' && item.review?.author?.id && item.review?.game_id) {
           openContext(item.review.author.id, item.review.game_id);
+        } else if (item?.kind === 'post') {
+          openPostContext(item.post.id, { focusInput: true });
         }
       }
     };
@@ -523,7 +535,7 @@ export default function HomeClient() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [unifiedFeed, sel, openContext]); // eslint-disable-line
+  }, [unifiedFeed, sel, openContext, openPostContext]); // eslint-disable-line
 
   // remember scroll per tab when switching away
   const switchScope = (next: Scope) => {
@@ -754,9 +766,9 @@ export default function HomeClient() {
                         tabIndex={0}
                         role="button"
                         aria-label={`${p.display_name || p.username || 'Player'} posted${p.game_name ? ` about ${p.game_name}` : ''}`}
-                        onClick={() => setOpenPostThread(p.id)}
+                        onClick={() => openPostContext(p.id)}
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter') setOpenPostThread(p.id);
+                          if (e.key === 'Enter') openPostContext(p.id);
                         }}
                       >
                         <div className="flex items-center gap-3">
@@ -815,7 +827,7 @@ export default function HomeClient() {
                             className="text-xs px-2 py-1 rounded border border-white/10 bg-white/5 hover:bg-white/10"
                             title="Comments"
                             aria-label="Comments"
-                            onClick={(e) => { e.stopPropagation(); setOpenPostThread(p.id); }}
+                            onClick={(e) => { e.stopPropagation(); openPostContext(p.id, { focusInput: true }); }}
                           >
                             💬 {cCount}
                           </button>
@@ -835,20 +847,9 @@ export default function HomeClient() {
 
           {/* mount context modal once */}
           {contextModal}
+          {postContextModal}
 
-          {/* Post comments modal */}
-          {openPostThread && (
-            <PostCommentThread
-              viewerId={me}
-              postId={openPostThread}
-              onClose={async () => {
-                // refresh just this post's count
-                const map = await fetchPostCommentCountsBulk(supabase, [openPostThread]);
-                setPostCommentCounts(prev => ({ ...prev, ...map }));
-                setOpenPostThread(null);
-              }}
-            />
-          )}
+
         </section>
 
         {/* RIGHT RAIL */}

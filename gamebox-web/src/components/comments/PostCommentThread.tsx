@@ -21,16 +21,21 @@ export default function PostCommentThread({
   postId,
   viewerId,
   onClose,
+  embed = false,
+  autoFocusInput = false,
 }: {
   postId: string;
   viewerId: string | null;
   onClose?: () => void;
+  embed?: boolean;
+  autoFocusInput?: boolean;
 }) {
   const sb = supabaseBrowser();
   const [rows, setRows] = useState<Row[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // fetch comments
   useEffect(() => {
@@ -75,6 +80,13 @@ export default function PostCommentThread({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
+
+  // auto-focus input if requested
+  useEffect(() => {
+    if (autoFocusInput && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [autoFocusInput]);
 
   async function send() {
     const body = text.trim();
@@ -122,15 +134,16 @@ export default function PostCommentThread({
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur flex items-center justify-center p-4">
-      <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-neutral-900 text-white">
+  const content = (
+    <div className={`${embed ? '' : 'w-full max-w-lg rounded-2xl border border-white/10 bg-neutral-900'} text-white`}>
+      {!embed && (
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
           <h3 className="text-sm font-semibold">Comments</h3>
           <button onClick={onClose} className="text-white/60 hover:text-white">✕</button>
         </div>
+      )}
 
-        <div className="max-h-[60vh] overflow-y-auto p-3 space-y-3">
+        <div className={`${embed ? 'max-h-[65vh]' : 'max-h-[60vh]'} overflow-y-auto p-3 space-y-3`}>
           {err && <div className="text-red-400 text-sm">{err}</div>}
           {rows.length === 0 ? (
             <div className="text-sm text-white/60">No comments yet.</div>
@@ -158,6 +171,7 @@ export default function PostCommentThread({
         <div className="p-3 border-t border-white/10">
           <div className="flex gap-2">
             <input
+              ref={inputRef}
               value={text}
               onChange={(e) => setText(e.target.value)}
               placeholder="Write a comment…"
@@ -174,6 +188,15 @@ export default function PostCommentThread({
           </div>
         </div>
       </div>
+    );
+
+  if (embed) {
+    return content;
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur flex items-center justify-center p-4">
+      {content}
     </div>
   );
 }

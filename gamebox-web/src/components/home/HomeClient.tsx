@@ -9,6 +9,7 @@ import StarRating from '@/components/StarRating';
 import { useReviewContextModal } from '@/components/ReviewContext/useReviewContextModal';
 import { onRowClick, onRowKeyDown } from '@/lib/safeOpenContext';
 import LikePill from '@/components/LikePill';
+import PostCommentThread from '@/components/comments/PostCommentThread';
 import {
   likeKey,
   fetchLikesBulk,
@@ -155,6 +156,7 @@ export default function HomeClient() {
   const [postLikes, setPostLikes] = useState<Record<string, PostLikeEntry>>({});
   const [postLikeBusy, setPostLikeBusy] = useState<Record<string, boolean>>({});
   const [postCommentCounts, setPostCommentCounts] = useState<Record<string, number>>({});
+  const [openPostThread, setOpenPostThread] = useState<string | null>(null);
 
   // selection (keyboard nav)
   const [sel, setSel] = useState<number>(-1);
@@ -799,9 +801,10 @@ export default function HomeClient() {
                             onClick={() => onTogglePostLike(p.id)}
                           />
                           <button
-                            className="text-xs px-2 py-1 rounded border border-white/10 bg-white/5"
+                            className="text-xs px-2 py-1 rounded border border-white/10 bg-white/5 hover:bg-white/10"
                             title="Comments"
                             aria-label="Comments"
+                            onClick={() => setOpenPostThread(p.id)}
                           >
                             💬 {cCount}
                           </button>
@@ -821,6 +824,20 @@ export default function HomeClient() {
 
           {/* mount context modal once */}
           {contextModal}
+
+          {/* Post comments modal */}
+          {openPostThread && (
+            <PostCommentThread
+              postId={openPostThread}
+              viewerId={me}
+              onClose={async () => {
+                // refresh the count for this one post on close
+                const m = await fetchPostCommentCountsBulk(supabase, [openPostThread]);
+                setPostCommentCounts((prev) => ({ ...prev, ...m }));
+                setOpenPostThread(null);
+              }}
+            />
+          )}
         </section>
 
         {/* RIGHT RAIL */}
@@ -1359,7 +1376,7 @@ async function fetchPostsForScope(
     limit
   );
 
-  // final safety by user_id (not username)
+  // final safety-pass
   return rows.filter(r => !hidden.has(String(r.user_id)));
 }
 

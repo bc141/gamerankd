@@ -2,7 +2,7 @@
 
 **Branch:** chore/ai-loop-check  
 **PR:** https://github.com/bc141/gamdit/pull/1  
-**Preview URL:** UNFILLED
+**Preview URL:** http://localhost:3001 (local dev)
 
 ## Goal / Scope (1–3 bullets)
 - Implement persistent handoff system for warm agent sessions
@@ -27,11 +27,20 @@
 - `npx playwright test -g @ux`
 
 ## Current State
-- Tests: All tests passing, Playwright smoke tests configured
+- Tests: Database testing complete, core functionality verified ✅
 - AI review: Bugbot successfully caught pg_trgm schema bug and fixed it
 - DB: Clean database setup with consolidated migrations ✅
 - Security: RLS enabled, proper policies, no schema errors ✅
 - Performance: Essential indexes created, optimized queries ✅
+- App: Environment variables configured, application running on port 3001 ✅
+- CI: NEXT guard workflow created and tested ✅
+
+## Recent Changes Log
+- 2025-09-10: Database upgrade testing completed successfully
+- 2025-09-10: Removed old migration files, consolidated into clean setup
+- 2025-09-10: Fixed environment variable configuration for local development
+- 2025-09-10: Verified RLS policies and database security hardening
+- 2025-09-10: Application integration tested and working
 
 ## Constraints / Out of Scope
 - Don't touch `main`
@@ -39,8 +48,8 @@
 - Small, scoped commits; PR with screenshots/logs
 
 ## Next Steps
-1) Verify all security errors are resolved in Supabase
-2) Test CI guard workflow on this PR
+1) ✅ Database upgrade testing completed successfully
+2) ✅ CI guard workflow tested and working
 3) Ready for production deployment or feature development
 
 ## Open Questions / Decisions Needed

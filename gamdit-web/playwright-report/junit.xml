@@ -1,0 +1,1840 @@
+<testsuites id="" name="" tests="5" failures="4" skipped="0" errors="0" time="22.384038">
+<testsuite name="smoke.spec.ts" timestamp="2025-09-10T23:25:10.663Z" hostname="" tests="5" failures="4" skipped="0" time="47.961" errors="0">
+<testcase name="Smoke Tests › @smoke home loads + a11y" classname="smoke.spec.ts" time="9.114">
+<failure message="smoke.spec.ts:6:7 @smoke home loads + a11y" type="FAILURE">
+<![CDATA[  smoke.spec.ts:6:7 › Smoke Tests › @smoke home loads + a11y ───────────────────────────────────────
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  -   1
+    + Received  + 198
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "description": "Ensure elements with an ARIA role that require child roles contain them",
+    +     "help": "Certain ARIA roles must contain particular children",
+    +     "helpUrl": "https://dequeuniversity.com/rules/axe/4.10/aria-required-children?application=playwright",
+    +     "id": "aria-required-children",
+    +     "impact": "critical",
+    +     "nodes": Array [
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "messageKey": "unallowed",
+    +               "values": "button[tabindex], button[aria-current]",
+    +             },
+    +             "id": "aria-required-children",
+    +             "impact": "critical",
+    +             "message": "Element has children which are not allowed: button[tabindex], button[aria-current]",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<button aria-pressed=\"false\" class=\"relative w-full px-3 py-2 text-sm rounded transition-colors
+    +                     text-white/70 hover:text-white\"><span class=\"font-medium\">Following</span></button>",
+    +                 "target": Array [
+    +                   ".text-white\\/70",
+    +                 ],
+    +               },
+    +               Object {
+    +                 "html": "<button aria-pressed=\"true\" aria-current=\"page\" class=\"relative w-full px-3 py-2 text-sm rounded transition-colors
+    +                     text-white\">",
+    +                 "target": Array [
+    +                   "button[aria-current=\"page\"]",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has children which are not allowed: button[tabindex], button[aria-current]",
+    +         "html": "<nav class=\"grid grid-cols-2 gap-2 rounded-lg border border-white/10 bg-white/5 p-1 mb-4 sticky top-12 z-10 backdrop-blur supports-[backdrop-filter]:bg-black/30\" role=\"tablist\" aria-label=\"Feed tabs\">",
+    +         "impact": "critical",
+    +         "none": Array [],
+    +         "target": Array [
+    +           ".grid-cols-2",
+    +         ],
+    +       },
+    +     ],
+    +     "tags": Array [
+    +       "cat.aria",
+    +       "wcag2a",
+    +       "wcag131",
+    +       "EN-301-549",
+    +       "EN-9.1.3.1",
+    +     ],
+    +   },
+    +   Object {
+    +     "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+    +     "help": "Elements must meet minimum color contrast ratio thresholds",
+    +     "helpUrl": "https://dequeuniversity.com/rules/axe/4.10/color-contrast?application=playwright",
+    +     "id": "color-contrast",
+    +     "impact": "serious",
+    +     "nodes": Array [
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#999999",
+    +               "contrastRatio": 2.84,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#ffffff",
+    +               "fontSize": "10.5pt (14px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 2.84 (foreground color: #ffffff, background color: #999999, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<header class=\"border-b border-white/10 sticky top-0 z-40 bg-black/60 backdrop-blur supports-[backdrop-filter]:bg-black/40\">",
+    +                 "target": Array [
+    +                   "header",
+    +                 ],
+    +               },
+    +               Object {
+    +                 "html": "<body class=\"__variable_5cfdac __variable_9a8899 antialiased bg-neutral-950 text-white\">",
+    +                 "target": Array [
+    +                   "body",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 2.84 (foreground color: #ffffff, background color: #999999, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<a class=\"text-sm pb-0.5 border-b-2 border-indigo-500 text-white\" href=\"/\">Home</a>",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           ".sm\\:flex > .pb-0\\.5.border-b-2.border-indigo-500",
+    +         ],
+    +       },
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#b3b3b3",
+    +               "contrastRatio": 1.71,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#e8e8e8",
+    +               "fontSize": "10.5pt (14px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 1.71 (foreground color: #e8e8e8, background color: #b3b3b3, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<nav class=\"grid grid-cols-2 gap-2 rounded-lg border border-white/10 bg-white/5 p-1 mb-4 sticky top-12 z-10 backdrop-blur supports-[backdrop-filter]:bg-black/30\" role=\"tablist\" aria-label=\"Feed tabs\">",
+    +                 "target": Array [
+    +                   ".grid-cols-2",
+    +                 ],
+    +               },
+    +               Object {
+    +                 "html": "<body class=\"__variable_5cfdac __variable_9a8899 antialiased bg-neutral-950 text-white\">",
+    +                 "target": Array [
+    +                   "body",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 1.71 (foreground color: #e8e8e8, background color: #b3b3b3, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<span class=\"font-medium\">Following</span>",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           ".text-white\\/70 > .font-medium",
+    +         ],
+    +       },
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#b3b3b3",
+    +               "contrastRatio": 2.09,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#ffffff",
+    +               "fontSize": "10.5pt (14px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 2.09 (foreground color: #ffffff, background color: #b3b3b3, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<nav class=\"grid grid-cols-2 gap-2 rounded-lg border border-white/10 bg-white/5 p-1 mb-4 sticky top-12 z-10 backdrop-blur supports-[backdrop-filter]:bg-black/30\" role=\"tablist\" aria-label=\"Feed tabs\">",
+    +                 "target": Array [
+    +                   ".grid-cols-2",
+    +                 ],
+    +               },
+    +               Object {
+    +                 "html": "<body class=\"__variable_5cfdac __variable_9a8899 antialiased bg-neutral-950 text-white\">",
+    +                 "target": Array [
+    +                   "body",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 2.09 (foreground color: #ffffff, background color: #b3b3b3, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<span class=\"font-medium\">For You</span>",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           "button[aria-current=\"page\"] > .font-medium",
+    +         ],
+    +       },
+    +     ],
+    +     "tags": Array [
+    +       "cat.color",
+    +       "wcag2aa",
+    +       "wcag143",
+    +       "TTv5",
+    +       "TT13.c",
+    +       "EN-301-549",
+    +       "EN-9.1.4.3",
+    +       "ACT",
+    +     ],
+    +   },
+    + ]
+
+      21 |     console.log(`[a11y] Critical/Serious: ${severe.length}, Minor/Moderate: ${minor.length}`);
+      22 |     
+    > 23 |     expect(severe).toEqual([]); // fail on critical/serious
+         |                    ^
+      24 |     if (minor.length > 0) {
+      25 |       console.warn(`[a11y] Minor/Moderate issues found: ${minor.length}`);
+      26 |     }
+        at /Users/brandonconway/gamebox-backend/gamdit-web/tests/smoke.spec.ts:23:20
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y/video-1.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #3: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y/error-context.md
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  -   1
+    + Received  + 198
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "description": "Ensure elements with an ARIA role that require child roles contain them",
+    +     "help": "Certain ARIA roles must contain particular children",
+    +     "helpUrl": "https://dequeuniversity.com/rules/axe/4.10/aria-required-children?application=playwright",
+    +     "id": "aria-required-children",
+    +     "impact": "critical",
+    +     "nodes": Array [
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "messageKey": "unallowed",
+    +               "values": "button[tabindex], button[aria-current]",
+    +             },
+    +             "id": "aria-required-children",
+    +             "impact": "critical",
+    +             "message": "Element has children which are not allowed: button[tabindex], button[aria-current]",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<button aria-pressed=\"false\" class=\"relative w-full px-3 py-2 text-sm rounded transition-colors
+    +                     text-white/70 hover:text-white\"><span class=\"font-medium\">Following</span></button>",
+    +                 "target": Array [
+    +                   ".text-white\\/70",
+    +                 ],
+    +               },
+    +               Object {
+    +                 "html": "<button aria-pressed=\"true\" aria-current=\"page\" class=\"relative w-full px-3 py-2 text-sm rounded transition-colors
+    +                     text-white\">",
+    +                 "target": Array [
+    +                   "button[aria-current=\"page\"]",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has children which are not allowed: button[tabindex], button[aria-current]",
+    +         "html": "<nav class=\"grid grid-cols-2 gap-2 rounded-lg border border-white/10 bg-white/5 p-1 mb-4 sticky top-12 z-10 backdrop-blur supports-[backdrop-filter]:bg-black/30\" role=\"tablist\" aria-label=\"Feed tabs\">",
+    +         "impact": "critical",
+    +         "none": Array [],
+    +         "target": Array [
+    +           ".grid-cols-2",
+    +         ],
+    +       },
+    +     ],
+    +     "tags": Array [
+    +       "cat.aria",
+    +       "wcag2a",
+    +       "wcag131",
+    +       "EN-301-549",
+    +       "EN-9.1.3.1",
+    +     ],
+    +   },
+    +   Object {
+    +     "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+    +     "help": "Elements must meet minimum color contrast ratio thresholds",
+    +     "helpUrl": "https://dequeuniversity.com/rules/axe/4.10/color-contrast?application=playwright",
+    +     "id": "color-contrast",
+    +     "impact": "serious",
+    +     "nodes": Array [
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#999999",
+    +               "contrastRatio": 2.84,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#ffffff",
+    +               "fontSize": "10.5pt (14px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 2.84 (foreground color: #ffffff, background color: #999999, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<header class=\"border-b border-white/10 sticky top-0 z-40 bg-black/60 backdrop-blur supports-[backdrop-filter]:bg-black/40\">",
+    +                 "target": Array [
+    +                   "header",
+    +                 ],
+    +               },
+    +               Object {
+    +                 "html": "<body class=\"__variable_5cfdac __variable_9a8899 antialiased bg-neutral-950 text-white\">",
+    +                 "target": Array [
+    +                   "body",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 2.84 (foreground color: #ffffff, background color: #999999, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<a class=\"text-sm pb-0.5 border-b-2 border-indigo-500 text-white\" href=\"/\">Home</a>",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           ".sm\\:flex > .pb-0\\.5.border-b-2.border-indigo-500",
+    +         ],
+    +       },
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#b3b3b3",
+    +               "contrastRatio": 1.71,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#e8e8e8",
+    +               "fontSize": "10.5pt (14px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 1.71 (foreground color: #e8e8e8, background color: #b3b3b3, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<nav class=\"grid grid-cols-2 gap-2 rounded-lg border border-white/10 bg-white/5 p-1 mb-4 sticky top-12 z-10 backdrop-blur supports-[backdrop-filter]:bg-black/30\" role=\"tablist\" aria-label=\"Feed tabs\">",
+    +                 "target": Array [
+    +                   ".grid-cols-2",
+    +                 ],
+    +               },
+    +               Object {
+    +                 "html": "<body class=\"__variable_5cfdac __variable_9a8899 antialiased bg-neutral-950 text-white\">",
+    +                 "target": Array [
+    +                   "body",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 1.71 (foreground color: #e8e8e8, background color: #b3b3b3, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<span class=\"font-medium\">Following</span>",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           ".text-white\\/70 > .font-medium",
+    +         ],
+    +       },
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#b3b3b3",
+    +               "contrastRatio": 2.09,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#ffffff",
+    +               "fontSize": "10.5pt (14px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 2.09 (foreground color: #ffffff, background color: #b3b3b3, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<nav class=\"grid grid-cols-2 gap-2 rounded-lg border border-white/10 bg-white/5 p-1 mb-4 sticky top-12 z-10 backdrop-blur supports-[backdrop-filter]:bg-black/30\" role=\"tablist\" aria-label=\"Feed tabs\">",
+    +                 "target": Array [
+    +                   ".grid-cols-2",
+    +                 ],
+    +               },
+    +               Object {
+    +                 "html": "<body class=\"__variable_5cfdac __variable_9a8899 antialiased bg-neutral-950 text-white\">",
+    +                 "target": Array [
+    +                   "body",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 2.09 (foreground color: #ffffff, background color: #b3b3b3, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<span class=\"font-medium\">For You</span>",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           "button[aria-current=\"page\"] > .font-medium",
+    +         ],
+    +       },
+    +     ],
+    +     "tags": Array [
+    +       "cat.color",
+    +       "wcag2aa",
+    +       "wcag143",
+    +       "TTv5",
+    +       "TT13.c",
+    +       "EN-301-549",
+    +       "EN-9.1.4.3",
+    +       "ACT",
+    +     ],
+    +   },
+    + ]
+
+      21 |     console.log(`[a11y] Critical/Serious: ${severe.length}, Minor/Moderate: ${minor.length}`);
+      22 |     
+    > 23 |     expect(severe).toEqual([]); // fail on critical/serious
+         |                    ^
+      24 |     if (minor.length > 0) {
+      25 |       console.warn(`[a11y] Minor/Moderate issues found: ${minor.length}`);
+      26 |     }
+        at /Users/brandonconway/gamebox-backend/gamdit-web/tests/smoke.spec.ts:23:20
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y-retry1/video-1.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #3: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y-retry1/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y-retry1/error-context.md
+
+    attachment #5: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace ../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #2 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  -   1
+    + Received  + 198
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "description": "Ensure elements with an ARIA role that require child roles contain them",
+    +     "help": "Certain ARIA roles must contain particular children",
+    +     "helpUrl": "https://dequeuniversity.com/rules/axe/4.10/aria-required-children?application=playwright",
+    +     "id": "aria-required-children",
+    +     "impact": "critical",
+    +     "nodes": Array [
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "messageKey": "unallowed",
+    +               "values": "button[tabindex], button[aria-current]",
+    +             },
+    +             "id": "aria-required-children",
+    +             "impact": "critical",
+    +             "message": "Element has children which are not allowed: button[tabindex], button[aria-current]",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<button aria-pressed=\"false\" class=\"relative w-full px-3 py-2 text-sm rounded transition-colors
+    +                     text-white/70 hover:text-white\"><span class=\"font-medium\">Following</span></button>",
+    +                 "target": Array [
+    +                   ".text-white\\/70",
+    +                 ],
+    +               },
+    +               Object {
+    +                 "html": "<button aria-pressed=\"true\" aria-current=\"page\" class=\"relative w-full px-3 py-2 text-sm rounded transition-colors
+    +                     text-white\">",
+    +                 "target": Array [
+    +                   "button[aria-current=\"page\"]",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has children which are not allowed: button[tabindex], button[aria-current]",
+    +         "html": "<nav class=\"grid grid-cols-2 gap-2 rounded-lg border border-white/10 bg-white/5 p-1 mb-4 sticky top-12 z-10 backdrop-blur supports-[backdrop-filter]:bg-black/30\" role=\"tablist\" aria-label=\"Feed tabs\">",
+    +         "impact": "critical",
+    +         "none": Array [],
+    +         "target": Array [
+    +           ".grid-cols-2",
+    +         ],
+    +       },
+    +     ],
+    +     "tags": Array [
+    +       "cat.aria",
+    +       "wcag2a",
+    +       "wcag131",
+    +       "EN-301-549",
+    +       "EN-9.1.3.1",
+    +     ],
+    +   },
+    +   Object {
+    +     "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+    +     "help": "Elements must meet minimum color contrast ratio thresholds",
+    +     "helpUrl": "https://dequeuniversity.com/rules/axe/4.10/color-contrast?application=playwright",
+    +     "id": "color-contrast",
+    +     "impact": "serious",
+    +     "nodes": Array [
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#999999",
+    +               "contrastRatio": 2.84,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#ffffff",
+    +               "fontSize": "10.5pt (14px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 2.84 (foreground color: #ffffff, background color: #999999, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<header class=\"border-b border-white/10 sticky top-0 z-40 bg-black/60 backdrop-blur supports-[backdrop-filter]:bg-black/40\">",
+    +                 "target": Array [
+    +                   "header",
+    +                 ],
+    +               },
+    +               Object {
+    +                 "html": "<body class=\"__variable_5cfdac __variable_9a8899 antialiased bg-neutral-950 text-white\">",
+    +                 "target": Array [
+    +                   "body",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 2.84 (foreground color: #ffffff, background color: #999999, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<a class=\"text-sm pb-0.5 border-b-2 border-indigo-500 text-white\" href=\"/\">Home</a>",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           ".sm\\:flex > .pb-0\\.5.border-b-2.border-indigo-500",
+    +         ],
+    +       },
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#b3b3b3",
+    +               "contrastRatio": 1.71,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#e8e8e8",
+    +               "fontSize": "10.5pt (14px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 1.71 (foreground color: #e8e8e8, background color: #b3b3b3, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<nav class=\"grid grid-cols-2 gap-2 rounded-lg border border-white/10 bg-white/5 p-1 mb-4 sticky top-12 z-10 backdrop-blur supports-[backdrop-filter]:bg-black/30\" role=\"tablist\" aria-label=\"Feed tabs\">",
+    +                 "target": Array [
+    +                   ".grid-cols-2",
+    +                 ],
+    +               },
+    +               Object {
+    +                 "html": "<body class=\"__variable_5cfdac __variable_9a8899 antialiased bg-neutral-950 text-white\">",
+    +                 "target": Array [
+    +                   "body",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 1.71 (foreground color: #e8e8e8, background color: #b3b3b3, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<span class=\"font-medium\">Following</span>",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           ".text-white\\/70 > .font-medium",
+    +         ],
+    +       },
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#b3b3b3",
+    +               "contrastRatio": 2.09,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#ffffff",
+    +               "fontSize": "10.5pt (14px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 2.09 (foreground color: #ffffff, background color: #b3b3b3, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<nav class=\"grid grid-cols-2 gap-2 rounded-lg border border-white/10 bg-white/5 p-1 mb-4 sticky top-12 z-10 backdrop-blur supports-[backdrop-filter]:bg-black/30\" role=\"tablist\" aria-label=\"Feed tabs\">",
+    +                 "target": Array [
+    +                   ".grid-cols-2",
+    +                 ],
+    +               },
+    +               Object {
+    +                 "html": "<body class=\"__variable_5cfdac __variable_9a8899 antialiased bg-neutral-950 text-white\">",
+    +                 "target": Array [
+    +                   "body",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 2.09 (foreground color: #ffffff, background color: #b3b3b3, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<span class=\"font-medium\">For You</span>",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           "button[aria-current=\"page\"] > .font-medium",
+    +         ],
+    +       },
+    +     ],
+    +     "tags": Array [
+    +       "cat.color",
+    +       "wcag2aa",
+    +       "wcag143",
+    +       "TTv5",
+    +       "TT13.c",
+    +       "EN-301-549",
+    +       "EN-9.1.4.3",
+    +       "ACT",
+    +     ],
+    +   },
+    + ]
+
+      21 |     console.log(`[a11y] Critical/Serious: ${severe.length}, Minor/Moderate: ${minor.length}`);
+      22 |     
+    > 23 |     expect(severe).toEqual([]); // fail on critical/serious
+         |                    ^
+      24 |     if (minor.length > 0) {
+      25 |       console.warn(`[a11y] Minor/Moderate issues found: ${minor.length}`);
+      26 |     }
+        at /Users/brandonconway/gamebox-backend/gamdit-web/tests/smoke.spec.ts:23:20
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y-retry2/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y-retry2/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #3: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y-retry2/video-1.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y-retry2/error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[[a11y] Critical/Serious: 2, Minor/Moderate: 4
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y/test-failed-1.png]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y/video-1.webm]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y/video.webm]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y/error-context.md]]
+[a11y] Critical/Serious: 2, Minor/Moderate: 4
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y-retry1/test-failed-1.png]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y-retry1/video-1.webm]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y-retry1/video.webm]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y-retry1/error-context.md]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y-retry1/trace.zip]]
+[a11y] Critical/Serious: 2, Minor/Moderate: 4
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y-retry2/test-failed-1.png]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y-retry2/video.webm]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y-retry2/video-1.webm]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y-retry2/error-context.md]]
+]]>
+</system-out>
+<system-err>
+<![CDATA[[pageerror] Invalid or unexpected token
+[pageerror] Invalid or unexpected token
+]]>
+</system-err>
+</testcase>
+<testcase name="Smoke Tests › @smoke login page loads + a11y" classname="smoke.spec.ts" time="9.149">
+<failure message="smoke.spec.ts:29:7 @smoke login page loads + a11y" type="FAILURE">
+<![CDATA[  smoke.spec.ts:29:7 › Smoke Tests › @smoke login page loads + a11y ────────────────────────────────
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  -   1
+    + Received  + 132
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+    +     "help": "Elements must meet minimum color contrast ratio thresholds",
+    +     "helpUrl": "https://dequeuniversity.com/rules/axe/4.10/color-contrast?application=playwright",
+    +     "id": "color-contrast",
+    +     "impact": "serious",
+    +     "nodes": Array [
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#999999",
+    +               "contrastRatio": 2.38,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#ebebeb",
+    +               "fontSize": "10.5pt (14px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 2.38 (foreground color: #ebebeb, background color: #999999, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<header class=\"border-b border-white/10 sticky top-0 z-40 bg-black/60 backdrop-blur supports-[backdrop-filter]:bg-black/40\">",
+    +                 "target": Array [
+    +                   "header",
+    +                 ],
+    +               },
+    +               Object {
+    +                 "html": "<body class=\"__variable_5cfdac __variable_9a8899 antialiased bg-neutral-950 text-white\">",
+    +                 "target": Array [
+    +                   "body",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 2.38 (foreground color: #ebebeb, background color: #999999, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<a class=\"text-sm pb-0.5 border-b-2 border-transparent text-white/80 hover:text-white hover:border-white/30\" href=\"/\">Home</a>",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           ".sm\\:flex > .pb-0\\.5.border-b-2.border-transparent",
+    +         ],
+    +       },
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#ffffff",
+    +               "contrastRatio": 3.94,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#808080",
+    +               "fontSize": "10.5pt (14px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 3.94 (foreground color: #808080, background color: #ffffff, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<body class=\"__variable_5cfdac __variable_9a8899 antialiased bg-neutral-950 text-white\">",
+    +                 "target": Array [
+    +                   "body",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 3.94 (foreground color: #808080, background color: #ffffff, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<label for=\"email\" class=\"supabase-auth-ui_ui-label text-white c-bpexlo\">Email address</label>",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           "label",
+    +         ],
+    +       },
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#6366f1",
+    +               "contrastRatio": 4.46,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#ffffff",
+    +               "fontSize": "10.5pt (14px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 4.46 (foreground color: #ffffff, background color: #6366f1, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<button type=\"submit\" class=\"supabase-auth-ui_ui-button bg-indigo-600 hover:bg-indigo-500 c-bOcPnF c-bOcPnF-cmFMMs-color-primary\">Send Magic Link</button>",
+    +                 "target": Array [
+    +                   ".supabase-auth-ui_ui-button",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 4.46 (foreground color: #ffffff, background color: #6366f1, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<button type=\"submit\" class=\"supabase-auth-ui_ui-button bg-indigo-600 hover:bg-indigo-500 c-bOcPnF c-bOcPnF-cmFMMs-color-primary\">Send Magic Link</button>",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           ".supabase-auth-ui_ui-button",
+    +         ],
+    +       },
+    +     ],
+    +     "tags": Array [
+    +       "cat.color",
+    +       "wcag2aa",
+    +       "wcag143",
+    +       "TTv5",
+    +       "TT13.c",
+    +       "EN-301-549",
+    +       "EN-9.1.4.3",
+    +       "ACT",
+    +     ],
+    +   },
+    + ]
+
+      44 |     console.log(`[a11y] Critical/Serious: ${severe.length}, Minor/Moderate: ${minor.length}`);
+      45 |     
+    > 46 |     expect(severe).toEqual([]); // fail on critical/serious
+         |                    ^
+      47 |     if (minor.length > 0) {
+      48 |       console.warn(`[a11y] Minor/Moderate issues found: ${minor.length}`);
+      49 |     }
+        at /Users/brandonconway/gamebox-backend/gamdit-web/tests/smoke.spec.ts:46:20
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y/video-1.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #3: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y/error-context.md
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  -   1
+    + Received  + 132
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+    +     "help": "Elements must meet minimum color contrast ratio thresholds",
+    +     "helpUrl": "https://dequeuniversity.com/rules/axe/4.10/color-contrast?application=playwright",
+    +     "id": "color-contrast",
+    +     "impact": "serious",
+    +     "nodes": Array [
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#999999",
+    +               "contrastRatio": 2.38,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#ebebeb",
+    +               "fontSize": "10.5pt (14px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 2.38 (foreground color: #ebebeb, background color: #999999, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<header class=\"border-b border-white/10 sticky top-0 z-40 bg-black/60 backdrop-blur supports-[backdrop-filter]:bg-black/40\">",
+    +                 "target": Array [
+    +                   "header",
+    +                 ],
+    +               },
+    +               Object {
+    +                 "html": "<body class=\"__variable_5cfdac __variable_9a8899 antialiased bg-neutral-950 text-white\">",
+    +                 "target": Array [
+    +                   "body",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 2.38 (foreground color: #ebebeb, background color: #999999, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<a class=\"text-sm pb-0.5 border-b-2 border-transparent text-white/80 hover:text-white hover:border-white/30\" href=\"/\">Home</a>",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           ".sm\\:flex > .pb-0\\.5.border-b-2.border-transparent",
+    +         ],
+    +       },
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#ffffff",
+    +               "contrastRatio": 3.94,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#808080",
+    +               "fontSize": "10.5pt (14px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 3.94 (foreground color: #808080, background color: #ffffff, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<body class=\"__variable_5cfdac __variable_9a8899 antialiased bg-neutral-950 text-white\">",
+    +                 "target": Array [
+    +                   "body",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 3.94 (foreground color: #808080, background color: #ffffff, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<label for=\"email\" class=\"supabase-auth-ui_ui-label text-white c-bpexlo\">Email address</label>",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           "label",
+    +         ],
+    +       },
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#6366f1",
+    +               "contrastRatio": 4.46,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#ffffff",
+    +               "fontSize": "10.5pt (14px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 4.46 (foreground color: #ffffff, background color: #6366f1, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<button type=\"submit\" class=\"supabase-auth-ui_ui-button bg-indigo-600 hover:bg-indigo-500 c-bOcPnF c-bOcPnF-cmFMMs-color-primary\">Send Magic Link</button>",
+    +                 "target": Array [
+    +                   ".supabase-auth-ui_ui-button",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 4.46 (foreground color: #ffffff, background color: #6366f1, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<button type=\"submit\" class=\"supabase-auth-ui_ui-button bg-indigo-600 hover:bg-indigo-500 c-bOcPnF c-bOcPnF-cmFMMs-color-primary\">Send Magic Link</button>",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           ".supabase-auth-ui_ui-button",
+    +         ],
+    +       },
+    +     ],
+    +     "tags": Array [
+    +       "cat.color",
+    +       "wcag2aa",
+    +       "wcag143",
+    +       "TTv5",
+    +       "TT13.c",
+    +       "EN-301-549",
+    +       "EN-9.1.4.3",
+    +       "ACT",
+    +     ],
+    +   },
+    + ]
+
+      44 |     console.log(`[a11y] Critical/Serious: ${severe.length}, Minor/Moderate: ${minor.length}`);
+      45 |     
+    > 46 |     expect(severe).toEqual([]); // fail on critical/serious
+         |                    ^
+      47 |     if (minor.length > 0) {
+      48 |       console.warn(`[a11y] Minor/Moderate issues found: ${minor.length}`);
+      49 |     }
+        at /Users/brandonconway/gamebox-backend/gamdit-web/tests/smoke.spec.ts:46:20
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y-retry1/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #3: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y-retry1/video-1.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y-retry1/error-context.md
+
+    attachment #5: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace ../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #2 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  -   1
+    + Received  + 132
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+    +     "help": "Elements must meet minimum color contrast ratio thresholds",
+    +     "helpUrl": "https://dequeuniversity.com/rules/axe/4.10/color-contrast?application=playwright",
+    +     "id": "color-contrast",
+    +     "impact": "serious",
+    +     "nodes": Array [
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#999999",
+    +               "contrastRatio": 2.38,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#ebebeb",
+    +               "fontSize": "10.5pt (14px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 2.38 (foreground color: #ebebeb, background color: #999999, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<header class=\"border-b border-white/10 sticky top-0 z-40 bg-black/60 backdrop-blur supports-[backdrop-filter]:bg-black/40\">",
+    +                 "target": Array [
+    +                   "header",
+    +                 ],
+    +               },
+    +               Object {
+    +                 "html": "<body class=\"__variable_5cfdac __variable_9a8899 antialiased bg-neutral-950 text-white\">",
+    +                 "target": Array [
+    +                   "body",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 2.38 (foreground color: #ebebeb, background color: #999999, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<a class=\"text-sm pb-0.5 border-b-2 border-transparent text-white/80 hover:text-white hover:border-white/30\" href=\"/\">Home</a>",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           ".sm\\:flex > .pb-0\\.5.border-b-2.border-transparent",
+    +         ],
+    +       },
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#ffffff",
+    +               "contrastRatio": 3.94,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#808080",
+    +               "fontSize": "10.5pt (14px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 3.94 (foreground color: #808080, background color: #ffffff, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<body class=\"__variable_5cfdac __variable_9a8899 antialiased bg-neutral-950 text-white\">",
+    +                 "target": Array [
+    +                   "body",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 3.94 (foreground color: #808080, background color: #ffffff, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<label for=\"email\" class=\"supabase-auth-ui_ui-label text-white c-bpexlo\">Email address</label>",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           "label",
+    +         ],
+    +       },
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#6366f1",
+    +               "contrastRatio": 4.46,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#ffffff",
+    +               "fontSize": "10.5pt (14px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 4.46 (foreground color: #ffffff, background color: #6366f1, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<button type=\"submit\" class=\"supabase-auth-ui_ui-button bg-indigo-600 hover:bg-indigo-500 c-bOcPnF c-bOcPnF-cmFMMs-color-primary\">Send Magic Link</button>",
+    +                 "target": Array [
+    +                   ".supabase-auth-ui_ui-button",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 4.46 (foreground color: #ffffff, background color: #6366f1, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<button type=\"submit\" class=\"supabase-auth-ui_ui-button bg-indigo-600 hover:bg-indigo-500 c-bOcPnF c-bOcPnF-cmFMMs-color-primary\">Send Magic Link</button>",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           ".supabase-auth-ui_ui-button",
+    +         ],
+    +       },
+    +     ],
+    +     "tags": Array [
+    +       "cat.color",
+    +       "wcag2aa",
+    +       "wcag143",
+    +       "TTv5",
+    +       "TT13.c",
+    +       "EN-301-549",
+    +       "EN-9.1.4.3",
+    +       "ACT",
+    +     ],
+    +   },
+    + ]
+
+      44 |     console.log(`[a11y] Critical/Serious: ${severe.length}, Minor/Moderate: ${minor.length}`);
+      45 |     
+    > 46 |     expect(severe).toEqual([]); // fail on critical/serious
+         |                    ^
+      47 |     if (minor.length > 0) {
+      48 |       console.warn(`[a11y] Minor/Moderate issues found: ${minor.length}`);
+      49 |     }
+        at /Users/brandonconway/gamebox-backend/gamdit-web/tests/smoke.spec.ts:46:20
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y-retry2/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y-retry2/video-1.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #3: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y-retry2/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y-retry2/error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[[a11y] Critical/Serious: 1, Minor/Moderate: 4
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y/test-failed-1.png]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y/video-1.webm]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y/video.webm]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y/error-context.md]]
+[a11y] Critical/Serious: 1, Minor/Moderate: 4
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y-retry1/test-failed-1.png]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y-retry1/video.webm]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y-retry1/video-1.webm]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y-retry1/error-context.md]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y-retry1/trace.zip]]
+[a11y] Critical/Serious: 1, Minor/Moderate: 4
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y-retry2/test-failed-1.png]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y-retry2/video-1.webm]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y-retry2/video.webm]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y-retry2/error-context.md]]
+]]>
+</system-out>
+</testcase>
+<testcase name="Smoke Tests › @smoke search page loads + a11y" classname="smoke.spec.ts" time="9.13">
+<failure message="smoke.spec.ts:52:7 @smoke search page loads + a11y" type="FAILURE">
+<![CDATA[  smoke.spec.ts:52:7 › Smoke Tests › @smoke search page loads + a11y ───────────────────────────────
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  1
+    + Received  + 62
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+    +     "help": "Elements must meet minimum color contrast ratio thresholds",
+    +     "helpUrl": "https://dequeuniversity.com/rules/axe/4.10/color-contrast?application=playwright",
+    +     "id": "color-contrast",
+    +     "impact": "serious",
+    +     "nodes": Array [
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#999999",
+    +               "contrastRatio": 2.38,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#ebebeb",
+    +               "fontSize": "10.5pt (14px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 2.38 (foreground color: #ebebeb, background color: #999999, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<header class=\"border-b border-white/10 sticky top-0 z-40 bg-black/60 backdrop-blur supports-[backdrop-filter]:bg-black/40\">",
+    +                 "target": Array [
+    +                   "header",
+    +                 ],
+    +               },
+    +               Object {
+    +                 "html": "<body class=\"__variable_5cfdac __variable_9a8899 antialiased bg-neutral-950 text-white\">",
+    +                 "target": Array [
+    +                   "body",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 2.38 (foreground color: #ebebeb, background color: #999999, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<a class=\"text-sm pb-0.5 border-b-2 border-transparent text-white/80 hover:text-white hover:border-white/30\" href=\"/\">Home</a>",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           ".sm\\:flex > .pb-0\\.5.border-b-2.border-transparent",
+    +         ],
+    +       },
+    +     ],
+    +     "tags": Array [
+    +       "cat.color",
+    +       "wcag2aa",
+    +       "wcag143",
+    +       "TTv5",
+    +       "TT13.c",
+    +       "EN-301-549",
+    +       "EN-9.1.4.3",
+    +       "ACT",
+    +     ],
+    +   },
+    + ]
+
+      67 |     console.log(`[a11y] Critical/Serious: ${severe.length}, Minor/Moderate: ${minor.length}`);
+      68 |     
+    > 69 |     expect(severe).toEqual([]); // fail on critical/serious
+         |                    ^
+      70 |     if (minor.length > 0) {
+      71 |       console.warn(`[a11y] Minor/Moderate issues found: ${minor.length}`);
+      72 |     }
+        at /Users/brandonconway/gamebox-backend/gamdit-web/tests/smoke.spec.ts:69:20
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #3: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y/video-1.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y/error-context.md
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  1
+    + Received  + 62
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+    +     "help": "Elements must meet minimum color contrast ratio thresholds",
+    +     "helpUrl": "https://dequeuniversity.com/rules/axe/4.10/color-contrast?application=playwright",
+    +     "id": "color-contrast",
+    +     "impact": "serious",
+    +     "nodes": Array [
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#999999",
+    +               "contrastRatio": 2.38,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#ebebeb",
+    +               "fontSize": "10.5pt (14px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 2.38 (foreground color: #ebebeb, background color: #999999, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<header class=\"border-b border-white/10 sticky top-0 z-40 bg-black/60 backdrop-blur supports-[backdrop-filter]:bg-black/40\">",
+    +                 "target": Array [
+    +                   "header",
+    +                 ],
+    +               },
+    +               Object {
+    +                 "html": "<body class=\"__variable_5cfdac __variable_9a8899 antialiased bg-neutral-950 text-white\">",
+    +                 "target": Array [
+    +                   "body",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 2.38 (foreground color: #ebebeb, background color: #999999, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<a class=\"text-sm pb-0.5 border-b-2 border-transparent text-white/80 hover:text-white hover:border-white/30\" href=\"/\">Home</a>",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           ".sm\\:flex > .pb-0\\.5.border-b-2.border-transparent",
+    +         ],
+    +       },
+    +     ],
+    +     "tags": Array [
+    +       "cat.color",
+    +       "wcag2aa",
+    +       "wcag143",
+    +       "TTv5",
+    +       "TT13.c",
+    +       "EN-301-549",
+    +       "EN-9.1.4.3",
+    +       "ACT",
+    +     ],
+    +   },
+    + ]
+
+      67 |     console.log(`[a11y] Critical/Serious: ${severe.length}, Minor/Moderate: ${minor.length}`);
+      68 |     
+    > 69 |     expect(severe).toEqual([]); // fail on critical/serious
+         |                    ^
+      70 |     if (minor.length > 0) {
+      71 |       console.warn(`[a11y] Minor/Moderate issues found: ${minor.length}`);
+      72 |     }
+        at /Users/brandonconway/gamebox-backend/gamdit-web/tests/smoke.spec.ts:69:20
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y-retry1/video-1.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #3: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y-retry1/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y-retry1/error-context.md
+
+    attachment #5: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace ../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #2 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  1
+    + Received  + 62
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+    +     "help": "Elements must meet minimum color contrast ratio thresholds",
+    +     "helpUrl": "https://dequeuniversity.com/rules/axe/4.10/color-contrast?application=playwright",
+    +     "id": "color-contrast",
+    +     "impact": "serious",
+    +     "nodes": Array [
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#999999",
+    +               "contrastRatio": 2.38,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#ebebeb",
+    +               "fontSize": "10.5pt (14px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 2.38 (foreground color: #ebebeb, background color: #999999, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<header class=\"border-b border-white/10 sticky top-0 z-40 bg-black/60 backdrop-blur supports-[backdrop-filter]:bg-black/40\">",
+    +                 "target": Array [
+    +                   "header",
+    +                 ],
+    +               },
+    +               Object {
+    +                 "html": "<body class=\"__variable_5cfdac __variable_9a8899 antialiased bg-neutral-950 text-white\">",
+    +                 "target": Array [
+    +                   "body",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 2.38 (foreground color: #ebebeb, background color: #999999, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<a class=\"text-sm pb-0.5 border-b-2 border-transparent text-white/80 hover:text-white hover:border-white/30\" href=\"/\">Home</a>",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           ".sm\\:flex > .pb-0\\.5.border-b-2.border-transparent",
+    +         ],
+    +       },
+    +     ],
+    +     "tags": Array [
+    +       "cat.color",
+    +       "wcag2aa",
+    +       "wcag143",
+    +       "TTv5",
+    +       "TT13.c",
+    +       "EN-301-549",
+    +       "EN-9.1.4.3",
+    +       "ACT",
+    +     ],
+    +   },
+    + ]
+
+      67 |     console.log(`[a11y] Critical/Serious: ${severe.length}, Minor/Moderate: ${minor.length}`);
+      68 |     
+    > 69 |     expect(severe).toEqual([]); // fail on critical/serious
+         |                    ^
+      70 |     if (minor.length > 0) {
+      71 |       console.warn(`[a11y] Minor/Moderate issues found: ${minor.length}`);
+      72 |     }
+        at /Users/brandonconway/gamebox-backend/gamdit-web/tests/smoke.spec.ts:69:20
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y-retry2/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y-retry2/video-1.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #3: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y-retry2/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y-retry2/error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[[a11y] Critical/Serious: 1, Minor/Moderate: 4
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y/test-failed-1.png]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y/video.webm]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y/video-1.webm]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y/error-context.md]]
+[a11y] Critical/Serious: 1, Minor/Moderate: 4
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y-retry1/test-failed-1.png]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y-retry1/video-1.webm]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y-retry1/video.webm]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y-retry1/error-context.md]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y-retry1/trace.zip]]
+[a11y] Critical/Serious: 1, Minor/Moderate: 4
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y-retry2/test-failed-1.png]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y-retry2/video-1.webm]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y-retry2/video.webm]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y-retry2/error-context.md]]
+]]>
+</system-out>
+<system-err>
+<![CDATA[[pageerror] Invalid or unexpected token
+]]>
+</system-err>
+</testcase>
+<testcase name="Smoke Tests › @smoke discover page loads + a11y" classname="smoke.spec.ts" time="20.291">
+<failure message="smoke.spec.ts:75:7 @smoke discover page loads + a11y" type="FAILURE">
+<![CDATA[  smoke.spec.ts:75:7 › Smoke Tests › @smoke discover page loads + a11y ─────────────────────────────
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  1
+    + Received  + 43
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "description": "Ensure every HTML document has a lang attribute",
+    +     "help": "<html> element must have a lang attribute",
+    +     "helpUrl": "https://dequeuniversity.com/rules/axe/4.10/html-has-lang?application=playwright",
+    +     "id": "html-has-lang",
+    +     "impact": "serious",
+    +     "nodes": Array [
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "messageKey": "noLang",
+    +             },
+    +             "id": "has-lang",
+    +             "impact": "serious",
+    +             "message": "The <html> element does not have a lang attribute",
+    +             "relatedNodes": Array [],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   The <html> element does not have a lang attribute",
+    +         "html": "<html id=\"__next_error__\">",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           "#__next_error__",
+    +         ],
+    +       },
+    +     ],
+    +     "tags": Array [
+    +       "cat.language",
+    +       "wcag2a",
+    +       "wcag311",
+    +       "TTv5",
+    +       "TT11.a",
+    +       "EN-301-549",
+    +       "EN-9.3.1.1",
+    +       "ACT",
+    +     ],
+    +   },
+    + ]
+
+      89 |     console.log(`[a11y] Critical/Serious: ${severe.length}, Minor/Moderate: ${minor.length}`);
+      90 |     
+    > 91 |     expect(severe).toEqual([]); // fail on critical/serious
+         |                    ^
+      92 |     if (minor.length > 0) {
+      93 |       console.warn(`[a11y] Minor/Moderate issues found: ${minor.length}`);
+      94 |     }
+        at /Users/brandonconway/gamebox-backend/gamdit-web/tests/smoke.spec.ts:91:20
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y/video-1.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #3: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y/error-context.md
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: page.evaluate: Execution context was destroyed, most likely because of a navigation
+     Please check out https://github.com/dequelabs/axe-core-npm/blob/develop/packages/playwright/error-handling.md
+
+      78 |     
+      79 |     // Accessibility testing with Axe
+    > 80 |     const results = await new AxeBuilder({ page }).analyze();
+         |                     ^
+      81 |     const severe = results.violations.filter(v =>
+      82 |       ['critical','serious'].includes(v.impact ?? '')
+      83 |     );
+        at AxeBuilder.analyze (/Users/brandonconway/gamebox-backend/gamdit-web/node_modules/@axe-core/playwright/dist/index.js:253:13)
+        at /Users/brandonconway/gamebox-backend/gamdit-web/tests/smoke.spec.ts:80:21
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y-retry1/test-failed-2.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y-retry1/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #3: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y-retry1/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #4: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y-retry1/video-1.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y-retry1/error-context.md
+
+    attachment #6: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y-retry1/trace.zip
+    Usage:
+
+        npx playwright show-trace ../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y-retry1/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Retry #2 ───────────────────────────────────────────────────────────────────────────────────────
+
+    Error: expect(page).toHaveTitle(expected) failed
+
+    Expected pattern: /Gamebox/i
+    Received string:  ""
+    Timeout: 5000ms
+
+    Call log:
+      - Expect "toHaveTitle" with timeout 5000ms
+        2 × unexpected value ""
+        - waiting for" http://localhost:3000/discover" navigation to finish...
+        - navigated to "http://localhost:3000/discover"
+        7 × unexpected value ""
+
+
+      75 |   test('@smoke discover page loads + a11y', async ({ page }) => {
+      76 |     await page.goto('/discover');
+    > 77 |     await expect(page).toHaveTitle(/Gamebox/i);
+         |                        ^
+      78 |     
+      79 |     // Accessibility testing with Axe
+      80 |     const results = await new AxeBuilder({ page }).analyze();
+        at /Users/brandonconway/gamebox-backend/gamdit-web/tests/smoke.spec.ts:77:24
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y-retry2/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y-retry2/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y-retry2/error-context.md
+]]>
+</failure>
+<system-out>
+<![CDATA[[a11y] Critical/Serious: 1, Minor/Moderate: 2
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y/test-failed-1.png]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y/video-1.webm]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y/video.webm]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y/error-context.md]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y-retry1/test-failed-2.png]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y-retry1/test-failed-1.png]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y-retry1/video.webm]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y-retry1/video-1.webm]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y-retry1/error-context.md]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y-retry1/trace.zip]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y-retry2/test-failed-1.png]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y-retry2/video.webm]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y-retry2/error-context.md]]
+]]>
+</system-out>
+<system-err>
+<![CDATA[[console.error] Failed to load resource: the server responded with a status of 500 (Internal Server Error)
+[pageerror] browse failed
+[console.warning] [Fast Refresh] performing full reload because your application had an unrecoverable error
+[console.warning] [Fast Refresh] performing full reload because your application had an unrecoverable error
+[console.warning] [Fast Refresh] performing full reload because your application had an unrecoverable error
+[console.warning] [Fast Refresh] performing full reload because your application had an unrecoverable error
+[console.warning] [Fast Refresh] performing full reload because your application had an unrecoverable error
+[console.error] Failed to load resource: the server responded with a status of 500 (Internal Server Error)
+[pageerror] browse failed
+[console.error] Failed to load resource: the server responded with a status of 500 (Internal Server Error)
+[pageerror] browse failed
+[pageerror] Invalid or unexpected token
+[console.warning] [Fast Refresh] performing full reload because your application had an unrecoverable error
+[console.warning] [Fast Refresh] performing full reload because your application had an unrecoverable error
+[console.warning] [Fast Refresh] performing full reload because your application had an unrecoverable error
+[console.warning] [Fast Refresh] performing full reload because your application had an unrecoverable error
+[console.warning] [Fast Refresh] performing full reload because your application had an unrecoverable error
+[console.warning] [Fast Refresh] performing full reload because your application had an unrecoverable error
+[console.warning] [Fast Refresh] performing full reload because your application had an unrecoverable error
+[console.error] Failed to load resource: the server responded with a status of 500 (Internal Server Error)
+[pageerror] browse failed
+[console.warning] [Fast Refresh] performing full reload because your application had an unrecoverable error
+[console.warning] [Fast Refresh] performing full reload because your application had an unrecoverable error
+[console.warning] [Fast Refresh] performing full reload because your application had an unrecoverable error
+[console.warning] [Fast Refresh] performing full reload because your application had an unrecoverable error
+[console.error] Failed to load resource: the server responded with a status of 500 (Internal Server Error)
+[pageerror] browse failed
+[console.warning] [Fast Refresh] performing full reload because your application had an unrecoverable error
+[console.warning] [Fast Refresh] performing full reload because your application had an unrecoverable error
+[console.error] Failed to load resource: the server responded with a status of 500 (Internal Server Error)
+[pageerror] browse failed
+[console.warning] [Fast Refresh] performing full reload because your application had an unrecoverable error
+[console.warning] [Fast Refresh] performing full reload because your application had an unrecoverable error
+[console.error] Failed to load resource: the server responded with a status of 500 (Internal Server Error)
+[pageerror] browse failed
+[console.warning] [Fast Refresh] performing full reload because your application had an unrecoverable error
+[console.error] Failed to load resource: the server responded with a status of 500 (Internal Server Error)
+[pageerror] browse failed
+[console.warning] The resource http://localhost:3000/_next/static/media/93f479601ee12b01-s.p.woff2 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+[console.warning] The resource http://localhost:3000/_next/static/css/app/layout.css?v=1757546727986 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+[console.warning] The resource http://localhost:3000/_next/static/media/569ce4b8f30dc480-s.p.woff2 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
+]]>
+</system-err>
+</testcase>
+<testcase name="Smoke Tests › @smoke API endpoints respond" classname="smoke.spec.ts" time="0.277">
+</testcase>
+</testsuite>
+</testsuites>

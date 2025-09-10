@@ -1,0 +1,142 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - generic [active]:
+    - generic [ref=e6] [cursor=pointer]:
+      - button "Open Next.js Dev Tools" [ref=e7] [cursor=pointer]:
+        - img [ref=e8] [cursor=pointer]
+      - generic [ref=e11] [cursor=pointer]:
+        - button "Open issues overlay" [ref=e12] [cursor=pointer]:
+          - generic [ref=e13] [cursor=pointer]:
+            - generic [ref=e14] [cursor=pointer]: "0"
+            - generic [ref=e15] [cursor=pointer]: "1"
+          - generic [ref=e16] [cursor=pointer]: Issue
+        - button "Collapse issues badge" [ref=e17] [cursor=pointer]:
+          - img [ref=e18] [cursor=pointer]
+    - generic [ref=e22]:
+      - generic [ref=e23]:
+        - generic [ref=e24]:
+          - navigation [ref=e25]:
+            - button "previous" [disabled] [ref=e26]:
+              - img "previous" [ref=e27]
+            - generic [ref=e29]:
+              - generic [ref=e30]: 1/
+              - generic [ref=e31]: "1"
+            - button "next" [disabled] [ref=e32]:
+              - img "next" [ref=e33]
+          - img
+        - generic [ref=e35]:
+          - link "Next.js 15.4.6 (stale) Webpack" [ref=e36] [cursor=pointer]:
+            - /url: https://nextjs.org/docs/messages/version-staleness
+            - img [ref=e37] [cursor=pointer]
+            - generic "There is a newer version (15.5.3) available, upgrade recommended!" [ref=e39] [cursor=pointer]: Next.js 15.4.6 (stale)
+            - generic [ref=e40] [cursor=pointer]: Webpack
+          - img
+      - dialog "Runtime Error" [ref=e42]:
+        - generic [ref=e45]:
+          - generic [ref=e46]:
+            - generic [ref=e47]:
+              - generic [ref=e48]:
+                - generic [ref=e49]: Runtime Error
+                - generic [ref=e50]: Server
+              - generic [ref=e51]:
+                - button "Copy Stack Trace" [ref=e52] [cursor=pointer]:
+                  - img [ref=e53] [cursor=pointer]
+                - button "No related documentation found" [disabled] [ref=e55]:
+                  - img [ref=e56]
+                - link "Learn more about enabling Node.js inspector for server code with Chrome DevTools" [ref=e58] [cursor=pointer]:
+                  - /url: https://nextjs.org/docs/app/building-your-application/configuring/debugging#server-side-code
+                  - img [ref=e59] [cursor=pointer]
+            - paragraph [ref=e68]: browse failed
+          - generic [ref=e69]:
+            - generic [ref=e70]:
+              - paragraph [ref=e72]:
+                - img [ref=e74]
+                - generic [ref=e77]: src/app/discover/page.tsx (19:22) @ fetchSections
+                - button "Open in editor" [ref=e78] [cursor=pointer]:
+                  - img [ref=e80] [cursor=pointer]
+              - generic [ref=e83]:
+                - generic [ref=e84]:
+                  - generic [ref=e86]: 17 |
+                  - generic [ref=e87]: next
+                  - generic [ref=e88]: ":"
+                  - generic [ref=e89]: "{ revalidate"
+                  - generic [ref=e90]: ":"
+                  - generic [ref=e92]: "0"
+                  - generic [ref=e93]: "}"
+                  - generic [ref=e94]: ","
+                - generic [ref=e95]:
+                  - generic [ref=e97]: 18 |
+                  - generic [ref=e98]: "})"
+                  - generic [ref=e99]: ;
+                - generic [ref=e100]:
+                  - generic [ref=e101]: ">"
+                  - generic [ref=e102]: 19 |
+                  - generic [ref=e104]: if
+                  - generic [ref=e105]: (
+                  - generic [ref=e106]: "!"
+                  - generic [ref=e107]: res
+                  - generic [ref=e108]: .
+                  - generic [ref=e109]: ok)
+                  - generic [ref=e110]: throw
+                  - generic [ref=e112]: new
+                  - generic [ref=e114]: Error
+                  - generic [ref=e115]: (
+                  - generic [ref=e116]: "'browse failed'"
+                  - generic [ref=e117]: )
+                  - generic [ref=e118]: ;
+                - generic [ref=e119]:
+                  - generic [ref=e121]: "|"
+                  - generic [ref=e123]: ^
+                - generic [ref=e124]:
+                  - generic [ref=e126]: 20 |
+                  - generic [ref=e128]: return
+                  - generic [ref=e129]: (
+                  - generic [ref=e130]: await
+                  - generic [ref=e131]: res
+                  - generic [ref=e132]: .
+                  - generic [ref=e133]: json())
+                  - generic [ref=e134]: .
+                  - generic [ref=e135]: sections
+                  - generic [ref=e136]: as
+                  - generic [ref=e138]: Record
+                  - generic [ref=e139]: <
+                  - generic [ref=e140]: typeof
+                  - generic [ref=e141]: sections[number]
+                  - generic [ref=e142]: ","
+                  - generic [ref=e144]: Game
+                  - generic [ref=e145]: "[]"
+                  - generic [ref=e146]: ">"
+                  - generic [ref=e147]: ;
+                - generic [ref=e148]:
+                  - generic [ref=e150]: 21 |
+                  - generic [ref=e151]: "}"
+                - generic [ref=e154]: 22 |
+            - generic [ref=e155]:
+              - generic [ref=e156]:
+                - paragraph [ref=e157]:
+                  - text: Call Stack
+                  - generic [ref=e158]: "9"
+                - button "Show 7 ignore-listed frame(s)" [ref=e159] [cursor=pointer]:
+                  - text: Show 7 ignore-listed frame(s)
+                  - img [ref=e160] [cursor=pointer]
+              - generic [ref=e162]:
+                - generic [ref=e163]:
+                  - text: fetchSections
+                  - button "Open fetchSections in editor" [ref=e164] [cursor=pointer]:
+                    - img [ref=e165] [cursor=pointer]
+                - generic [ref=e167]: src/app/discover/page.tsx (19:22)
+              - generic [ref=e168]:
+                - generic [ref=e169]:
+                  - text: DiscoverPage
+                  - button "Open DiscoverPage in editor" [ref=e170] [cursor=pointer]:
+                    - img [ref=e171] [cursor=pointer]
+                - generic [ref=e173]: src/app/discover/page.tsx (54:20)
+        - generic [ref=e174]:
+          - generic [ref=e175]: "1"
+          - generic [ref=e176]: "2"
+  - generic [ref=e178]:
+    - 'heading "Application error: a server-side exception has occurred while loading localhost (see the server logs for more information)." [level=2] [ref=e179]'
+    - paragraph [ref=e180]: "Digest: 3262741439"
+```

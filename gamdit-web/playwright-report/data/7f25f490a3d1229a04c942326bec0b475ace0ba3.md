@@ -1,0 +1,57 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - generic [active]:
+    - generic [ref=e6] [cursor=pointer]:
+      - button "Open Next.js Dev Tools" [ref=e7] [cursor=pointer]:
+        - img [ref=e8] [cursor=pointer]
+      - generic [ref=e11] [cursor=pointer]:
+        - button "Open issues overlay" [ref=e12] [cursor=pointer]:
+          - generic [ref=e13] [cursor=pointer]:
+            - generic [ref=e14] [cursor=pointer]: "0"
+            - generic [ref=e15] [cursor=pointer]: "1"
+          - generic [ref=e16] [cursor=pointer]: Issue
+        - button "Collapse issues badge" [ref=e17] [cursor=pointer]:
+          - img [ref=e18] [cursor=pointer]
+    - generic [ref=e22]:
+      - generic [ref=e23]:
+        - generic [ref=e24]:
+          - navigation [ref=e25]:
+            - button "previous" [disabled] [ref=e26]:
+              - img "previous" [ref=e27]
+            - generic [ref=e29]:
+              - generic [ref=e30]: 1/
+              - generic [ref=e31]: "1"
+            - button "next" [disabled] [ref=e32]:
+              - img "next" [ref=e33]
+          - img
+        - generic [ref=e35]:
+          - link "Next.js 15.4.6 (stale) Webpack" [ref=e36] [cursor=pointer]:
+            - /url: https://nextjs.org/docs/messages/version-staleness
+            - img [ref=e37] [cursor=pointer]
+            - generic "There is a newer version (15.5.3) available, upgrade recommended!" [ref=e39] [cursor=pointer]: Next.js 15.4.6 (stale)
+            - generic [ref=e40] [cursor=pointer]: Webpack
+          - img
+      - dialog "Runtime Error" [ref=e42]:
+        - generic [ref=e46]:
+          - generic [ref=e47]:
+            - generic [ref=e48]:
+              - generic [ref=e49]: Runtime Error
+              - generic [ref=e50]: Server
+            - generic [ref=e51]:
+              - button "Copy Stack Trace" [ref=e52] [cursor=pointer]:
+                - img [ref=e53] [cursor=pointer]
+              - button "No related documentation found" [disabled] [ref=e55]:
+                - img [ref=e56]
+              - link "Learn more about enabling Node.js inspector for server code with Chrome DevTools" [ref=e58] [cursor=pointer]:
+                - /url: https://nextjs.org/docs/app/building-your-application/configuring/debugging#server-side-code
+                - img [ref=e59] [cursor=pointer]
+          - paragraph [ref=e68]: browse failed
+        - generic [ref=e70]:
+          - generic [ref=e71]: "1"
+          - generic [ref=e72]: "2"
+  - generic [ref=e74]:
+    - 'heading "Application error: a server-side exception has occurred while loading localhost (see the server logs for more information)." [level=2] [ref=e75]'
+    - paragraph [ref=e76]: "Digest: 3262741439"
+```

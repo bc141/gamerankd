@@ -1,0 +1,60 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]:
+        - link "Home" [ref=e6] [cursor=pointer]:
+          - /url: /
+          - text: gamdit
+        - navigation [ref=e7]:
+          - link "Home" [ref=e8] [cursor=pointer]:
+            - /url: /
+      - generic [ref=e12]:
+        - img [ref=e14]
+        - search "Search games or players" [ref=e16]
+      - link "Sign in" [ref=e18] [cursor=pointer]:
+        - /url: /login
+  - main [ref=e19]:
+    - main [ref=e20]:
+      - generic [ref=e21]:
+        - generic [ref=e22]:
+          - heading "Home" [level=1] [ref=e23]
+          - tablist "Feed tabs" [ref=e24]:
+            - button "Following" [ref=e25]:
+              - generic [ref=e26]: Following
+            - button "For You" [pressed] [ref=e27]:
+              - generic [ref=e28]: For You
+          - generic [ref=e29]:
+            - textbox "Share a thought, clip link, or screenshot URL…" [ref=e30]
+            - button "Post" [disabled] [ref=e32]
+          - list [ref=e33]:
+            - listitem [ref=e34]
+            - listitem [ref=e42]
+            - listitem [ref=e50]
+            - listitem [ref=e58]
+            - listitem [ref=e66]
+        - complementary [ref=e74]:
+          - generic [ref=e75]:
+            - heading "Continue playing" [level=2] [ref=e77]
+            - generic [ref=e78]: Sign in to see your library.
+          - generic [ref=e79]:
+            - heading "Who to follow" [level=2] [ref=e81]
+            - list [ref=e82]:
+              - listitem [ref=e83]
+              - listitem [ref=e89]
+              - listitem [ref=e95]
+          - generic [ref=e101]:
+            - generic [ref=e102]:
+              - heading "Trending this week" [level=2] [ref=e103]
+              - link "Discover" [ref=e104] [cursor=pointer]:
+                - /url: /discover
+            - list [ref=e105]:
+              - listitem [ref=e106]
+              - listitem [ref=e109]
+              - listitem [ref=e112]
+              - listitem [ref=e115]
+              - listitem [ref=e118]
+              - listitem [ref=e121]
+```

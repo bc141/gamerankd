@@ -10,10 +10,8 @@ out/
 
 # Env files (never commit secrets)
 .env
-.env.local
-.env.development
-.env.production
-.env.staging
+.env.*
+!.env.example
 
 # OS / editor
 .DS_Store

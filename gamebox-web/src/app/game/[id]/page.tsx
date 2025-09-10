@@ -88,7 +88,6 @@ export default async function GamePage({ params }: { params: Promise<{ id: strin
     avg5 = count ? Number(((Number(stats!.avg_rating_100) || 0) / 20).toFixed(1)) : 0;
   } catch (error) {
     // Materialized view doesn't exist yet, use fallback
-    console.log('Materialized view not found, using live aggregate fallback');
     const fallback = await getCommunityStatsFallback(gameId);
     count = fallback.count;
     avg5 = fallback.avg5;

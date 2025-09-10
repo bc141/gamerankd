@@ -15,7 +15,7 @@ type GameRow = {
   cover_url: string | null;
   release_year: number | null;
   parent_igdb_id: number | null;
-  preview?: string | null;
+  summary?: string | null;
 };
 
 function pick<T>(arr: T[], n: number) {
@@ -78,7 +78,10 @@ export async function GET(req: NextRequest) {
   if (sections.includes('new')) {
     const { data, error } = await sb
       .from('games')
-      .select('id,igdb_id,name,cover_url,release_year,parent_igdb_id')
+      .select('id,igdb_id,name,cover_url,release_year,parent_igdb_id,summary')
+      .is('parent_igdb_id', null)
+      .not('release_year', 'is', null)
+      .order('release_year', { ascending: false })
       .limit(limit);
     if (error) throw new Error(error.message);
     out.new = data ?? [];

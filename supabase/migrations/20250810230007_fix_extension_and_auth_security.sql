@@ -48,7 +48,7 @@ $$;
 -- Update the games table to use the secure similarity function
 -- This replaces the direct pg_trgm usage with our secure wrapper
 create index if not exists games_name_similarity_idx 
-on public.games using gin (name extensions.gin_trgm_ops);
+on public.games using gin (name gin_trgm_ops);
 
 -- Create a function to check if extensions are properly secured
 create or replace function public.check_extension_security()

@@ -120,7 +120,7 @@ begin
 end;
 $$;
 
--- Create function to analyze slow queries
+-- Create function to analyze slow queries (if pg_stat_statements is available)
 create or replace function public.analyze_slow_queries()
 returns table (
   query text,
@@ -129,19 +129,35 @@ returns table (
   mean_time numeric,
   max_time numeric
 )
-language sql
+language plpgsql
 security definer set search_path = public
 as $$
-  select 
-    left(query, 100) as query,
-    calls,
-    round(total_exec_time::numeric, 2) as total_time,
-    round(mean_exec_time::numeric, 2) as mean_time,
-    round(max_exec_time::numeric, 2) as max_time
-  from pg_stat_statements 
-  where mean_exec_time > 100 -- Queries taking more than 100ms on average
-  order by mean_exec_time desc
-  limit 10;
+begin
+  -- Check if pg_stat_statements extension is available
+  if exists (select 1 from pg_extension where extname = 'pg_stat_statements') then
+    return query
+    select 
+      left(query, 100) as query,
+      calls,
+      round(total_exec_time::numeric, 2) as total_time,
+      round(mean_exec_time::numeric, 2) as mean_time,
+      round(max_exec_time::numeric, 2) as max_time
+    from pg_stat_statements 
+    where mean_exec_time > 100 -- Queries taking more than 100ms on average
+    order by mean_exec_time desc
+    limit 10;
+  else
+    -- Return empty result if extension is not available
+    return query
+    select 
+      'pg_stat_statements not available'::text as query,
+      0::bigint as calls,
+      0::numeric as total_time,
+      0::numeric as mean_time,
+      0::numeric as max_time
+    where false;
+  end if;
+end;
 $$;
 
 -- Create maintenance function

@@ -182,47 +182,58 @@ begin
 end;
 $$;
 
--- Update notification management functions
-create or replace function public.get_notifications(user_id_param uuid)
-returns table (
-  id bigint,
-  type text,
-  data jsonb,
-  created_at timestamptz,
-  read_at timestamptz
-)
-language sql
-security definer set search_path = public
-as $$
-  select n.id, n.type, n.data, n.created_at, n.read_at
-  from public.notifications n
-  where n.user_id = user_id_param
-  order by n.created_at desc;
-$$;
-
-create or replace function public.mark_notifications_read(user_id_param uuid, notification_ids bigint[])
-returns void
-language plpgsql
-security definer set search_path = public
-as $$
+-- Update notification management functions (if notifications table exists)
+do $$
 begin
-  update public.notifications
-  set read_at = now()
-  where user_id = user_id_param and id = any(notification_ids);
-end;
-$$;
+  if exists (select 1 from information_schema.tables where table_name = 'notifications' and table_schema = 'public') then
+    create or replace function public.get_notifications(user_id_param uuid)
+    returns table (
+      id bigint,
+      type text,
+      data jsonb,
+      created_at timestamptz,
+      read_at timestamptz
+    )
+    language sql
+    security definer set search_path = public
+    as $$
+      select n.id, n.type, n.data, n.created_at, n.read_at
+      from public.notifications n
+      where n.user_id = user_id_param
+      order by n.created_at desc;
+    $$;
+  end if;
+end $$;
 
-create or replace function public.mark_all_notifications_read(user_id_param uuid)
-returns void
-language plpgsql
-security definer set search_path = public
-as $$
+-- Update other notification functions (if notifications table exists)
+do $$
 begin
-  update public.notifications
-  set read_at = now()
-  where user_id = user_id_param and read_at is null;
-end;
-$$;
+  if exists (select 1 from information_schema.tables where table_name = 'notifications' and table_schema = 'public') then
+    create or replace function public.mark_notifications_read(user_id_param uuid, notification_ids bigint[])
+    returns void
+    language plpgsql
+    security definer set search_path = public
+    as $$
+    begin
+      update public.notifications
+      set read_at = now()
+      where user_id = user_id_param and id = any(notification_ids);
+    end;
+    $$;
+
+    create or replace function public.mark_all_notifications_read(user_id_param uuid)
+    returns void
+    language plpgsql
+    security definer set search_path = public
+    as $$
+    begin
+      update public.notifications
+      set read_at = now()
+      where user_id = user_id_param and read_at is null;
+    end;
+    $$;
+  end if;
+end $$;
 
 -- Update game-related functions
 create or replace function public.browse_games(limit_count integer default 20, offset_count integer default 0)

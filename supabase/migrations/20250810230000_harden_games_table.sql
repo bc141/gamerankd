@@ -1,6 +1,9 @@
 -- Database Hardening: Games Table Security & Performance
 -- This migration adds RLS policies, indexes, and constraints to the games table
 
+-- Ensure pg_trgm extension is available for text search indexes
+create extension if not exists pg_trgm;
+
 -- Enable RLS on games table (CRITICAL SECURITY FIX)
 alter table public.games enable row level security;
 

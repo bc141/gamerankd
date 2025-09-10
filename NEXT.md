@@ -2,7 +2,7 @@
 
 **Branch:** chore/ai-loop-check  
 **PR:** https://github.com/bc141/gamdit/pull/1  
-**Preview URL:** http://localhost:3001 (local dev)
+**Preview URL:** https://gamdit-git-chore-ai-loop-check-brandonc141s-projects.vercel.app
 
 ## Goal / Scope (1–3 bullets)
 - Implement persistent handoff system for warm agent sessions
@@ -36,6 +36,7 @@
 - CI: NEXT guard workflow created and tested ✅
 
 ## Recent Changes Log
+- 2025-09-11: Fixed games browse API - restored preview column for live database compatibility
 - 2025-09-11: Created automated change logging system
 - 2025-09-10: Database upgrade testing completed successfully
 - 2025-09-10: Removed old migration files, consolidated into clean setup

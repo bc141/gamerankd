@@ -36,13 +36,13 @@ drop policy if exists "reviews: select all" on public.reviews;
 create policy "profiles: user can insert own"
   on public.profiles
   for insert
-  with check ((select auth.uid()) = user_id);
+  with check ((select auth.uid()) = id);
 
 create policy "profiles: user can update own"
   on public.profiles
   for update
-  using ((select auth.uid()) = user_id)
-  with check ((select auth.uid()) = user_id);
+  using ((select auth.uid()) = id)
+  with check ((select auth.uid()) = id);
 
 -- Reviews table - optimized policies
 create policy "reviews: read all"

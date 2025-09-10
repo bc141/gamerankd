@@ -94,18 +94,23 @@ security definer set search_path = public
 as $$
 declare
   deleted_count integer;
+  games_deleted integer;
+  reviews_deleted integer;
 begin
   -- Clean up old games audit logs
   delete from public.games_audit 
   where changed_at < now() - (retention_days || ' days')::interval;
   
-  get diagnostics deleted_count = row_count;
+  get diagnostics games_deleted = row_count;
   
   -- Clean up old reviews audit logs
   delete from public.reviews_audit 
   where changed_at < now() - (retention_days || ' days')::interval;
   
-  get diagnostics deleted_count = deleted_count + row_count;
+  get diagnostics reviews_deleted = row_count;
+  
+  -- Calculate total deleted count
+  deleted_count := games_deleted + reviews_deleted;
   
   -- Clean up old rate limit records
   delete from public.rate_limits 

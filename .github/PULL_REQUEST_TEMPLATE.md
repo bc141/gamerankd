@@ -1,30 +1,34 @@
-# PR Summary
-- What changed & why:
-- Screenshots / logs:
+# Pull Request
 
----
+## Summary
+<!-- Brief description of what this PR does -->
 
-## Handoff (keep in sync with NEXT.md)
-**Branch:**  
-**Preview URL:**  
+## Changes Made
+<!-- List of key changes -->
+- 
+- 
+- 
 
-### Goal / Scope (1–3 bullets)
--
+## Testing
+<!-- How was this tested? -->
+- [ ] Unit tests pass
+- [ ] Integration tests pass
+- [ ] Manual testing completed
+- [ ] Database migrations tested
 
-### Acceptance Tests (must pass)
-1)
-2)
-3)
+## Handoff Information
+<!-- Copy from NEXT.md Current State section -->
+**Current State:**
+- 
 
-### State Now
-- Tests:
-- AI review: (link) — [blocking]/[should]/[nit] counts
-- DB migrations on preview:
+**Recent Changes:**
+- 
 
-### Next Steps
-1)
-2)
-3)
+## Screenshots/Logs
+<!-- If applicable, add screenshots or relevant logs -->
 
-### Constraints / Out of Scope
--
+## Checklist
+- [ ] NEXT.md updated with all UNFILLED placeholders replaced
+- [ ] No secrets or API keys in code
+- [ ] Small, focused changes
+- [ ] Ready for review

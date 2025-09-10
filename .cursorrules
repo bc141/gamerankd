@@ -13,3 +13,6 @@ When finishing any task:
 Never:
 - Print secrets in logs or PRs.
 - Put service keys into client code.
+
+# Quick Change Logging
+Use `./scripts/log-change.sh "Description"` to quickly log changes to NEXT.md.

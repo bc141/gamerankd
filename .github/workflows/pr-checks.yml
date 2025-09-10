@@ -44,17 +44,17 @@ jobs:
         run: npm i -g supabase
 
       - name: Link preview DB
-        if: ${{ secrets.PREVIEW_PROJECT_REF }}
+        if: ${{ secrets.PREVIEW_PROJECT_REF != '' }}
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: supabase link --project-ref ${{ secrets.PREVIEW_PROJECT_REF }}
 
       - name: Push migrations (preview)
-        if: ${{ secrets.PREVIEW_PROJECT_REF }}
+        if: ${{ secrets.PREVIEW_PROJECT_REF != '' }}
         run: supabase db push
 
       - name: Seed preview database
-        if: ${{ secrets.PREVIEW_PROJECT_REF }}
+        if: ${{ secrets.PREVIEW_PROJECT_REF != '' }}
         run: supabase db seed
 
       # Deploy step - try Vercel preview first, then fallback

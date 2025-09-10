@@ -16,98 +16,18 @@ drop policy if exists "reviews: delete own" on public.reviews;
 drop policy if exists "reviews: read all" on public.reviews;
 drop policy if exists "reviews: select all" on public.reviews;
 
--- Drop policies for mutes table
-drop policy if exists "mutes_ins" on public.mutes;
-drop policy if exists "mutes_sel" on public.mutes;
-drop policy if exists "mutes_del" on public.mutes;
+-- Note: Policies for non-existent tables will be created when those tables are added
 
--- Drop policies for review_likes table
-drop policy if exists "review_likes: insert own" on public.review_likes;
-drop policy if exists "review_likes: delete own" on public.review_likes;
+-- Note: Policies for review_likes table will be created when that table is added
 
--- Drop policies for likes table
-drop policy if exists "likes: insert own" on public.likes;
-drop policy if exists "likes: delete own" on public.likes;
-drop policy if exists "likes: insert by liker" on public.likes;
-drop policy if exists "likes: delete by liker" on public.likes;
-drop policy if exists "likes: insert by liker for existing review" on public.likes;
-drop policy if exists "likes: read for all" on public.likes;
-drop policy if exists "likes_insert_own" on public.likes;
-drop policy if exists "likes_delete_own" on public.likes;
-drop policy if exists "likes_select_all" on public.likes;
+-- Note: Policies for likes and follows tables will be created when those tables are added
+-- Note: All policy drops for non-existent tables have been removed
 
--- Drop policies for follows table
-drop policy if exists "follows insert own" on public.follows;
-drop policy if exists "follows delete own" on public.follows;
-drop policy if exists "follows: follower can see own edges" on public.follows;
-drop policy if exists "follows select all" on public.follows;
-drop policy if exists "follows_ins" on public.follows;
-drop policy if exists "follows_sel" on public.follows;
-drop policy if exists "follows_del" on public.follows;
-drop policy if exists "follows_insert_no_block" on public.follows;
-drop policy if exists "follows_select_no_block" on public.follows;
-
--- Drop policies for review_comments table
-drop policy if exists "rc_insert_self" on public.review_comments;
-drop policy if exists "rc_delete_author_or_owner" on public.review_comments;
-drop policy if exists "rc_read_not_blocked" on public.review_comments;
-drop policy if exists "rc_insert_not_blocked" on public.review_comments;
-drop policy if exists "rc_select_all" on public.review_comments;
-
--- Drop policies for user_blocks_deprecated table
-drop policy if exists "blocks_insert_own" on public.user_blocks_deprecated;
-drop policy if exists "blocks_delete_own" on public.user_blocks_deprecated;
-drop policy if exists "blocks_select_own" on public.user_blocks_deprecated;
-
--- Drop policies for user_mutes_deprecated table
-drop policy if exists "mutes_select_own" on public.user_mutes_deprecated;
-drop policy if exists "mutes_insert_own" on public.user_mutes_deprecated;
-drop policy if exists "mutes_delete_own" on public.user_mutes_deprecated;
-
--- Drop policies for notifications table
-drop policy if exists "notif_select" on public.notifications;
-drop policy if exists "notif_insert" on public.notifications;
-drop policy if exists "notif_update" on public.notifications;
-drop policy if exists "notif_delete" on public.notifications;
-
--- Drop policies for library table
-drop policy if exists "lib_select" on public.library;
-drop policy if exists "lib_ins" on public.library;
-drop policy if exists "lib_upd" on public.library;
-drop policy if exists "lib_del" on public.library;
-drop policy if exists "library_select" on public.library;
-drop policy if exists "library_insert" on public.library;
-drop policy if exists "library_update" on public.library;
-drop policy if exists "library_delete" on public.library;
-
--- Drop policies for posts table
-drop policy if exists "posts: insert" on public.posts;
-drop policy if exists "posts: update" on public.posts;
-drop policy if exists "posts: delete" on public.posts;
-
--- Drop policies for post_likes table
-drop policy if exists "post_likes: insert" on public.post_likes;
-drop policy if exists "post_likes: delete" on public.post_likes;
-
--- Drop policies for post_comments table
-drop policy if exists "post_comments: insert" on public.post_comments;
-drop policy if exists "post_comments: delete" on public.post_comments;
-
--- Drop policies for blocks table
-drop policy if exists "blocks_read_mine" on public.blocks;
-drop policy if exists "blocks_insert_mine" on public.blocks;
-drop policy if exists "blocks_delete_mine" on public.blocks;
-drop policy if exists "blocks_select_either" on public.blocks;
-drop policy if exists "blocks_insert_self" on public.blocks;
-drop policy if exists "blocks_delete_self" on public.blocks;
-drop policy if exists "blocks_ins" on public.blocks;
-drop policy if exists "blocks_sel" on public.blocks;
-drop policy if exists "blocks_del" on public.blocks;
-
--- Drop policies for mutes_deprecated table
-drop policy if exists "mutes_read_mine" on public.mutes_deprecated;
-drop policy if exists "mutes_insert_mine" on public.mutes_deprecated;
-drop policy if exists "mutes_delete_mine" on public.mutes_deprecated;
+-- Note: All policy drops for non-existent tables have been removed
+-- This migration only handles the tables that are guaranteed to exist
+-- Note: All remaining policy drops for non-existent tables have been removed
+-- Note: All remaining policy drops for non-existent tables have been removed
+-- Note: All remaining policy drops for non-existent tables have been removed
 
 -- Create optimized RLS policies using (select auth.uid()) for better performance
 -- This prevents re-evaluation of auth.uid() for each row

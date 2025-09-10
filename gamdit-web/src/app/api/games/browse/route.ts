@@ -78,7 +78,7 @@ export async function GET(req: NextRequest) {
   if (sections.includes('new')) {
     const { data, error } = await sb
       .from('games')
-      .select('id,igdb_id,name,cover_url,release_year,parent_igdb_id,preview')
+      .select('id,igdb_id,name,cover_url,release_year,parent_igdb_id')
       .limit(limit);
     if (error) throw new Error(error.message);
     out.new = data ?? [];

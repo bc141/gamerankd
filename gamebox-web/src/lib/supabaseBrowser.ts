@@ -9,8 +9,8 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
  * duplicate auth listeners.
  */
 const globalForSupabase = globalThis as unknown as {
-  __gamebox_supabase?: SupabaseClient;
-  __gamebox_supabase_auth_bound?: boolean;
+  __gamdit_supabase?: SupabaseClient;
+  __gamdit_supabase_auth_bound?: boolean;
 };
 
 function newClient(): SupabaseClient {
@@ -22,7 +22,7 @@ function newClient(): SupabaseClient {
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true, // allow parsing #access_token on callback
-        storageKey: 'gamebox-auth',
+        storageKey: 'gamdit-auth',
       },
     }
   );
@@ -35,7 +35,7 @@ function newClient(): SupabaseClient {
  */
 export function supabaseBrowser(): SupabaseClient {
   const client =
-    (globalForSupabase.__gamebox_supabase ??=
+    (globalForSupabase.__gamdit_supabase ??=
       newClient());
 
   // Browser-only helpers
@@ -44,15 +44,15 @@ export function supabaseBrowser(): SupabaseClient {
     (window as any).__supabase = client;
 
     // One-time auth change broadcaster for cross-tab sync
-    if (!globalForSupabase.__gamebox_supabase_auth_bound) {
+    if (!globalForSupabase.__gamdit_supabase_auth_bound) {
       client.auth.onAuthStateChange(() => {
         try {
-          localStorage.setItem('gb-auth-sync', String(Date.now()));
+          localStorage.setItem('gamdit-auth-sync', String(Date.now()));
         } catch {
           /* no-op */
         }
       });
-      globalForSupabase.__gamebox_supabase_auth_bound = true;
+      globalForSupabase.__gamdit_supabase_auth_bound = true;
     }
   }
 

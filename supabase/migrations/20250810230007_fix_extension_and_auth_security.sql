@@ -26,7 +26,7 @@ returns real
 language sql
 security definer set search_path = public, extensions
 as $$
-  select pg_trgm.similarity($1, $2);
+  select similarity($1, $2);
 $$;
 
 create or replace function public.word_similarity(text, text)
@@ -34,7 +34,7 @@ returns real
 language sql
 security definer set search_path = public, extensions
 as $$
-  select pg_trgm.word_similarity($1, $2);
+  select word_similarity($1, $2);
 $$;
 
 create or replace function public.strict_word_similarity(text, text)
@@ -42,7 +42,7 @@ returns real
 language sql
 security definer set search_path = public, extensions
 as $$
-  select pg_trgm.strict_word_similarity($1, $2);
+  select strict_word_similarity($1, $2);
 $$;
 
 -- Update the games table to use the secure similarity function

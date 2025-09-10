@@ -1,6 +1,6 @@
-<testsuites id="" name="" tests="5" failures="4" skipped="0" errors="0" time="22.384038">
-<testsuite name="smoke.spec.ts" timestamp="2025-09-10T23:25:10.663Z" hostname="" tests="5" failures="4" skipped="0" time="47.961" errors="0">
-<testcase name="Smoke Tests › @smoke home loads + a11y" classname="smoke.spec.ts" time="9.114">
+<testsuites id="" name="" tests="5" failures="4" skipped="0" errors="0" time="11.479313">
+<testsuite name="smoke.spec.ts" timestamp="2025-09-10T23:31:46.610Z" hostname="" tests="5" failures="4" skipped="0" time="32.551" errors="0">
+<testcase name="Smoke Tests › @smoke home loads + a11y" classname="smoke.spec.ts" time="7.919">
 <failure message="smoke.spec.ts:6:7 @smoke home loads + a11y" type="FAILURE">
 <![CDATA[  smoke.spec.ts:6:7 › Smoke Tests › @smoke home loads + a11y ───────────────────────────────────────
 
@@ -223,11 +223,11 @@
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
     attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
-    ../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y/video-1.webm
+    ../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y/video.webm
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
     attachment #3: video (video/webm) ──────────────────────────────────────────────────────────────
-    ../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y/video.webm
+    ../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y/video-1.webm
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
     Error Context: ../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y/error-context.md
@@ -691,11 +691,11 @@
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
     attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
-    ../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y-retry2/video.webm
+    ../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y-retry2/video-1.webm
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
     attachment #3: video (video/webm) ──────────────────────────────────────────────────────────────
-    ../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y-retry2/video-1.webm
+    ../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y-retry2/video.webm
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
     Error Context: ../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y-retry2/error-context.md
@@ -706,9 +706,9 @@
 
 [[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y/test-failed-1.png]]
 
-[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y/video-1.webm]]
-
 [[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y/video.webm]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y/video-1.webm]]
 
 [[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y/error-context.md]]
 [a11y] Critical/Serious: 2, Minor/Moderate: 4
@@ -726,20 +726,19 @@
 
 [[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y-retry2/test-failed-1.png]]
 
-[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y-retry2/video.webm]]
-
 [[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y-retry2/video-1.webm]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y-retry2/video.webm]]
 
 [[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-home-loads-a11y-retry2/error-context.md]]
 ]]>
 </system-out>
 <system-err>
 <![CDATA[[pageerror] Invalid or unexpected token
-[pageerror] Invalid or unexpected token
 ]]>
 </system-err>
 </testcase>
-<testcase name="Smoke Tests › @smoke login page loads + a11y" classname="smoke.spec.ts" time="9.149">
+<testcase name="Smoke Tests › @smoke login page loads + a11y" classname="smoke.spec.ts" time="7.889">
 <failure message="smoke.spec.ts:29:7 @smoke login page loads + a11y" type="FAILURE">
 <![CDATA[  smoke.spec.ts:29:7 › Smoke Tests › @smoke login page loads + a11y ────────────────────────────────
 
@@ -896,11 +895,11 @@
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
     attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
-    ../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y/video-1.webm
+    ../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y/video.webm
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
     attachment #3: video (video/webm) ──────────────────────────────────────────────────────────────
-    ../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y/video.webm
+    ../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y/video-1.webm
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
     Error Context: ../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y/error-context.md
@@ -1060,11 +1059,11 @@
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
     attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
-    ../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y-retry1/video.webm
+    ../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y-retry1/video-1.webm
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
     attachment #3: video (video/webm) ──────────────────────────────────────────────────────────────
-    ../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y-retry1/video-1.webm
+    ../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y-retry1/video.webm
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
     Error Context: ../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y-retry1/error-context.md
@@ -1247,18 +1246,18 @@
 
 [[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y/test-failed-1.png]]
 
-[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y/video-1.webm]]
-
 [[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y/video.webm]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y/video-1.webm]]
 
 [[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y/error-context.md]]
 [a11y] Critical/Serious: 1, Minor/Moderate: 4
 
 [[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y-retry1/test-failed-1.png]]
 
-[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y-retry1/video.webm]]
-
 [[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y-retry1/video-1.webm]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y-retry1/video.webm]]
 
 [[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-login-page-loads-a11y-retry1/error-context.md]]
 
@@ -1275,7 +1274,7 @@
 ]]>
 </system-out>
 </testcase>
-<testcase name="Smoke Tests › @smoke search page loads + a11y" classname="smoke.spec.ts" time="9.13">
+<testcase name="Smoke Tests › @smoke search page loads + a11y" classname="smoke.spec.ts" time="8.095">
 <failure message="smoke.spec.ts:52:7 @smoke search page loads + a11y" type="FAILURE">
 <![CDATA[  smoke.spec.ts:52:7 › Smoke Tests › @smoke search page loads + a11y ───────────────────────────────
 
@@ -1362,11 +1361,11 @@
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
     attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
-    ../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y/video.webm
+    ../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y/video-1.webm
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
     attachment #3: video (video/webm) ──────────────────────────────────────────────────────────────
-    ../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y/video-1.webm
+    ../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y/video.webm
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
     Error Context: ../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y/error-context.md
@@ -1456,11 +1455,11 @@
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
     attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
-    ../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y-retry1/video-1.webm
+    ../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y-retry1/video.webm
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
     attachment #3: video (video/webm) ──────────────────────────────────────────────────────────────
-    ../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y-retry1/video.webm
+    ../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y-retry1/video-1.webm
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
     Error Context: ../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y-retry1/error-context.md
@@ -1573,18 +1572,18 @@
 
 [[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y/test-failed-1.png]]
 
-[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y/video.webm]]
-
 [[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y/video-1.webm]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y/video.webm]]
 
 [[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y/error-context.md]]
 [a11y] Critical/Serious: 1, Minor/Moderate: 4
 
 [[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y-retry1/test-failed-1.png]]
 
-[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y-retry1/video-1.webm]]
-
 [[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y-retry1/video.webm]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y-retry1/video-1.webm]]
 
 [[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-search-page-loads-a11y-retry1/error-context.md]]
 
@@ -1602,12 +1601,107 @@
 </system-out>
 <system-err>
 <![CDATA[[pageerror] Invalid or unexpected token
+[pageerror] Invalid or unexpected token
 ]]>
 </system-err>
 </testcase>
-<testcase name="Smoke Tests › @smoke discover page loads + a11y" classname="smoke.spec.ts" time="20.291">
+<testcase name="Smoke Tests › @smoke discover page loads + a11y" classname="smoke.spec.ts" time="8.211">
 <failure message="smoke.spec.ts:75:7 @smoke discover page loads + a11y" type="FAILURE">
 <![CDATA[  smoke.spec.ts:75:7 › Smoke Tests › @smoke discover page loads + a11y ─────────────────────────────
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  1
+    + Received  + 62
+
+    - Array []
+    + Array [
+    +   Object {
+    +     "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+    +     "help": "Elements must meet minimum color contrast ratio thresholds",
+    +     "helpUrl": "https://dequeuniversity.com/rules/axe/4.10/color-contrast?application=playwright",
+    +     "id": "color-contrast",
+    +     "impact": "serious",
+    +     "nodes": Array [
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#999999",
+    +               "contrastRatio": 2.38,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#ebebeb",
+    +               "fontSize": "10.5pt (14px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 2.38 (foreground color: #ebebeb, background color: #999999, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<header class=\"border-b border-white/10 sticky top-0 z-40 bg-black/60 backdrop-blur supports-[backdrop-filter]:bg-black/40\">",
+    +                 "target": Array [
+    +                   "header",
+    +                 ],
+    +               },
+    +               Object {
+    +                 "html": "<body class=\"__variable_5cfdac __variable_9a8899 antialiased bg-neutral-950 text-white\">",
+    +                 "target": Array [
+    +                   "body",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 2.38 (foreground color: #ebebeb, background color: #999999, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<a class=\"text-sm pb-0.5 border-b-2 border-transparent text-white/80 hover:text-white hover:border-white/30\" href=\"/\">Home</a>",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           ".sm\\:flex > .pb-0\\.5.border-b-2.border-transparent",
+    +         ],
+    +       },
+    +     ],
+    +     "tags": Array [
+    +       "cat.color",
+    +       "wcag2aa",
+    +       "wcag143",
+    +       "TTv5",
+    +       "TT13.c",
+    +       "EN-301-549",
+    +       "EN-9.1.4.3",
+    +       "ACT",
+    +     ],
+    +   },
+    + ]
+
+      89 |     console.log(`[a11y] Critical/Serious: ${severe.length}, Minor/Moderate: ${minor.length}`);
+      90 |     
+    > 91 |     expect(severe).toEqual([]); // fail on critical/serious
+         |                    ^
+      92 |     if (minor.length > 0) {
+      93 |       console.warn(`[a11y] Minor/Moderate issues found: ${minor.length}`);
+      94 |     }
+        at /Users/brandonconway/gamebox-backend/gamdit-web/tests/smoke.spec.ts:91:20
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y/video-1.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #3: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y/video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y/error-context.md
+
+    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
 
     Error: expect(received).toEqual(expected) // deep equality
 
@@ -1669,53 +1763,18 @@
         at /Users/brandonconway/gamebox-backend/gamdit-web/tests/smoke.spec.ts:91:20
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
-    ../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y/test-failed-1.png
-    ────────────────────────────────────────────────────────────────────────────────────────────────
-
-    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
-    ../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y/video-1.webm
-    ────────────────────────────────────────────────────────────────────────────────────────────────
-
-    attachment #3: video (video/webm) ──────────────────────────────────────────────────────────────
-    ../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y/video.webm
-    ────────────────────────────────────────────────────────────────────────────────────────────────
-
-    Error Context: ../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y/error-context.md
-
-    Retry #1 ───────────────────────────────────────────────────────────────────────────────────────
-
-    Error: page.evaluate: Execution context was destroyed, most likely because of a navigation
-     Please check out https://github.com/dequelabs/axe-core-npm/blob/develop/packages/playwright/error-handling.md
-
-      78 |     
-      79 |     // Accessibility testing with Axe
-    > 80 |     const results = await new AxeBuilder({ page }).analyze();
-         |                     ^
-      81 |     const severe = results.violations.filter(v =>
-      82 |       ['critical','serious'].includes(v.impact ?? '')
-      83 |     );
-        at AxeBuilder.analyze (/Users/brandonconway/gamebox-backend/gamdit-web/node_modules/@axe-core/playwright/dist/index.js:253:13)
-        at /Users/brandonconway/gamebox-backend/gamdit-web/tests/smoke.spec.ts:80:21
-
-    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
-    ../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y-retry1/test-failed-2.png
-    ────────────────────────────────────────────────────────────────────────────────────────────────
-
-    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
     ../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y-retry1/test-failed-1.png
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
-    attachment #3: video (video/webm) ──────────────────────────────────────────────────────────────
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
     ../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y-retry1/video.webm
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
-    attachment #4: video (video/webm) ──────────────────────────────────────────────────────────────
+    attachment #3: video (video/webm) ──────────────────────────────────────────────────────────────
     ../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y-retry1/video-1.webm
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
-    Error Context: ../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y-retry1/error-context.md
-
-    attachment #6: trace (application/zip) ─────────────────────────────────────────────────────────
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
     ../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y-retry1/trace.zip
     Usage:
 
@@ -1725,34 +1784,93 @@
 
     Retry #2 ───────────────────────────────────────────────────────────────────────────────────────
 
-    Error: expect(page).toHaveTitle(expected) failed
+    Error: expect(received).toEqual(expected) // deep equality
 
-    Expected pattern: /Gamebox/i
-    Received string:  ""
-    Timeout: 5000ms
+    - Expected  -  1
+    + Received  + 62
 
-    Call log:
-      - Expect "toHaveTitle" with timeout 5000ms
-        2 × unexpected value ""
-        - waiting for" http://localhost:3000/discover" navigation to finish...
-        - navigated to "http://localhost:3000/discover"
-        7 × unexpected value ""
+    - Array []
+    + Array [
+    +   Object {
+    +     "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+    +     "help": "Elements must meet minimum color contrast ratio thresholds",
+    +     "helpUrl": "https://dequeuniversity.com/rules/axe/4.10/color-contrast?application=playwright",
+    +     "id": "color-contrast",
+    +     "impact": "serious",
+    +     "nodes": Array [
+    +       Object {
+    +         "all": Array [],
+    +         "any": Array [
+    +           Object {
+    +             "data": Object {
+    +               "bgColor": "#999999",
+    +               "contrastRatio": 2.38,
+    +               "expectedContrastRatio": "4.5:1",
+    +               "fgColor": "#ebebeb",
+    +               "fontSize": "10.5pt (14px)",
+    +               "fontWeight": "normal",
+    +               "messageKey": null,
+    +             },
+    +             "id": "color-contrast",
+    +             "impact": "serious",
+    +             "message": "Element has insufficient color contrast of 2.38 (foreground color: #ebebeb, background color: #999999, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +             "relatedNodes": Array [
+    +               Object {
+    +                 "html": "<header class=\"border-b border-white/10 sticky top-0 z-40 bg-black/60 backdrop-blur supports-[backdrop-filter]:bg-black/40\">",
+    +                 "target": Array [
+    +                   "header",
+    +                 ],
+    +               },
+    +               Object {
+    +                 "html": "<body class=\"__variable_5cfdac __variable_9a8899 antialiased bg-neutral-950 text-white\">",
+    +                 "target": Array [
+    +                   "body",
+    +                 ],
+    +               },
+    +             ],
+    +           },
+    +         ],
+    +         "failureSummary": "Fix any of the following:
+    +   Element has insufficient color contrast of 2.38 (foreground color: #ebebeb, background color: #999999, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",
+    +         "html": "<a class=\"text-sm pb-0.5 border-b-2 border-transparent text-white/80 hover:text-white hover:border-white/30\" href=\"/\">Home</a>",
+    +         "impact": "serious",
+    +         "none": Array [],
+    +         "target": Array [
+    +           ".sm\\:flex > .pb-0\\.5.border-b-2.border-transparent",
+    +         ],
+    +       },
+    +     ],
+    +     "tags": Array [
+    +       "cat.color",
+    +       "wcag2aa",
+    +       "wcag143",
+    +       "TTv5",
+    +       "TT13.c",
+    +       "EN-301-549",
+    +       "EN-9.1.4.3",
+    +       "ACT",
+    +     ],
+    +   },
+    + ]
 
-
-      75 |   test('@smoke discover page loads + a11y', async ({ page }) => {
-      76 |     await page.goto('/discover');
-    > 77 |     await expect(page).toHaveTitle(/Gamebox/i);
-         |                        ^
-      78 |     
-      79 |     // Accessibility testing with Axe
-      80 |     const results = await new AxeBuilder({ page }).analyze();
-        at /Users/brandonconway/gamebox-backend/gamdit-web/tests/smoke.spec.ts:77:24
+      89 |     console.log(`[a11y] Critical/Serious: ${severe.length}, Minor/Moderate: ${minor.length}`);
+      90 |     
+    > 91 |     expect(severe).toEqual([]); // fail on critical/serious
+         |                    ^
+      92 |     if (minor.length > 0) {
+      93 |       console.warn(`[a11y] Minor/Moderate issues found: ${minor.length}`);
+      94 |     }
+        at /Users/brandonconway/gamebox-backend/gamdit-web/tests/smoke.spec.ts:91:20
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     ../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y-retry2/test-failed-1.png
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
     attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    ../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y-retry2/video-1.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #3: video (video/webm) ──────────────────────────────────────────────────────────────
     ../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y-retry2/video.webm
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -1760,7 +1878,7 @@
 ]]>
 </failure>
 <system-out>
-<![CDATA[[a11y] Critical/Serious: 1, Minor/Moderate: 2
+<![CDATA[[a11y] Critical/Serious: 1, Minor/Moderate: 4
 
 [[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y/test-failed-1.png]]
 
@@ -1769,8 +1887,7 @@
 [[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y/video.webm]]
 
 [[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y/error-context.md]]
-
-[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y-retry1/test-failed-2.png]]
+[a11y] Critical/Serious: 1, Minor/Moderate: 2
 
 [[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y-retry1/test-failed-1.png]]
 
@@ -1778,11 +1895,12 @@
 
 [[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y-retry1/video-1.webm]]
 
-[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y-retry1/error-context.md]]
-
 [[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y-retry1/trace.zip]]
+[a11y] Critical/Serious: 1, Minor/Moderate: 4
 
 [[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y-retry2/test-failed-1.png]]
+
+[[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y-retry2/video-1.webm]]
 
 [[ATTACHMENT|../test-results/smoke-Smoke-Tests-smoke-discover-page-loads-a11y-retry2/video.webm]]
 
@@ -1790,51 +1908,12 @@
 ]]>
 </system-out>
 <system-err>
-<![CDATA[[console.error] Failed to load resource: the server responded with a status of 500 (Internal Server Error)
-[pageerror] browse failed
-[console.warning] [Fast Refresh] performing full reload because your application had an unrecoverable error
-[console.warning] [Fast Refresh] performing full reload because your application had an unrecoverable error
-[console.warning] [Fast Refresh] performing full reload because your application had an unrecoverable error
-[console.warning] [Fast Refresh] performing full reload because your application had an unrecoverable error
-[console.warning] [Fast Refresh] performing full reload because your application had an unrecoverable error
+<![CDATA[[pageerror] Invalid or unexpected token
 [console.error] Failed to load resource: the server responded with a status of 500 (Internal Server Error)
-[pageerror] browse failed
-[console.error] Failed to load resource: the server responded with a status of 500 (Internal Server Error)
-[pageerror] browse failed
-[pageerror] Invalid or unexpected token
-[console.warning] [Fast Refresh] performing full reload because your application had an unrecoverable error
-[console.warning] [Fast Refresh] performing full reload because your application had an unrecoverable error
-[console.warning] [Fast Refresh] performing full reload because your application had an unrecoverable error
-[console.warning] [Fast Refresh] performing full reload because your application had an unrecoverable error
-[console.warning] [Fast Refresh] performing full reload because your application had an unrecoverable error
-[console.warning] [Fast Refresh] performing full reload because your application had an unrecoverable error
-[console.warning] [Fast Refresh] performing full reload because your application had an unrecoverable error
-[console.error] Failed to load resource: the server responded with a status of 500 (Internal Server Error)
-[pageerror] browse failed
-[console.warning] [Fast Refresh] performing full reload because your application had an unrecoverable error
-[console.warning] [Fast Refresh] performing full reload because your application had an unrecoverable error
-[console.warning] [Fast Refresh] performing full reload because your application had an unrecoverable error
-[console.warning] [Fast Refresh] performing full reload because your application had an unrecoverable error
-[console.error] Failed to load resource: the server responded with a status of 500 (Internal Server Error)
-[pageerror] browse failed
-[console.warning] [Fast Refresh] performing full reload because your application had an unrecoverable error
-[console.warning] [Fast Refresh] performing full reload because your application had an unrecoverable error
-[console.error] Failed to load resource: the server responded with a status of 500 (Internal Server Error)
-[pageerror] browse failed
-[console.warning] [Fast Refresh] performing full reload because your application had an unrecoverable error
-[console.warning] [Fast Refresh] performing full reload because your application had an unrecoverable error
-[console.error] Failed to load resource: the server responded with a status of 500 (Internal Server Error)
-[pageerror] browse failed
-[console.warning] [Fast Refresh] performing full reload because your application had an unrecoverable error
-[console.error] Failed to load resource: the server responded with a status of 500 (Internal Server Error)
-[pageerror] browse failed
-[console.warning] The resource http://localhost:3000/_next/static/media/93f479601ee12b01-s.p.woff2 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
-[console.warning] The resource http://localhost:3000/_next/static/css/app/layout.css?v=1757546727986 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
-[console.warning] The resource http://localhost:3000/_next/static/media/569ce4b8f30dc480-s.p.woff2 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.
 ]]>
 </system-err>
 </testcase>
-<testcase name="Smoke Tests › @smoke API endpoints respond" classname="smoke.spec.ts" time="0.277">
+<testcase name="Smoke Tests › @smoke API endpoints respond" classname="smoke.spec.ts" time="0.437">
 </testcase>
 </testsuite>
 </testsuites>

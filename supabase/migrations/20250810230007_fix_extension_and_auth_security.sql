@@ -19,12 +19,9 @@ begin
 end;
 $$;
 
--- Create a secure wrapper for pg_trgm functions
--- This allows us to use pg_trgm functionality while keeping the extension secure
--- First drop the existing function if it exists
-drop function if exists public.similarity(text, text);
-
-create or replace function public.similarity(text, text)
+-- Create secure wrapper functions for pg_trgm
+-- We'll create our own functions with different names to avoid conflicts
+create or replace function public.secure_similarity(text, text)
 returns real
 language sql
 security definer set search_path = public, extensions
@@ -32,9 +29,7 @@ as $$
   select similarity($1, $2);
 $$;
 
--- Drop and recreate other pg_trgm functions
-drop function if exists public.word_similarity(text, text);
-create or replace function public.word_similarity(text, text)
+create or replace function public.secure_word_similarity(text, text)
 returns real
 language sql
 security definer set search_path = public, extensions
@@ -42,8 +37,7 @@ as $$
   select word_similarity($1, $2);
 $$;
 
-drop function if exists public.strict_word_similarity(text, text);
-create or replace function public.strict_word_similarity(text, text)
+create or replace function public.secure_strict_word_similarity(text, text)
 returns real
 language sql
 security definer set search_path = public, extensions

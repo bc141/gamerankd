@@ -67,3 +67,4 @@ npm run dev
 - **Rate Limiting**: Respectful API usage with built-in throttling
 - **Edition Management**: Tracks parent-child relationships between base games and remasters/ports
 - AI loop validation Wed Sep 10 23:53:54 CEST 2025
+- AI loop validation Wed Sep 10 23:54:02 CEST 2025

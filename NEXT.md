@@ -27,16 +27,17 @@
 - `npx playwright test -g @ux`
 
 ## Current State
-- Tests: Comprehensive API testing complete, most endpoints working ✅
+- Tests: Comprehensive API testing complete, ALL endpoints working ✅
 - AI review: Bugbot successfully caught pg_trgm schema bug and fixed it
 - DB: Clean database setup with consolidated migrations ✅
 - Security: RLS enabled, proper policies, no schema errors ✅
-- Performance: Working endpoints optimized, sub-600ms response times ✅
-- App: Live deployment functional, core features operational ✅
+- Performance: All endpoints optimized, sub-700ms response times ✅
+- App: Live deployment fully functional, all features operational ✅
 - CI: NEXT guard workflow created and tested ✅
-- Issue: 'New' section API endpoint consistently fails (needs DB investigation) ⚠️
+- Schema: Fixed database schema mismatch (preview → summary column) ✅
 
 ## Recent Changes Log
+- 2025-09-11: Fixed new section API - resolved database schema mismatch
 - 2025-09-11: Completed comprehensive API testing - identified new section issue
 - 2025-09-11: Fixed games browse API - restored preview column for live database compatibility
 - 2025-09-11: Created automated change logging system

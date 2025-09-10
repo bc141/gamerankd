@@ -34,7 +34,7 @@ create policy "games: delete for authenticated"
 create index if not exists games_name_idx on public.games using gin (to_tsvector('english', name));
 create index if not exists games_igdb_id_idx on public.games(igdb_id);
 create index if not exists games_created_at_idx on public.games(created_at desc);
-create index if not exists games_name_trgm_idx on public.games using gin (name gin_trgm_ops);
+create index if not exists games_name_trgm_idx on public.games using gin (name extensions.gin_trgm_ops);
 
 -- Add data validation constraints
 alter table public.games

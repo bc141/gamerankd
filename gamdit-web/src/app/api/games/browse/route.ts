@@ -81,7 +81,7 @@ export async function GET(req: NextRequest) {
       .select('id,igdb_id,name,cover_url,release_year,parent_igdb_id,preview')
       .is('parent_igdb_id', null)
       .not('release_year', 'is', null)
-      .order('release_year', { ascending: false, nullsFirst: false })
+      .order('release_year', { ascending: false })
       .limit(limit);
     if (error) throw new Error(error.message);
     out.new = data ?? [];

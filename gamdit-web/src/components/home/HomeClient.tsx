@@ -9,6 +9,9 @@ import StarRating from '@/components/StarRating';
 import { useUnifiedContextModal } from '@/components/ContextModal/useUnifiedContextModal';
 import { onRowClick, onRowKeyDown } from '@/lib/safeOpenContext';
 import InteractionButton from '@/components/InteractionButton';
+import { Card } from '@/components/ui/Card';
+import { Segmented } from '@/components/ui/Segmented';
+import { Skeleton, PostCardSkeleton, SidebarSkeleton } from '@/components/common/Skeleton';
 
 import {
   likeKey,
@@ -566,41 +569,25 @@ export default function HomeClient() {
 
   // ---------- UI ----------
   return (
-    <main className="mx-auto max-w-6xl px-4 py-6">
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
+    <main className="mx-auto max-w-[1240px] px-6 py-8">
+      <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-6">
         {/* CENTER */}
-        <section>
+        <section className="min-w-0">
           {/* Title */}
-          <h1 className="text-2xl font-bold mb-3">Home</h1>
+          <h1 className="text-2xl font-semibold text-[rgb(var(--txt))] mb-6 leading-tight">Home</h1>
 
-          {/* Segmented tabs – full width, short underline */}
-          <nav
-            className="grid grid-cols-2 gap-2 rounded-lg border border-white/10 bg-white/5 p-1 mb-4 sticky top-12 z-10 backdrop-blur supports-[backdrop-filter]:bg-black/30"
-            role="tablist"
-            aria-label="Feed tabs"
-          >
-            {([
-              { key: 'following', label: 'Following' },
-              { key: 'foryou', label: 'For You' },
-            ] as {key: Scope, label: string}[]).map(t => {
-              const active = scope === t.key;
-              return (
-                <button
-                  key={t.key}
-                  onClick={() => switchScope(t.key)}
-                  aria-pressed={active}
-                  aria-current={active ? 'page' : undefined}
-                  className={`relative w-full px-3 py-2 text-sm rounded transition-colors
-                    ${active ? 'text-white' : 'text-white/70 hover:text-white'}`}
-                >
-                  <span className="font-medium">{t.label}</span>
-                  {active && (
-                    <span className="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-[2px] block h-[2px] w-12 bg-white/70 rounded" />
-                  )}
-                </button>
-              );
-            })}
-          </nav>
+          {/* Segmented tabs */}
+          <div className="mb-6">
+            <Segmented
+              options={[
+                { value: 'following', label: 'Following' },
+                { value: 'foryou', label: 'For You' },
+              ]}
+              value={scope}
+              onValueChange={(value) => switchScope(value as Scope)}
+              size="md"
+            />
+          </div>
 
           {/* Composer (temporary lightweight) */}
           <QuickComposer
@@ -615,27 +602,60 @@ export default function HomeClient() {
           />
 
           {!ready ? (
-            <FeedSkeleton />
+            <PostCardSkeleton />
           ) : !me && scope === 'following' ? (
-            <div className="rounded-lg border border-white/10 bg-white/5 p-4">
-              <p className="text-white/80">
-                Sign in to see reviews from people you follow. In the meantime,
-                check <Link className="underline" href="/discover">Discover</Link>.
-              </p>
-            </div>
+            <Card className="text-center py-12">
+              <div className="space-y-4">
+                <div className="text-4xl">👋</div>
+                <h3 className="text-lg font-semibold text-[rgb(var(--txt))]">Welcome to Gamdit</h3>
+                <p className="text-[rgb(var(--txt-muted))] max-w-md mx-auto">
+                  Sign in to see reviews from people you follow. In the meantime, check out what's trending.
+                </p>
+                <Link 
+                  href="/discover" 
+                  className="inline-flex items-center px-4 py-2 bg-[rgb(var(--accent))] text-[rgb(var(--accent-contrast))] rounded-lg font-medium hover:bg-[rgb(var(--accent-hover))] transition-colors"
+                >
+                  Discover Games
+                </Link>
+              </div>
+            </Card>
           ) : feedErr ? (
-            <p className="text-red-400">{feedErr}</p>
+            <Card className="text-center py-8">
+              <div className="text-[rgb(var(--danger))]">
+                <div className="text-2xl mb-2">⚠️</div>
+                <p className="font-medium">Something went wrong</p>
+                <p className="text-sm text-[rgb(var(--txt-muted))] mt-1">{feedErr}</p>
+              </div>
+            </Card>
           ) : unifiedFeed == null ? (
-            <FeedSkeleton />
+            <PostCardSkeleton />
           ) : unifiedFeed.length === 0 ? (
-            <div className="rounded-lg border border-white/10 bg-white/5 p-4">
-              <p className="text-white/80">
-                Nothing here yet. Try <Link className="underline" href="/discover">Discover</Link> or follow more players.
-              </p>
-            </div>
+            <Card className="text-center py-12">
+              <div className="space-y-4">
+                <div className="text-4xl">🎮</div>
+                <h3 className="text-lg font-semibold text-[rgb(var(--txt))]">No content yet</h3>
+                <p className="text-[rgb(var(--txt-muted))] max-w-md mx-auto">
+                  Nothing here yet. Try following more players or check out trending games.
+                </p>
+                <div className="flex gap-3 justify-center">
+                  <Link 
+                    href="/discover" 
+                    className="inline-flex items-center px-4 py-2 bg-[rgb(var(--accent))] text-[rgb(var(--accent-contrast))] rounded-lg font-medium hover:bg-[rgb(var(--accent-hover))] transition-colors"
+                  >
+                    Discover Games
+                  </Link>
+                  <Link 
+                    href="/search" 
+                    className="inline-flex items-center px-4 py-2 border border-[rgb(var(--border))] text-[rgb(var(--txt))] rounded-lg font-medium hover:bg-[rgb(var(--hover))] transition-colors"
+                  >
+                    Find Players
+                  </Link>
+                </div>
+              </div>
+            </Card>
           ) : (
             <>
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {unifiedFeed?.map((it, i) => {
                   if (it.kind === 'review') {
                     const r = it.review;
@@ -648,10 +668,11 @@ export default function HomeClient() {
                     const likeK = a?.id ? likeKey(a.id, r.game_id) : '';
 
                     return (
-                      <article
-                        id={`feed-row-${i}`}
+                      <Card
                         key={`rev-${r.user_id}-${r.game_id}-${r.created_at}-${i}`}
-                        className="group rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20 transition-all duration-300 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 ring-inset overflow-hidden shadow-sm hover:shadow-lg"
+                        id={`feed-row-${i}`}
+                        interactive
+                        className="group cursor-pointer"
                         onClick={(e) =>
                           onRowClick(e, () => {
                             if (a?.id) openReview(a.id, r.game_id);
@@ -666,118 +687,109 @@ export default function HomeClient() {
                         role="button"
                         aria-label={`${a?.display_name || a?.username || 'Player'} rated ${g?.name || 'a game'}`}
                       >
-                        {/* Review Header with Badge */}
-                        <div className="flex items-center justify-between px-5 pt-4 pb-2">
-                          <div className="flex items-center gap-3">
-                            {/* Content Type Badge */}
-                            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-500/25">
-                              <span className="text-amber-400 text-xs font-semibold tracking-wide">⭐ Review</span>
-                            </div>
-                            <div className="text-xs text-white/50 font-medium">{timeAgo(r.created_at)}</div>
-                          </div>
-                        </div>
+                        <div className="flex items-start gap-4">
+                          {/* Avatar */}
+                          <Link
+                            href={actorHref}
+                            className="shrink-0"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={a?.avatar_url || '/avatar-placeholder.svg'}
+                              alt=""
+                              className="h-12 w-12 rounded-full object-cover border border-[rgb(var(--border))]"
+                              loading="lazy"
+                              decoding="async"
+                            />
+                          </Link>
 
-                        {/* Main Content */}
-                        <div className="px-5 pb-5">
-                          <div className="flex items-start gap-4">
-                            {/* Avatar */}
+                          <div className="min-w-0 flex-1">
+                            {/* Header Row */}
+                            <div className="flex items-center gap-2 mb-2">
+                              <Link
+                                href={actorHref}
+                                className="font-semibold text-[rgb(var(--txt))] hover:text-[rgb(var(--accent))] transition-colors"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {a?.display_name || a?.username || 'Player'}
+                              </Link>
+                              <span className="text-[rgb(var(--txt-muted))]">rated</span>
+                              <Link
+                                href={gameHref}
+                                className="font-semibold text-[rgb(var(--txt))] hover:text-[rgb(var(--accent))] transition-colors"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {g?.name ?? 'a game'}
+                              </Link>
+                              <span className="text-[rgb(var(--txt-subtle))]">·</span>
+                              <span className="text-sm text-[rgb(var(--txt-subtle))]">{timeAgo(r.created_at)}</span>
+                            </div>
+
+                            {/* Rating Display */}
+                            <div className="flex items-center gap-3 mb-3">
+                              <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-[rgb(var(--bg-elev))] border border-[rgb(var(--border))]">
+                                <StarRating value={stars} readOnly size={14} />
+                                <span className="text-sm font-medium text-[rgb(var(--txt))]">{stars}/5</span>
+                                <span className="text-xs text-[rgb(var(--txt-muted))]">
+                                  {r.rating >= 80 ? 'Excellent' : r.rating >= 60 ? 'Good' : r.rating >= 40 ? 'Average' : 'Poor'}
+                                </span>
+                              </div>
+                              <div className="text-xs px-2 py-1 rounded-full bg-[rgb(var(--bg-elev))] text-[rgb(var(--txt-muted))]">
+                                Review
+                              </div>
+                            </div>
+
+                            {/* Review Text */}
+                            {r.review?.trim() && (
+                              <div className="mb-4">
+                                <p className="text-[rgb(var(--txt))] whitespace-pre-wrap leading-relaxed text-sm">
+                                  {r.review.trim()}
+                                </p>
+                              </div>
+                            )}
+
+                            {/* Actions */}
+                            <div className="flex items-center gap-3">
+                              {a?.id && (
+                                <InteractionButton
+                                  type="like"
+                                  count={(likes[likeK]?.count) ?? 0}
+                                  active={(likes[likeK]?.liked) ?? false}
+                                  busy={!!likeBusy[likeK]}
+                                  onClick={() => onToggleLike(a.id!, r.game_id)}
+                                />
+                              )}
+
+                              {a?.id && (
+                                <InteractionButton
+                                  type="comment"
+                                  count={commentCounts[cKey] ?? 0}
+                                  onClick={() => openReview(a!.id, r.game_id)}
+                                />
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Game Cover */}
+                          {g?.cover_url && (
                             <Link
-                              href={actorHref}
+                              href={gameHref}
                               className="shrink-0"
                               onClick={(e) => e.stopPropagation()}
                             >
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img
-                                src={a?.avatar_url || '/avatar-placeholder.svg'}
+                                src={g.cover_url}
                                 alt=""
-                                className="h-14 w-14 rounded-full object-cover border-2 border-white/20 shadow-md"
+                                className="h-20 w-14 rounded-lg object-cover border border-[rgb(var(--border))]"
                                 loading="lazy"
                                 decoding="async"
                               />
                             </Link>
-
-                            <div className="min-w-0 flex-1">
-                              {/* Author & Game Info */}
-                              <div className="flex items-center gap-2 mb-3">
-                                <Link
-                                  href={actorHref}
-                                  className="font-bold text-white hover:text-amber-400 transition-colors text-base"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  {a?.display_name || a?.username || 'Player'}
-                                </Link>
-                                <span className="text-white/60 font-medium">rated</span>
-                                <Link
-                                  href={gameHref}
-                                  className="font-bold text-white hover:text-amber-400 transition-colors text-base"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  {g?.name ?? 'a game'}
-                                </Link>
-                              </div>
-
-                              {/* Rating Display */}
-                              <div className="flex items-center gap-4 mb-4">
-                                <div className="flex items-center gap-2">
-                                  <StarRating value={stars} readOnly size={20} />
-                                  <span className="text-base font-bold text-white/95">{stars}/5</span>
-                                </div>
-                                <div className="text-sm font-semibold text-white/80 px-2 py-1 rounded-full bg-white/10">
-                                  {r.rating >= 80 ? 'Excellent' : r.rating >= 60 ? 'Good' : r.rating >= 40 ? 'Average' : 'Poor'}
-                                </div>
-                              </div>
-
-                              {/* Review Text */}
-                              {r.review?.trim() && (
-                                <div className="bg-white/5 rounded-xl p-4 mb-4 border border-white/10">
-                                  <p className="text-white/95 whitespace-pre-wrap leading-relaxed text-sm font-medium">
-                                    {r.review.trim()}
-                                  </p>
-                                </div>
-                              )}
-
-                              {/* Actions */}
-                              <div className="flex items-center gap-3">
-                                {a?.id && (
-                                  <InteractionButton
-                                    type="like"
-                                    count={(likes[likeK]?.count) ?? 0}
-                                    active={(likes[likeK]?.liked) ?? false}
-                                    busy={!!likeBusy[likeK]}
-                                    onClick={() => onToggleLike(a.id!, r.game_id)}
-                                  />
-                                )}
-
-                                {a?.id && (
-                                  <InteractionButton
-                                    type="comment"
-                                    count={commentCounts[cKey] ?? 0}
-                                    onClick={() => openReview(a!.id, r.game_id)}
-                                  />
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Game Cover */}
-                            {g?.cover_url && (
-                              <Link
-                                href={gameHref}
-                                className="shrink-0"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                  src={g.cover_url}
-                                  alt=""
-                                  className="h-24 w-16 rounded-xl object-cover border border-white/20 shadow-xl"
-                                  loading="lazy"
-                                  decoding="async"
-                                />
-                              </Link>
-                            )}
-                          </div>
+                          )}
                         </div>
-                      </article>
+                      </Card>
                     );
                   } else {
                     const p = it.post;
@@ -789,10 +801,11 @@ export default function HomeClient() {
                     const cCount = postCommentCounts[cKey] ?? (p.comment_count || 0);
 
                     return (
-                      <article
+                      <Card
                         key={`post-${p.id}`}
                         id={`feed-row-${i}`}
-                        className="group rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20 transition-all duration-300 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 ring-inset overflow-hidden shadow-sm hover:shadow-lg"
+                        interactive
+                        className="group cursor-pointer"
                         tabIndex={0}
                         role="button"
                         aria-label={`${p.display_name || p.username || 'Player'} posted${p.game_name ? ` about ${p.game_name}` : ''}`}
@@ -801,107 +814,102 @@ export default function HomeClient() {
                           if (e.key === 'Enter') openPost(p.id);
                         }}
                       >
-                        {/* Post Header with Badge */}
-                        <div className="flex items-center justify-between px-5 pt-4 pb-2">
-                          <div className="flex items-center gap-3">
-                            {/* Content Type Badge */}
-                            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-500/15 border border-blue-500/25">
-                              <span className="text-blue-400 text-xs font-semibold tracking-wide">💬 Post</span>
-                            </div>
-                            <div className="text-xs text-white/50 font-medium">{timeAgo(p.created_at)}</div>
-                          </div>
-                        </div>
+                        <div className="flex items-start gap-4">
+                          {/* Avatar */}
+                          <Link
+                            href={actorHref}
+                            className="shrink-0"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={p.avatar_url || '/avatar-placeholder.svg'}
+                              alt=""
+                              className="h-12 w-12 rounded-full object-cover border border-[rgb(var(--border))]"
+                              loading="lazy"
+                              decoding="async"
+                            />
+                          </Link>
 
-                        {/* Main Content */}
-                        <div className="px-5 pb-5">
-                          <div className="flex items-start gap-4">
-                            {/* Avatar */}
+                          <div className="min-w-0 flex-1">
+                            {/* Header Row */}
+                            <div className="flex items-center gap-2 mb-2">
+                              <Link
+                                href={actorHref}
+                                className="font-semibold text-[rgb(var(--txt))] hover:text-[rgb(var(--accent))] transition-colors"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {p.display_name || p.username || 'Player'}
+                              </Link>
+                              <span className="text-[rgb(var(--txt-muted))]">posted</span>
+                              {p.game_id && (
+                                <>
+                                  <span className="text-[rgb(var(--txt-muted))]">about</span>
+                                  <Link
+                                    href={gameHref}
+                                    className="font-semibold text-[rgb(var(--txt))] hover:text-[rgb(var(--accent))] transition-colors"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    {p.game_name}
+                                  </Link>
+                                </>
+                              )}
+                              <span className="text-[rgb(var(--txt-subtle))]">·</span>
+                              <span className="text-sm text-[rgb(var(--txt-subtle))]">{timeAgo(p.created_at)}</span>
+                            </div>
+
+                            {/* Content Type Badge */}
+                            <div className="flex items-center gap-3 mb-3">
+                              <div className="text-xs px-2 py-1 rounded-full bg-[rgb(var(--bg-elev))] text-[rgb(var(--txt-muted))]">
+                                Post
+                              </div>
+                            </div>
+
+                            {/* Post Content */}
+                            {p.body?.trim() && (
+                              <div className="mb-4">
+                                <p className="text-[rgb(var(--txt))] whitespace-pre-wrap leading-relaxed text-sm">
+                                  {p.body.trim()}
+                                </p>
+                              </div>
+                            )}
+
+                            {/* Actions */}
+                            <div className="flex items-center gap-3">
+                              <InteractionButton
+                                type="like"
+                                count={entry.count}
+                                active={entry.liked}
+                                busy={postLikeBusy[likeK]}
+                                onClick={() => onTogglePostLike(p.id)}
+                              />
+                              <InteractionButton
+                                type="comment"
+                                count={cCount}
+                                onClick={() => openPost(p.id, { focusInput: true })}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Game Cover */}
+                          {p.game_cover_url && (
                             <Link
-                              href={actorHref}
+                              href={gameHref}
                               className="shrink-0"
                               onClick={(e) => e.stopPropagation()}
                             >
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img
-                                src={p.avatar_url || '/avatar-placeholder.svg'}
+                                src={p.game_cover_url}
                                 alt=""
-                                className="h-14 w-14 rounded-full object-cover border-2 border-white/20 shadow-md"
+                                className="h-20 w-14 rounded-lg object-cover border border-[rgb(var(--border))]"
                                 loading="lazy"
                                 decoding="async"
                               />
                             </Link>
-
-                            <div className="min-w-0 flex-1">
-                              {/* Author & Game Info */}
-                              <div className="flex items-center gap-2 mb-3">
-                                <Link
-                                  href={actorHref}
-                                  className="font-bold text-white hover:text-blue-400 transition-colors text-base"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  {p.display_name || p.username || 'Player'}
-                                </Link>
-                                <span className="text-white/60 font-medium">posted</span>
-                                {p.game_id && (
-                                  <>
-                                    <span className="text-white/60 font-medium">about</span>
-                                    <Link
-                                      href={gameHref}
-                                      className="font-bold text-white hover:text-blue-400 transition-colors text-base"
-                                      onClick={(e) => e.stopPropagation()}
-                                    >
-                                      {p.game_name}
-                                    </Link>
-                                  </>
-                                )}
-                              </div>
-
-                              {/* Post Content */}
-                              {p.body?.trim() && (
-                                <div className="bg-white/5 rounded-xl p-4 mb-4 border border-white/10">
-                                  <p className="text-white/95 whitespace-pre-wrap leading-relaxed text-sm font-medium">
-                                    {p.body.trim()}
-                                  </p>
-                                </div>
-                              )}
-
-                              {/* Actions */}
-                              <div className="flex items-center gap-3">
-                                <InteractionButton
-                                  type="like"
-                                  count={entry.count}
-                                  active={entry.liked}
-                                  busy={postLikeBusy[likeK]}
-                                  onClick={() => onTogglePostLike(p.id)}
-                                />
-                                <InteractionButton
-                                  type="comment"
-                                  count={cCount}
-                                  onClick={() => openPost(p.id, { focusInput: true })}
-                                />
-                              </div>
-                            </div>
-
-                            {/* Game Cover */}
-                            {p.game_cover_url && (
-                              <Link
-                                href={gameHref}
-                                className="shrink-0"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                  src={p.game_cover_url}
-                                  alt=""
-                                  className="h-24 w-16 rounded-xl object-cover border border-white/20 shadow-xl"
-                                  loading="lazy"
-                                  decoding="async"
-                                />
-                              </Link>
-                            )}
-                          </div>
+                          )}
                         </div>
-                      </article>
+                      </Card>
                     );
                   }
                 })}

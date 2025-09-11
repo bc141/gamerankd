@@ -167,6 +167,7 @@ export default function HomeClient() {
   const [postLikes, setPostLikes] = useState<Record<string, PostLikeEntry>>({});
   const [postLikeBusy, setPostLikeBusy] = useState<Record<string, boolean>>({});
   const [postCommentCounts, setPostCommentCounts] = useState<Record<string, number>>({});
+  const [postMedia, setPostMedia] = useState<Record<string, { url: string; media_type: 'image' | 'video' }[]>>({});
 
   // selection (keyboard nav)
   const [sel, setSel] = useState<number>(-1);
@@ -210,6 +211,12 @@ export default function HomeClient() {
           ]);
           setPostLikes(likesMap ?? {});
           setPostCommentCounts(cMap ?? {});
+
+          // fetch media for these posts
+          if (ids.length) {
+            const med = await fetchPostMediaBulk(supabase, ids);
+            setPostMedia(med);
+          }
         }
       }
     })();
@@ -666,7 +673,6 @@ export default function HomeClient() {
                     const gameHref = g ? `/game/${g.id}` : '#';
                     const cKey = a?.id ? commentKey(a.id, r.game_id) : '';
                     const likeK = a?.id ? likeKey(a.id, r.game_id) : '';
-
                     return (
                       <Card
                         key={`rev-${r.user_id}-${r.game_id}-${r.created_at}-${i}`}
@@ -793,6 +799,7 @@ export default function HomeClient() {
                     );
                   } else {
                     const p = it.post;
+                    const media = postMedia[p.id] ?? [];
                     const actorHref = p.username ? `/u/${p.username}` : '#';
                     const gameHref = p.game_id ? `/game/${p.game_id}` : '#';
                     const likeK = postLikeKey(p.id);
@@ -871,6 +878,22 @@ export default function HomeClient() {
                                 <p className="text-[rgb(var(--txt))] whitespace-pre-wrap leading-relaxed text-sm">
                                   {p.body.trim()}
                                 </p>
+                              </div>
+                            )}
+
+                            {/* Media */}
+                            {media.length > 0 && (
+                              <div className="mb-3 grid grid-cols-2 gap-2">
+                                {media.slice(0,4).map((m, idx) => (
+                                  m.media_type === 'video' ? (
+                                    <video key={idx} controls className="w-full rounded-lg border border-[rgb(var(--border))]">
+                                      <source src={m.url} />
+                                    </video>
+                                  ) : (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img key={idx} src={m.url} alt="" className="w-full rounded-lg object-cover border border-[rgb(var(--border))]" />
+                                  )
+                                ))}
                               </div>
                             )}
 
@@ -1607,6 +1630,25 @@ async function fetchPostsForScope(
 
   // final safety-pass
   return rows.filter(r => !hidden.has(String(r.user_id)));
+}
+
+async function fetchPostMediaBulk(
+  sb: ReturnType<typeof supabaseBrowser>,
+  postIds: string[]
+): Promise<Record<string, { url: string; media_type: 'image' | 'video' }[]>> {
+  if (!postIds.length) return {};
+  const { data, error } = await sb
+    .from('post_media')
+    .select('post_id,url,media_type')
+    .in('post_id', postIds)
+    .limit(5000);
+  if (error || !Array.isArray(data)) return {};
+  const map: Record<string, { url: string; media_type: 'image' | 'video' }[]> = {};
+  for (const row of data as any[]) {
+    const pid = String(row.post_id);
+    (map[pid] ||= []).push({ url: String(row.url), media_type: row.media_type === 'video' ? 'video' : 'image' });
+  }
+  return map;
 }
 
 function normalizeReviews(rows: any[] | null): Review[] {

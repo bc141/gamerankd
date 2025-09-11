@@ -15,6 +15,7 @@ type PostRow = {
   created_at: string;
   body: string | null;
   tags: string[] | null;
+  media_urls?: string[] | null;
   like_count: number;
   comment_count: number;
   username: string | null;
@@ -96,7 +97,7 @@ export function useUnifiedContextModal(
     let cancelled = false;
     (async () => {
       const cols =
-        'id,user_id,created_at,body,tags,like_count,comment_count,username,display_name,avatar_url,game_id,game_name,game_cover_url';
+        'id,user_id,created_at,body,tags,media_urls,like_count,comment_count,username,display_name,avatar_url,game_id,game_name,game_cover_url';
 
       let res = await supabase.from(POSTS_VIEW).select(cols).eq('id', context.postId).maybeSingle();
       if (res.error || !res.data) {
@@ -184,8 +185,27 @@ export function useUnifiedContextModal(
               </button>
             </div>
 
-            {/* Thread */}
+            {/* Body + media + thread */}
             <div className="p-6 pt-4 max-h-[65vh] overflow-y-auto">
+              {/* Media gallery if present */}
+              {Array.isArray(post?.media_urls) && post!.media_urls!.length > 0 && (
+                <div className="mb-4 grid grid-cols-2 gap-2">
+                  {post!.media_urls!.slice(0, 4).map((pth, idx) => {
+                    const isHttp = /^https?:\/\//i.test(pth);
+                    const url = isHttp ? pth : supabase.storage.from('post-media').getPublicUrl(pth).data.publicUrl;
+                    const isVideo = /\.(mp4|mov|webm|mkv)$/i.test(pth);
+                    return isVideo ? (
+                      <video key={idx} controls className="w-full rounded-lg border border-[rgb(var(--border))]">
+                        <source src={url} />
+                      </video>
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img key={idx} src={url} alt="" className="w-full rounded-lg object-cover border border-[rgb(var(--border))]" />
+                    );
+                  })}
+                </div>
+              )}
+
               <PostCommentThread
                 postId={context.postId}
                 viewerId={viewerId}

@@ -286,6 +286,14 @@ export default function HomeClient() {
 
         const postsRows = await fetchPostsForScope(supabase, me, scope, { limit: PAGE_SIZE });
 
+        // Debug logging
+        console.log(`[HomeClient] ${scope} feed loaded:`, {
+          reviews: revs.length,
+          posts: postsRows.length,
+          userId: me,
+          scope
+        });
+
         const merged: FeedItem[] = [
           ...revs.map(r => ({ kind: 'review' as const, created_at: r.created_at, review: r })),
           ...postsRows.map(p => ({ kind: 'post' as const, created_at: p.created_at, post: p })),
@@ -1223,7 +1231,7 @@ async function fetchFollowingFeed(
   return { data: safe };
 }
 
-/** “For You”: recent reviews with small bonuses. */
+/** "For You": personalized feed with reviews and posts. */
 async function fetchForYou(
   sb: ReturnType<typeof supabaseBrowser>,
   uid: string | null,
@@ -1238,8 +1246,34 @@ async function fetchForYou(
     (fl.data ?? []).forEach((r: any) => followSet.add(String(r.followee_id)));
   }
 
+  // Get user's game preferences from their library
+  let userGameIds = new Set<number>();
+  if (uid) {
+    const { data: library } = await sb
+      .from('library')
+      .select('game_id')
+      .eq('user_id', uid)
+      .limit(100);
+    if (library) {
+      library.forEach((l: any) => userGameIds.add(Number(l.game_id)));
+    }
+  }
+
+  // Get user's review history for preference analysis
+  let userReviewedGames = new Set<number>();
+  if (uid) {
+    const { data: userReviews } = await sb
+      .from('reviews')
+      .select('game_id, rating')
+      .eq('user_id', uid)
+      .limit(100);
+    if (userReviews) {
+      userReviews.forEach((r: any) => userReviewedGames.add(Number(r.game_id)));
+    }
+  }
+
   const since = new Date();
-  since.setDate(since.getDate() - 14);
+  since.setDate(since.getDate() - 30); // Extended to 30 days for more content
 
   // blocks/mutes (viewer may be null)
   let hidden = new Set<string>();
@@ -1259,7 +1293,7 @@ async function fetchForYou(
     `)
     .gte('created_at', since.toISOString())
     .order('created_at', { ascending: false })
-    .limit(limit);
+    .limit(limit * 2); // Fetch more to allow for better filtering
 
   if (mutedIds.length) q = q.not('user_id', 'in', toInList(mutedIds));
   if (opts?.before) q = q.lt('created_at', opts.before);
@@ -1272,15 +1306,64 @@ async function fetchForYou(
     return !(aid && (hidden.has(aid) || mutedIds.includes(aid)));
   });
 
-  // tiny score: recency + follow bonus
+  // Enhanced scoring algorithm
   const scored = rows.map(r => {
     const ageHrs = Math.max(1, (Date.now() - new Date(r.created_at).getTime()) / 36e5);
     const recency = 1 / ageHrs;
-    const bonus = r.author?.id && followSet.has(r.author.id) ? 0.5 : 0;
-    return { r, s: recency + bonus };
+    
+    // Follow bonus
+    const followBonus = r.author?.id && followSet.has(r.author.id) ? 0.8 : 0;
+    
+    // Game preference bonus (if user has this game in library)
+    const gamePreferenceBonus = r.game?.id && userGameIds.has(r.game.id) ? 0.6 : 0;
+    
+    // Similar game bonus (if user has reviewed similar games)
+    const similarGameBonus = r.game?.id && userReviewedGames.has(r.game.id) ? 0.4 : 0;
+    
+    // Rating quality bonus (higher rated reviews get slight boost)
+    const ratingBonus = r.rating > 80 ? 0.2 : r.rating > 60 ? 0.1 : 0;
+    
+    // Review content bonus (reviews with text get slight boost)
+    const contentBonus = r.review && r.review.trim().length > 10 ? 0.1 : 0;
+    
+    const totalScore = recency + followBonus + gamePreferenceBonus + similarGameBonus + ratingBonus + contentBonus;
+    
+    return { r, s: totalScore };
   }).sort((a,b) => b.s - a.s);
 
-  return { data: scored.map(x => x.r) };
+  // Return top scored items, but ensure we have some content even if scores are low
+  const result = scored.map(x => x.r).slice(0, limit);
+  
+  // If we don't have enough content, fall back to recent reviews
+  if (result.length < Math.min(10, limit)) {
+    const fallbackQ = sb
+      .from('reviews')
+      .select(`
+        user_id, game_id, rating, review, created_at,
+        author:profiles!reviews_user_id_profiles_fkey ( id, username, display_name, avatar_url ),
+        game:games ( id, name, cover_url )
+      `)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    
+    const { data: fallbackData } = await fallbackQ;
+    if (fallbackData) {
+      const fallbackRows = normalizeReviews(fallbackData).filter(r => {
+        const aid = r.author?.id;
+        return !(aid && (hidden.has(aid) || mutedIds.includes(aid)));
+      });
+      
+      // Merge with existing results, avoiding duplicates
+      const existingIds = new Set(result.map(r => `${r.user_id}-${r.game_id}-${r.created_at}`));
+      const newRows = fallbackRows.filter(r => 
+        !existingIds.has(`${r.user_id}-${r.game_id}-${r.created_at}`)
+      );
+      
+      return { data: [...result, ...newRows].slice(0, limit) };
+    }
+  }
+
+  return { data: result };
 }
 
 async function fetchContinue(uid: string | null): Promise<LibRow[]> {
@@ -1345,7 +1428,7 @@ async function fetchPostsForScope(
   const limit = opts?.limit ?? 40;
 
   const since = new Date();
-  since.setDate(since.getDate() - 14);
+  since.setDate(since.getDate() - 30); // Extended to 30 days for more content
 
   let hidden = new Set<string>();
   let mutedIds: string[] = [];
@@ -1365,14 +1448,55 @@ async function fetchPostsForScope(
   const rows = await selectPostsWithFallback(
     sb,
     (q) => {
-      if (scope === 'following') q = q.in('user_id', followingIds);
-      else q = q.gte('created_at', since.toISOString());
+      if (scope === 'following') {
+        q = q.in('user_id', followingIds);
+      } else {
+        // For "For You" scope, fetch more posts and apply personalization
+        q = q.gte('created_at', since.toISOString());
+      }
       if (mutedIds.length) q = q.not('user_id', 'in', toInList(mutedIds));
       if (opts?.before) q = q.lt('created_at', opts.before);
       return q;
     },
-    limit
+    scope === 'foryou' ? limit * 2 : limit // Fetch more for personalization
   );
+
+  // Apply personalization for "For You" scope
+  if (scope === 'foryou' && uid) {
+    // Get user's game preferences
+    const { data: library } = await sb
+      .from('library')
+      .select('game_id')
+      .eq('user_id', uid)
+      .limit(100);
+    
+    const userGameIds = new Set<number>();
+    if (library) {
+      library.forEach((l: any) => userGameIds.add(Number(l.game_id)));
+    }
+
+    // Score posts based on personalization
+    const scored = rows.map(post => {
+      const ageHrs = Math.max(1, (Date.now() - new Date(post.created_at).getTime()) / 36e5);
+      const recency = 1 / ageHrs;
+      
+      // Game preference bonus
+      const gameBonus = post.game_id && userGameIds.has(post.game_id) ? 0.5 : 0;
+      
+      // Content quality bonus (posts with more text get slight boost)
+      const contentBonus = post.body && post.body.trim().length > 20 ? 0.2 : 0;
+      
+      // Engagement bonus (posts with likes/comments get slight boost)
+      const engagementBonus = (post.like_count || 0) > 0 ? 0.1 : 0;
+      
+      const totalScore = recency + gameBonus + contentBonus + engagementBonus;
+      
+      return { post, score: totalScore };
+    }).sort((a, b) => b.score - a.score);
+
+    // Return top scored posts
+    return scored.map(x => x.post).slice(0, limit);
+  }
 
   // final safety-pass
   return rows.filter(r => !hidden.has(String(r.user_id)));

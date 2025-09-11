@@ -6,7 +6,7 @@ This document outlines the security measures implemented in the Gamebox project.
 
 ### Required Environment Variables
 
-Create a `.env.local` file in the `gamebox-web` directory with the following variables:
+Create a `.env.local` file in the `gamdit-web` directory with the following variables:
 
 ```bash
 # Supabase Configuration

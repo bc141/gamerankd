@@ -1,0 +1,18 @@
+# Handoff & Context Rules
+Before planning or coding:
+- Read the repo-root NEXT.md.
+- Read the current PR description.
+- Read the latest AI review comment (look for the marker: <!-- ai-review -->).
+- Summarize those three in 5 bullets before proposing changes.
+
+When finishing any task:
+- Update NEXT.md (replace all UNFILLED placeholders).
+- Ensure PR description mirrors NEXT.md sections (copy/paste).
+- Push small, scoped commits; never commit to main.
+
+Never:
+- Print secrets in logs or PRs.
+- Put service keys into client code.
+
+# Quick Change Logging
+Use `./scripts/log-change.sh "Description"` to quickly log changes to NEXT.md.

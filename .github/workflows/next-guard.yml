@@ -1,0 +1,20 @@
+name: NEXT guard
+on:
+  pull_request:
+    types: [opened, synchronize, edited]
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ensure NEXT.md exists
+        run: |
+          if [ ! -f NEXT.md ]; then
+            echo "NEXT.md missing"; exit 1;
+          fi
+      - name: Fail if placeholders remain
+        run: |
+          if grep -q "UNFILLED" NEXT.md; then
+            echo "Please fill NEXT.md placeholders before merging."; exit 1;
+          fi

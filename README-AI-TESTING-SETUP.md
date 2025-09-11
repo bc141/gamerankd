@@ -10,7 +10,7 @@
 - ✅ **Test Scripts**: `npm run test:smoke` and `npm run test:e2e` ready
 
 ### 2. **GitHub Actions PR Checks Workflow**
-- ✅ **Working Directory**: Set to `gamebox-backend/gamebox-web`
+- ✅ **Working Directory**: Set to `gamdit-backend/gamdit-web`
 - ✅ **Dependency Management**: Uses npm with proper caching
 - ✅ **Playwright Installation**: Installs browsers with `--with-deps`
 - ✅ **Supabase Integration**: Links to preview DB and pushes migrations

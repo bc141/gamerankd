@@ -1,39 +1,35 @@
 name: PR Checks
 on: pull_request
-
 jobs:
   checks:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: write
-    defaults:
-      run:
-        working-directory: gamebox-backend/gamebox-web
-
     steps:
       - uses: actions/checkout@v4
-
-      - name: Use Node
+      
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: gamebox-backend/gamebox-web/package-lock.json
+          cache-dependency-path: gamebox-web/package-lock.json
 
-      - name: Install deps
+      - name: Install dependencies
+        working-directory: ./gamebox-web
         run: npm ci
 
-      - name: Install Playwright deps
-        run: npx playwright install --with-deps
-
-      - name: Security scan
-        run: npm run security-scan
-
       - name: Type check
+        working-directory: ./gamebox-web
         run: npm run typecheck
 
+      - name: Security scan
+        working-directory: ./gamebox-web
+        run: npm run security-scan
+
       - name: Build
+        working-directory: ./gamebox-web
         run: npm run build
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
@@ -45,73 +41,41 @@ jobs:
 
       - name: Link preview DB
         if: ${{ secrets.PREVIEW_PROJECT_REF }}
+        working-directory: ./gamebox-web
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        run: supabase link --project-ref ${{ secrets.PREVIEW_PROJECT_REF }}
-
-      - name: Push migrations (preview)
-        if: ${{ secrets.PREVIEW_PROJECT_REF }}
-        run: supabase db push
-
-      - name: Seed preview database
-        if: ${{ secrets.PREVIEW_PROJECT_REF }}
-        run: supabase db seed
-
-      # Deploy step - try Vercel preview first, then fallback
-      - name: Deploy (Vercel)
-        id: deploy
         run: |
-          # Try to get Vercel preview URL from environment or manual setting
-          if [ -n "${{ vars.PREVIEW_URL }}" ]; then
-            echo "url=${{ vars.PREVIEW_URL }}" >> $GITHUB_OUTPUT
-            echo "✅ Using manual PREVIEW_URL: ${{ vars.PREVIEW_URL }}"
-          elif [ -n "$VERCEL_PREVIEW_URL" ]; then
-            echo "url=$VERCEL_PREVIEW_URL" >> $GITHUB_OUTPUT
-            echo "✅ Using Vercel preview URL: $VERCEL_PREVIEW_URL"
-          else
-            echo "url=http://localhost:3000" >> $GITHUB_OUTPUT
-            echo "⚠️ Using localhost fallback. Set PREVIEW_URL repository variable or VERCEL_PREVIEW_URL for Vercel preview."
-          fi
+          supabase link --project-ref ${{ secrets.PREVIEW_PROJECT_REF }}
+          supabase db push
+          supabase db seed
 
-      - name: Set BASE_URL
-        run: |
-          if [ -n "${{ steps.deploy.outputs.url }}" ]; then
-            echo "BASE_URL=${{ steps.deploy.outputs.url }}" >> $GITHUB_ENV
-          elif [ -n "${{ vars.PREVIEW_URL }}" ]; then
-            echo "BASE_URL=${{ vars.PREVIEW_URL }}" >> $GITHUB_ENV
-          else
-            echo "BASE_URL=http://localhost:3000" >> $GITHUB_ENV
-          fi
+      - name: Install Playwright deps
+        working-directory: ./gamebox-web
+        run: npx playwright install --with-deps
 
-      - name: Start local server (if no preview URL)
-        if: ${{ !vars.PREVIEW_URL }}
+      - name: Start preview server
+        working-directory: ./gamebox-web
         run: |
+          npm run build
           npm run start &
           sleep 10
         env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.PREVIEW_SUPABASE_URL || secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.PREVIEW_SUPABASE_ANON_KEY || secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.PREVIEW_SUPABASE_SERVICE_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
-      - name: Smoke tests (Playwright)
-        env:
-          BASE_URL: ${{ env.BASE_URL }}
+      - name: Smoke tests
+        working-directory: ./gamebox-web
+        env: 
+          BASE_URL: http://localhost:3000
         run: npm run test:smoke
 
       - name: Upload Playwright report
         uses: actions/upload-artifact@v4
         if: always()
-        with:
+        with: 
           name: playwright-report
-          path: gamebox-backend/gamebox-web/playwright-report
-
-      - name: Upload Playwright traces
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: playwright-traces
-          path: gamebox-backend/gamebox-web/test-results
-          if-no-files-found: ignore
+          path: gamebox-web/playwright-report
 
       - name: Comment PR with results
         if: always()
@@ -124,23 +88,17 @@ jobs:
             let comment = '## 🧪 PR Checks Results\n\n';
             
             // Check if Playwright report exists
-            const reportPath = 'gamebox-backend/gamebox-web/playwright-report/index.html';
+            const reportPath = 'gamebox-web/playwright-report/index.html';
             if (fs.existsSync(reportPath)) {
               comment += '✅ **Playwright Tests**: [View Report](artifact://playwright-report)\n\n';
             } else {
               comment += '⚠️ **Playwright Tests**: No report generated\n\n';
             }
             
-            // Check if preview URL was used
-            const previewUrl = process.env.PREVIEW_URL || 'localhost:3000';
-            comment += `🌐 **Test Environment**: ${previewUrl}\n\n`;
-            
             comment += '### Next Steps:\n';
             comment += '- Review any test failures in the Playwright report\n';
             comment += '- Ensure all security scans pass\n';
             comment += '- Verify build completes successfully\n';
-            comment += '- To test against Vercel preview, set PREVIEW_URL repository variable\n';
-            comment += '- AI review will be posted separately\n';
             
             github.rest.issues.createComment({
               issue_number: context.issue.number,
@@ -148,31 +106,3 @@ jobs:
               repo: context.repo.repo,
               body: comment
             });
-
-  ai_review:
-    name: AI Review (PR Comment)
-    needs: [checks]
-    if: always()   # run even if checks failed, so you still get feedback
-    runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
-    defaults:
-      run:
-        working-directory: gamebox-backend/gamebox-web
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: playwright-report
-          path: gamebox-backend/gamebox-web/playwright-report
-
-      - run: npm i openai @octokit/rest
-
-      - name: Post AI PR review
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: node scripts/ai-review.ts

@@ -605,6 +605,12 @@ export default function HomeClient() {
               // seed local UI maps
               setPostLikes(m => ({ ...m, [postLikeKey(row.id)]: { liked: false, count: 0 } }));
               setPostCommentCounts(m => ({ ...m, [postCKey(row.id)]: 0 }));
+
+              // fetch media for this new post so it appears immediately
+              (async () => {
+                const med = await fetchPostMediaBulk(supabase, [row.id]);
+                setPostMedia(prev => ({ ...prev, ...med }));
+              })();
             }}
           />
 

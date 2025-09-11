@@ -8,7 +8,7 @@ import { timeAgo } from '@/lib/timeAgo';
 import StarRating from '@/components/StarRating';
 import { useUnifiedContextModal } from '@/components/ContextModal/useUnifiedContextModal';
 import { onRowClick, onRowKeyDown } from '@/lib/safeOpenContext';
-import LikePill from '@/components/LikePill';
+import InteractionButton from '@/components/InteractionButton';
 
 import {
   likeKey,
@@ -737,29 +737,23 @@ export default function HomeClient() {
                               )}
 
                               {/* Actions */}
-                              <div className="flex items-center gap-3">
+                              <div className="flex items-center gap-2">
                                 {a?.id && (
-                                  <LikePill
-                                    liked={(likes[likeK]?.liked) ?? false}
+                                  <InteractionButton
+                                    type="like"
                                     count={(likes[likeK]?.count) ?? 0}
+                                    active={(likes[likeK]?.liked) ?? false}
                                     busy={!!likeBusy[likeK]}
                                     onClick={() => onToggleLike(a.id!, r.game_id)}
                                   />
                                 )}
 
                                 {a?.id && (
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      openReview(a!.id, r.game_id);
-                                    }}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/20 bg-white/5 hover:bg-white/10 transition-colors"
-                                    title="View comments"
-                                    aria-label="View comments"
-                                  >
-                                    <span className="text-sm">💬</span>
-                                    <span className="text-sm font-medium tabular-nums">{commentCounts[cKey] ?? 0}</span>
-                                  </button>
+                                  <InteractionButton
+                                    type="comment"
+                                    count={commentCounts[cKey] ?? 0}
+                                    onClick={() => openReview(a!.id, r.game_id)}
+                                  />
                                 )}
                               </div>
                             </div>
@@ -872,22 +866,19 @@ export default function HomeClient() {
                               )}
 
                               {/* Actions */}
-                              <div className="flex items-center gap-3">
-                                <LikePill
-                                  liked={entry.liked}
+                              <div className="flex items-center gap-2">
+                                <InteractionButton
+                                  type="like"
                                   count={entry.count}
+                                  active={entry.liked}
                                   busy={postLikeBusy[likeK]}
                                   onClick={() => onTogglePostLike(p.id)}
                                 />
-                                <button
-                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/20 bg-white/5 hover:bg-white/10 transition-colors"
-                                  title="Comments"
-                                  aria-label="Comments"
-                                  onClick={(e) => { e.stopPropagation(); openPost(p.id, { focusInput: true }); }}
-                                >
-                                  <span className="text-sm">💬</span>
-                                  <span className="text-sm font-medium tabular-nums">{cCount}</span>
-                                </button>
+                                <InteractionButton
+                                  type="comment"
+                                  count={cCount}
+                                  onClick={() => openPost(p.id, { focusInput: true })}
+                                />
                               </div>
                             </div>
 

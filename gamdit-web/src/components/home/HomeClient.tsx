@@ -911,7 +911,7 @@ export default function HomeClient() {
                               <div className="ml-auto relative">
                                 <button
                                   onClick={(e) => { e.stopPropagation(); const el = (e.currentTarget.nextSibling as HTMLElement | null); if (el) el.classList.toggle('hidden'); }}
-                                  className="rounded p-1 text-[rgb(var(--txt-muted))] hover:text-[rgb(var(--txt))] hover:bg-[rgb(var(--hover))]"
+                                  className="icon-btn btn btn--neutral text-[rgb(var(--txt-muted))] hover:text-[rgb(var(--txt))]"
                                   aria-label="More actions"
                                   aria-expanded="false"
                                   aria-haspopup="menu"

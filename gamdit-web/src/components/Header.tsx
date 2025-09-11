@@ -170,7 +170,7 @@ export default function Header() {
         <div className="flex items-center gap-3">
           {/* Mobile Search Button */}
           <button 
-            className="md:hidden p-2 rounded-md hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="md:hidden icon-btn btn btn--neutral"
             aria-label="Search"
             onClick={() => setSearchOverlayOpen(true)}
           >
@@ -193,7 +193,7 @@ export default function Header() {
                   aria-haspopup="menu"
                   aria-expanded={open}
                   aria-label="Open profile menu"
-                  className="flex items-center gap-2 rounded-full focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="flex items-center gap-2 rounded-full btn btn--neutral btn-md"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
@@ -266,7 +266,7 @@ export default function Header() {
               <div className="flex items-center gap-3 mb-4">
                 <button
                   onClick={() => setSearchOverlayOpen(false)}
-                  className="p-2 rounded-md hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="icon-btn btn btn--neutral"
                   aria-label="Close search"
                 >
                   <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

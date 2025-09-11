@@ -282,27 +282,27 @@ export default function ReviewContextModal({
       <div
         ref={panelRef}
         tabIndex={-1}
-        className="w-full max-w-2xl rounded-2xl bg-neutral-900/95 border border-white/10 shadow-2xl overflow-hidden focus:outline-none"
+        className="w-full max-w-2xl rounded-2xl bg-[rgb(var(--bg-card))] border border-[rgb(var(--border))] shadow-[var(--shadow-lg)] overflow-hidden focus:outline-none"
         onMouseDown={(e) => e.stopPropagation()}
       >
         {/* Summary (tight; no divider below) */}
-        <div className="relative px-4 pt-3 pb-2">
+        <div className="relative px-6 pt-4 pb-3">
           {/* Close */}
           <button
-  onClick={onClose}
-  className="px-2 py-1 rounded hover:bg-white/10 text-white/80"
-  aria-label="Close"
-  type="button"
->
-  <XMarkIcon className="h-4 w-4" />
-</button>
+            onClick={onClose}
+            className="absolute top-4 right-4 p-2 rounded-lg hover:bg-[rgb(var(--hover))] text-[rgb(var(--txt-muted))] hover:text-[rgb(var(--txt))] transition-colors"
+            aria-label="Close"
+            type="button"
+          >
+            <XMarkIcon className="h-5 w-5" />
+          </button>
 
           {loading ? (
-            <div className="flex items-center gap-3">
-              <div className="h-16 w-12 rounded bg-white/10 animate-pulse" />
+            <div className="flex items-center gap-4">
+              <div className="h-16 w-12 rounded-lg bg-[rgb(var(--bg-elev))] animate-pulse" />
               <div className="flex-1 space-y-2">
-                <div className="h-4 w-40 rounded bg-white/10 animate-pulse" />
-                <div className="h-4 w-24 rounded bg-white/10 animate-pulse" />
+                <div className="h-5 w-40 rounded bg-[rgb(var(--bg-elev))] animate-pulse" />
+                <div className="h-4 w-24 rounded bg-[rgb(var(--bg-elev))] animate-pulse" />
               </div>
             </div>
           ) : row ? (
@@ -318,26 +318,26 @@ export default function ReviewContextModal({
                   <Link
                     href={`/game/${row.games.id}`}
                     prefetch={false}
-                    className="font-medium hover:underline truncate inline-block"
+                    className="font-semibold text-[rgb(var(--txt))] hover:text-[rgb(var(--accent))] hover:underline truncate inline-block text-lg"
                     aria-label={`Open ${gameName}`}
                   >
                     {gameName}
                   </Link>
                 ) : (
-                  <span className="font-medium truncate inline-block">{gameName}</span>
+                  <span className="font-semibold text-[rgb(var(--txt))] truncate inline-block text-lg">{gameName}</span>
                 )}
 
-                <div className="mt-1 flex items-center gap-2 flex-wrap text-sm">
+                <div className="mt-2 flex items-center gap-2 flex-wrap text-sm">
                   {author ? (
                     <>
                       {AuthorAvatar}
-                      <span className="text-white/80">
+                      <span className="text-[rgb(var(--txt-muted))]">
                         by{' '}
                         {canLinkAuthor ? (
                           <Link
                             href={`/u/${author.username!}`}
                             prefetch={false}
-                            className="hover:underline"
+                            className="text-[rgb(var(--txt))] hover:text-[rgb(var(--accent))] hover:underline font-medium"
                           >
                             {author.display_name || author.username}
                           </Link>
@@ -345,27 +345,27 @@ export default function ReviewContextModal({
                           <span>{author.display_name || author.username || 'Player'}</span>
                         )}
                       </span>
-                      <span className="text-white/30">·</span>
+                      <span className="text-[rgb(var(--txt-subtle))]">·</span>
                     </>
                   ) : null}
 
                   <StarRating value={stars} readOnly size={16} />
-                  <span className="text-white/80">{stars.toFixed(1)} / 5</span>
-                  <span className="text-white/30">·</span>
-                  <time className="text-white/50" title={absTime}>
+                  <span className="text-[rgb(var(--txt))] font-medium">{stars.toFixed(1)} / 5</span>
+                  <span className="text-[rgb(var(--txt-subtle))]">·</span>
+                  <time className="text-[rgb(var(--txt-muted))]" title={absTime}>
                     {timeAgo(row.created_at)}
                   </time>
                 </div>
 
                 {row.review && row.review.trim() !== '' && (
-                  <p className="text-white/80 mt-2 whitespace-pre-wrap break-words">
+                  <p className="text-[rgb(var(--txt))] mt-3 whitespace-pre-wrap break-words leading-relaxed">
                     {row.review.trim()}
                   </p>
                 )}
               </div>
             </div>
           ) : (
-            <div className="text-sm text-white/70">This rating no longer exists.</div>
+            <div className="text-sm text-[rgb(var(--txt-muted))]">This rating no longer exists.</div>
           )}
         </div>
 
@@ -378,7 +378,7 @@ export default function ReviewContextModal({
 
         {/* Comments thread (hidden if blocked) */}
         {row && !isBlocked && (
-          <div className="max-h-[65vh] overflow-y-auto">
+          <div className="max-h-[65vh] overflow-y-auto px-6 py-4">
             <CommentThread
               supabase={supabase}
               viewerId={viewerId}

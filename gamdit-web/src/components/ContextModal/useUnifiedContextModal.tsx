@@ -139,30 +139,30 @@ export function useUnifiedContextModal(
       return (
         <div className="fixed inset-0 z-[70]">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={close} />
-          <div className="absolute inset-x-0 top-[10vh] mx-auto max-w-2xl rounded-2xl bg-neutral-900/95 border border-white/10 shadow-2xl overflow-hidden">
+          <div className="absolute inset-x-0 top-[10vh] mx-auto max-w-2xl rounded-2xl bg-[rgb(var(--bg-card))] border border-[rgb(var(--border))] shadow-[var(--shadow-lg)] overflow-hidden">
             {/* Header */}
-            <div className="flex items-start gap-3 p-4 border-b border-white/10">
+            <div className="flex items-start gap-4 p-6 border-b border-[rgb(var(--border))]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={post?.game_cover_url || post?.avatar_url || '/avatar-placeholder.svg'}
                 alt=""
                 className={post?.game_cover_url
-                  ? 'h-16 w-12 object-cover rounded border border-white/10'
-                  : 'h-10 w-10 object-cover rounded-full border border-white/10'}
+                  ? 'h-16 w-12 object-cover rounded-lg border border-[rgb(var(--border))]'
+                  : 'h-12 w-12 object-cover rounded-full border border-[rgb(var(--border))]'}
               />
               <div className="min-w-0 flex-1">
-                <div className="font-medium text-white truncate">
+                <div className="font-semibold text-[rgb(var(--txt))] text-lg truncate">
                   {post?.game_name ?? 'Post'}
                 </div>
-                <div className="text-sm text-white/70 truncate">
+                <div className="text-sm text-[rgb(var(--txt-muted))] truncate">
                   by {post?.display_name || post?.username || 'Player'} · {post ? timeAgo(post.created_at) : ''}
                 </div>
                 {post?.body?.trim() && (
-                  <p className="mt-2 text-white/85 whitespace-pre-wrap break-words">{post.body.trim()}</p>
+                  <p className="mt-3 text-[rgb(var(--txt))] whitespace-pre-wrap break-words leading-relaxed">{post.body.trim()}</p>
                 )}
                 
                 {/* Actions in header */}
-                <div className="flex items-center gap-3 mt-3">
+                <div className="flex items-center gap-3 mt-4">
                   <InteractionButton
                     type="like"
                     count={entry.count}
@@ -174,16 +174,18 @@ export function useUnifiedContextModal(
               </div>
               <button
                 onClick={close}
-                className="ml-2 rounded p-1 text-white/70 hover:text-white"
+                className="ml-2 rounded-lg p-2 text-[rgb(var(--txt-muted))] hover:text-[rgb(var(--txt))] hover:bg-[rgb(var(--hover))] transition-colors"
                 aria-label="Close"
                 type="button"
               >
-                ×
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
             </div>
 
             {/* Thread */}
-            <div className="p-4 pt-3 max-h-[65vh] overflow-y-auto">
+            <div className="p-6 pt-4 max-h-[65vh] overflow-y-auto">
               <PostCommentThread
                 postId={context.postId}
                 viewerId={viewerId}

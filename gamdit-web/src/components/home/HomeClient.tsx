@@ -6,8 +6,7 @@ import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { waitForSession } from '@/lib/waitForSession';
 import { timeAgo } from '@/lib/timeAgo';
 import StarRating from '@/components/StarRating';
-import { useReviewContextModal } from '@/components/ReviewContext/useReviewContextModal';
-import { usePostContextModal } from '@/components/PostContext/usePostContextModal';
+import { useUnifiedContextModal } from '@/components/ContextModal/useUnifiedContextModal';
 import { onRowClick, onRowKeyDown } from '@/lib/safeOpenContext';
 import LikePill from '@/components/LikePill';
 
@@ -139,19 +138,19 @@ export default function HomeClient() {
   const [whoToFollow, setWhoToFollow] = useState<Profile[] | null>(null);
   const [trending, setTrending] = useState<Game[] | null>(null);
 
-  // context modal (same as Feed)
-  const { open: openContext, modal: contextModal } = useReviewContextModal(
+  // unified context modal
+  const { openReview, openPost, modal: contextModal } = useUnifiedContextModal(
     supabase,
-    me ?? null
-  );
-  const { open: openPostContext, modal: postContextModal } = usePostContextModal(me ?? null, async () => {
-    // refresh comment counts when modal closes
-    if (posts) {
-      const ids = posts.map(p => String(p.id));
-      const map = await fetchPostCommentCountsBulk(supabase, ids);
-      setPostCommentCounts(prev => ({ ...prev, ...map }));
+    me ?? null,
+    async () => {
+      // refresh comment counts when modal closes
+      if (posts) {
+        const ids = posts.map(p => String(p.id));
+        const map = await fetchPostCommentCountsBulk(supabase, ids);
+        setPostCommentCounts(prev => ({ ...prev, ...map }));
+      }
     }
-  });
+  );
 
   // ❤️ likes for visible items
   const [likes, setLikes] = useState<Record<string, LikeEntry>>({});
@@ -514,9 +513,9 @@ export default function HomeClient() {
         e.preventDefault();
         const item = unifiedFeed[Math.max(0, sel)];
         if (item?.kind === 'review' && item.review?.author?.id && item.review?.game_id) {
-          openContext(item.review.author.id, item.review.game_id);
+          openReview(item.review.author.id, item.review.game_id);
         } else if (item?.kind === 'post') {
-          openPostContext(item.post.id);
+          openPost(item.post.id);
         }
       } else if (e.key.toLowerCase() === 'l') {
         e.preventDefault();
@@ -528,9 +527,9 @@ export default function HomeClient() {
         e.preventDefault();
         const item = unifiedFeed[Math.max(0, sel)];
         if (item?.kind === 'review' && item.review?.author?.id && item.review?.game_id) {
-          openContext(item.review.author.id, item.review.game_id);
+          openReview(item.review.author.id, item.review.game_id);
         } else if (item?.kind === 'post') {
-          openPostContext(item.post.id, { focusInput: true });
+          openPost(item.post.id, { focusInput: true });
         }
       }
     };
@@ -543,7 +542,7 @@ export default function HomeClient() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [unifiedFeed, sel, openContext, openPostContext]); // eslint-disable-line
+  }, [unifiedFeed, sel, openReview, openPost]); // eslint-disable-line
 
   // remember scroll per tab when switching away
   const switchScope = (next: Scope) => {
@@ -636,7 +635,7 @@ export default function HomeClient() {
             </div>
           ) : (
             <>
-              <ul className="divide-y divide-white/10 rounded-lg border border-white/10 overflow-hidden">
+              <div className="space-y-3">
                 {unifiedFeed?.map((it, i) => {
                   if (it.kind === 'review') {
                     const r = it.review;
@@ -649,113 +648,142 @@ export default function HomeClient() {
                     const likeK = a?.id ? likeKey(a.id, r.game_id) : '';
 
                     return (
-                      <li
+                      <article
                         id={`feed-row-${i}`}
                         key={`rev-${r.user_id}-${r.game_id}-${r.created_at}-${i}`}
-                        className="group px-3 md:px-4 py-3 hover:bg-white/5 focus-within:bg-white/5 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 ring-inset"
+                        className="group rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 ring-inset overflow-hidden"
                         onClick={(e) =>
                           onRowClick(e, () => {
-                            if (a?.id) openContext(a.id, r.game_id);
+                            if (a?.id) openReview(a.id, r.game_id);
                           })
                         }
                         onKeyDown={(e) =>
                           onRowKeyDown(e, () => {
-                            if (a?.id) openContext(a.id, r.game_id);
+                            if (a?.id) openReview(a.id, r.game_id);
                           })
                         }
                         tabIndex={0}
                         role="button"
                         aria-label={`${a?.display_name || a?.username || 'Player'} rated ${g?.name || 'a game'}`}
                       >
-                        <div className="flex items-center gap-3">
-                          {/* avatar */}
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={a?.avatar_url || '/avatar-placeholder.svg'}
-                            alt=""
-                            className="h-9 w-9 rounded-full object-cover border border-white/10"
-                            loading="lazy"
-                            decoding="async"
-                          />
-                          <div className="min-w-0">
-                            <div className="text-sm text-white/90">
-                              <Link
-                                href={actorHref}
-                                className="font-medium hover:underline"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                {a?.display_name || a?.username || 'Player'}
-                              </Link>{' '}
-                              rated{' '}
-                              <Link
-                                href={gameHref}
-                                className="font-medium hover:underline"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                {g?.name ?? 'a game'}
-                              </Link>
-                              <span className="ml-2 inline-flex items-center gap-1 text-white/70">
-                                <StarRating value={stars} readOnly size={14} />
-                                <span className="text-xs tabular-nums">{stars} / 5</span>
-                              </span>
+                        {/* Review Header with Badge */}
+                        <div className="flex items-center justify-between p-4 pb-3">
+                          <div className="flex items-center gap-3">
+                            {/* Content Type Badge */}
+                            <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-amber-500/20 border border-amber-500/30">
+                              <span className="text-amber-400 text-xs font-medium">⭐ Review</span>
                             </div>
-                            <div className="text-xs text-white/40">{timeAgo(r.created_at)}</div>
+                            <div className="text-xs text-white/50">{timeAgo(r.created_at)}</div>
                           </div>
+                        </div>
 
-                          {g?.cover_url && (
+                        {/* Main Content */}
+                        <div className="px-4 pb-4">
+                          <div className="flex items-start gap-4">
+                            {/* Avatar */}
                             <Link
-                              href={gameHref}
-                              className="ml-auto shrink-0"
+                              href={actorHref}
+                              className="shrink-0"
                               onClick={(e) => e.stopPropagation()}
                             >
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img
-                                src={g.cover_url}
+                                src={a?.avatar_url || '/avatar-placeholder.svg'}
                                 alt=""
-                                className="h-12 w-9 rounded object-cover border border-white/10"
+                                className="h-12 w-12 rounded-full object-cover border-2 border-white/20"
                                 loading="lazy"
                                 decoding="async"
                               />
                             </Link>
-                          )}
-                        </div>
 
-                        {r.review?.trim() && (
-                          <p className="mt-2 whitespace-pre-wrap text-white/85">
-                            {r.review.trim()}
-                          </p>
-                        )}
+                            <div className="min-w-0 flex-1">
+                              {/* Author & Game Info */}
+                              <div className="flex items-center gap-2 mb-2">
+                                <Link
+                                  href={actorHref}
+                                  className="font-semibold text-white hover:text-amber-400 transition-colors"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  {a?.display_name || a?.username || 'Player'}
+                                </Link>
+                                <span className="text-white/60">rated</span>
+                                <Link
+                                  href={gameHref}
+                                  className="font-semibold text-white hover:text-amber-400 transition-colors"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  {g?.name ?? 'a game'}
+                                </Link>
+                              </div>
 
-                        {/* actions */}
-                        <div className="mt-2 flex items-center gap-2 pointer-events-none">
-                          {a?.id && (
-                            <span className="pointer-events-auto" data-ignore-context>
-                              <LikePill
-                                liked={(likes[likeK]?.liked) ?? false}
-                                count={(likes[likeK]?.count) ?? 0}
-                                busy={!!likeBusy[likeK]}
-                                onClick={() => onToggleLike(a.id!, r.game_id)}
-                              />
-                            </span>
-                          )}
+                              {/* Rating Display */}
+                              <div className="flex items-center gap-3 mb-3">
+                                <div className="flex items-center gap-1">
+                                  <StarRating value={stars} readOnly size={18} />
+                                  <span className="text-sm font-medium text-white/90">{stars}/5</span>
+                                </div>
+                                <div className="text-sm text-white/70">
+                                  {r.rating >= 80 ? 'Excellent' : r.rating >= 60 ? 'Good' : r.rating >= 40 ? 'Average' : 'Poor'}
+                                </div>
+                              </div>
 
-                          {a?.id && (
-                            <span className="pointer-events-auto" data-ignore-context>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  openContext(a!.id, r.game_id);
-                                }}
-                                className="text-xs px-2 py-1 rounded border border-white/10 bg-white/5 hover:bg-white/10"
-                                title="View comments"
-                                aria-label="View comments"
+                              {/* Review Text */}
+                              {r.review?.trim() && (
+                                <div className="bg-white/5 rounded-lg p-3 mb-3">
+                                  <p className="text-white/90 whitespace-pre-wrap leading-relaxed">
+                                    {r.review.trim()}
+                                  </p>
+                                </div>
+                              )}
+
+                              {/* Actions */}
+                              <div className="flex items-center gap-3">
+                                {a?.id && (
+                                  <LikePill
+                                    liked={(likes[likeK]?.liked) ?? false}
+                                    count={(likes[likeK]?.count) ?? 0}
+                                    busy={!!likeBusy[likeK]}
+                                    onClick={() => onToggleLike(a.id!, r.game_id)}
+                                  />
+                                )}
+
+                                {a?.id && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openReview(a!.id, r.game_id);
+                                    }}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/20 bg-white/5 hover:bg-white/10 transition-colors"
+                                    title="View comments"
+                                    aria-label="View comments"
+                                  >
+                                    <span className="text-sm">💬</span>
+                                    <span className="text-sm font-medium tabular-nums">{commentCounts[cKey] ?? 0}</span>
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Game Cover */}
+                            {g?.cover_url && (
+                              <Link
+                                href={gameHref}
+                                className="shrink-0"
+                                onClick={(e) => e.stopPropagation()}
                               >
-                                💬 <span className="tabular-nums">{commentCounts[cKey] ?? 0}</span>
-                              </button>
-                            </span>
-                          )}
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={g.cover_url}
+                                  alt=""
+                                  className="h-20 w-14 rounded-lg object-cover border border-white/20 shadow-lg"
+                                  loading="lazy"
+                                  decoding="async"
+                                />
+                              </Link>
+                            )}
+                          </div>
                         </div>
-                      </li>
+                      </article>
                     );
                   } else {
                     const p = it.post;
@@ -767,84 +795,126 @@ export default function HomeClient() {
                     const cCount = postCommentCounts[cKey] ?? (p.comment_count || 0);
 
                     return (
-                      <li
+                      <article
                         key={`post-${p.id}`}
                         id={`feed-row-${i}`}
-                        className="group px-3 md:px-4 py-3 hover:bg-white/5 focus-within:bg-white/5 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 ring-inset"
+                        className="group rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 ring-inset overflow-hidden"
                         tabIndex={0}
                         role="button"
                         aria-label={`${p.display_name || p.username || 'Player'} posted${p.game_name ? ` about ${p.game_name}` : ''}`}
-                        onClick={() => openPostContext(p.id)}
+                        onClick={() => openPost(p.id)}
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter') openPostContext(p.id);
+                          if (e.key === 'Enter') openPost(p.id);
                         }}
                       >
-                        <div className="flex items-center gap-3">
-                          {/* avatar */}
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={p.avatar_url || '/avatar-placeholder.svg'}
-                            alt=""
-                            className="h-9 w-9 rounded-full object-cover border border-white/10"
-                            loading="lazy"
-                            decoding="async"
-                          />
-                          <div className="min-w-0">
-                            <div className="text-sm text-white/90">
-                              <Link href={actorHref} className="font-medium hover:underline">
-                                {p.display_name || p.username || 'Player'}
-                              </Link>{' '}
-                              posted
-                              {p.game_id ? (
-                                <>
-                                  {' about '}
-                                  <Link href={gameHref} className="font-medium hover:underline">{p.game_name}</Link>
-                                </>
-                              ) : null}
+                        {/* Post Header with Badge */}
+                        <div className="flex items-center justify-between p-4 pb-3">
+                          <div className="flex items-center gap-3">
+                            {/* Content Type Badge */}
+                            <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-blue-500/20 border border-blue-500/30">
+                              <span className="text-blue-400 text-xs font-medium">💬 Post</span>
                             </div>
-                            <div className="text-xs text-white/40">{timeAgo(p.created_at)}</div>
+                            <div className="text-xs text-white/50">{timeAgo(p.created_at)}</div>
                           </div>
+                        </div>
 
-                          {p.game_cover_url && (
-                            <Link href={gameHref} className="ml-auto shrink-0">
+                        {/* Main Content */}
+                        <div className="px-4 pb-4">
+                          <div className="flex items-start gap-4">
+                            {/* Avatar */}
+                            <Link
+                              href={actorHref}
+                              className="shrink-0"
+                              onClick={(e) => e.stopPropagation()}
+                            >
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img
-                                src={p.game_cover_url}
+                                src={p.avatar_url || '/avatar-placeholder.svg'}
                                 alt=""
-                                className="h-12 w-9 rounded object-cover border border-white/10"
+                                className="h-12 w-12 rounded-full object-cover border-2 border-white/20"
                                 loading="lazy"
                                 decoding="async"
                               />
                             </Link>
-                          )}
-                        </div>
 
-                        {p.body?.trim() && (
-                          <p className="mt-2 whitespace-pre-wrap text-white/85">{p.body.trim()}</p>
-                        )}
+                            <div className="min-w-0 flex-1">
+                              {/* Author & Game Info */}
+                              <div className="flex items-center gap-2 mb-3">
+                                <Link
+                                  href={actorHref}
+                                  className="font-semibold text-white hover:text-blue-400 transition-colors"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  {p.display_name || p.username || 'Player'}
+                                </Link>
+                                <span className="text-white/60">posted</span>
+                                {p.game_id && (
+                                  <>
+                                    <span className="text-white/60">about</span>
+                                    <Link
+                                      href={gameHref}
+                                      className="font-semibold text-white hover:text-blue-400 transition-colors"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      {p.game_name}
+                                    </Link>
+                                  </>
+                                )}
+                              </div>
 
-                        {/* actions */}
-                        <div className="mt-2 flex items-center gap-2">
-                          <LikePill
-                            liked={entry.liked}
-                            count={entry.count}
-                            busy={postLikeBusy[likeK]}
-                            onClick={() => onTogglePostLike(p.id)}
-                          />
-                          <button
-                            className="text-xs px-2 py-1 rounded border border-white/10 bg-white/5 hover:bg-white/10"
-                            title="Comments"
-                            aria-label="Comments"
-                            onClick={(e) => { e.stopPropagation(); openPostContext(p.id, { focusInput: true }); }}
-                          >
-                            💬 {cCount}
-                          </button>
+                              {/* Post Content */}
+                              {p.body?.trim() && (
+                                <div className="bg-white/5 rounded-lg p-3 mb-3">
+                                  <p className="text-white/90 whitespace-pre-wrap leading-relaxed">
+                                    {p.body.trim()}
+                                  </p>
+                                </div>
+                              )}
+
+                              {/* Actions */}
+                              <div className="flex items-center gap-3">
+                                <LikePill
+                                  liked={entry.liked}
+                                  count={entry.count}
+                                  busy={postLikeBusy[likeK]}
+                                  onClick={() => onTogglePostLike(p.id)}
+                                />
+                                <button
+                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/20 bg-white/5 hover:bg-white/10 transition-colors"
+                                  title="Comments"
+                                  aria-label="Comments"
+                                  onClick={(e) => { e.stopPropagation(); openPost(p.id, { focusInput: true }); }}
+                                >
+                                  <span className="text-sm">💬</span>
+                                  <span className="text-sm font-medium tabular-nums">{cCount}</span>
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Game Cover */}
+                            {p.game_cover_url && (
+                              <Link
+                                href={gameHref}
+                                className="shrink-0"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={p.game_cover_url}
+                                  alt=""
+                                  className="h-20 w-14 rounded-lg object-cover border border-white/20 shadow-lg"
+                                  loading="lazy"
+                                  decoding="async"
+                                />
+                              </Link>
+                            )}
+                          </div>
                         </div>
-                      </li>
+                      </article>
                     );
                   }
                 })}
-              </ul>
+              </div>
 
               {/* infinite loader row */}
               <div ref={loaderRef} className="py-4 flex items-center justify-center">
@@ -853,9 +923,8 @@ export default function HomeClient() {
             </>
           )}
 
-          {/* mount context modal once */}
+          {/* mount unified context modal */}
           {contextModal}
-          {postContextModal}
 
 
         </section>

@@ -651,7 +651,7 @@ export default function HomeClient() {
                       <article
                         id={`feed-row-${i}`}
                         key={`rev-${r.user_id}-${r.game_id}-${r.created_at}-${i}`}
-                        className="group rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 ring-inset overflow-hidden"
+                        className="group rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20 transition-all duration-300 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 ring-inset overflow-hidden shadow-sm hover:shadow-lg"
                         onClick={(e) =>
                           onRowClick(e, () => {
                             if (a?.id) openReview(a.id, r.game_id);
@@ -667,18 +667,18 @@ export default function HomeClient() {
                         aria-label={`${a?.display_name || a?.username || 'Player'} rated ${g?.name || 'a game'}`}
                       >
                         {/* Review Header with Badge */}
-                        <div className="flex items-center justify-between p-4 pb-3">
+                        <div className="flex items-center justify-between px-5 pt-4 pb-2">
                           <div className="flex items-center gap-3">
                             {/* Content Type Badge */}
-                            <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-amber-500/20 border border-amber-500/30">
-                              <span className="text-amber-400 text-xs font-medium">⭐ Review</span>
+                            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-500/25">
+                              <span className="text-amber-400 text-xs font-semibold tracking-wide">⭐ Review</span>
                             </div>
-                            <div className="text-xs text-white/50">{timeAgo(r.created_at)}</div>
+                            <div className="text-xs text-white/50 font-medium">{timeAgo(r.created_at)}</div>
                           </div>
                         </div>
 
                         {/* Main Content */}
-                        <div className="px-4 pb-4">
+                        <div className="px-5 pb-5">
                           <div className="flex items-start gap-4">
                             {/* Avatar */}
                             <Link
@@ -690,7 +690,7 @@ export default function HomeClient() {
                               <img
                                 src={a?.avatar_url || '/avatar-placeholder.svg'}
                                 alt=""
-                                className="h-12 w-12 rounded-full object-cover border-2 border-white/20"
+                                className="h-14 w-14 rounded-full object-cover border-2 border-white/20 shadow-md"
                                 loading="lazy"
                                 decoding="async"
                               />
@@ -698,18 +698,18 @@ export default function HomeClient() {
 
                             <div className="min-w-0 flex-1">
                               {/* Author & Game Info */}
-                              <div className="flex items-center gap-2 mb-2">
+                              <div className="flex items-center gap-2 mb-3">
                                 <Link
                                   href={actorHref}
-                                  className="font-semibold text-white hover:text-amber-400 transition-colors"
+                                  className="font-bold text-white hover:text-amber-400 transition-colors text-base"
                                   onClick={(e) => e.stopPropagation()}
                                 >
                                   {a?.display_name || a?.username || 'Player'}
                                 </Link>
-                                <span className="text-white/60">rated</span>
+                                <span className="text-white/60 font-medium">rated</span>
                                 <Link
                                   href={gameHref}
-                                  className="font-semibold text-white hover:text-amber-400 transition-colors"
+                                  className="font-bold text-white hover:text-amber-400 transition-colors text-base"
                                   onClick={(e) => e.stopPropagation()}
                                 >
                                   {g?.name ?? 'a game'}
@@ -717,27 +717,27 @@ export default function HomeClient() {
                               </div>
 
                               {/* Rating Display */}
-                              <div className="flex items-center gap-3 mb-3">
-                                <div className="flex items-center gap-1">
-                                  <StarRating value={stars} readOnly size={18} />
-                                  <span className="text-sm font-medium text-white/90">{stars}/5</span>
+                              <div className="flex items-center gap-4 mb-4">
+                                <div className="flex items-center gap-2">
+                                  <StarRating value={stars} readOnly size={20} />
+                                  <span className="text-base font-bold text-white/95">{stars}/5</span>
                                 </div>
-                                <div className="text-sm text-white/70">
+                                <div className="text-sm font-semibold text-white/80 px-2 py-1 rounded-full bg-white/10">
                                   {r.rating >= 80 ? 'Excellent' : r.rating >= 60 ? 'Good' : r.rating >= 40 ? 'Average' : 'Poor'}
                                 </div>
                               </div>
 
                               {/* Review Text */}
                               {r.review?.trim() && (
-                                <div className="bg-white/5 rounded-lg p-3 mb-3">
-                                  <p className="text-white/90 whitespace-pre-wrap leading-relaxed">
+                                <div className="bg-white/5 rounded-xl p-4 mb-4 border border-white/10">
+                                  <p className="text-white/95 whitespace-pre-wrap leading-relaxed text-sm font-medium">
                                     {r.review.trim()}
                                   </p>
                                 </div>
                               )}
 
                               {/* Actions */}
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-3">
                                 {a?.id && (
                                   <InteractionButton
                                     type="like"
@@ -769,7 +769,7 @@ export default function HomeClient() {
                                 <img
                                   src={g.cover_url}
                                   alt=""
-                                  className="h-20 w-14 rounded-lg object-cover border border-white/20 shadow-lg"
+                                  className="h-24 w-16 rounded-xl object-cover border border-white/20 shadow-xl"
                                   loading="lazy"
                                   decoding="async"
                                 />
@@ -792,7 +792,7 @@ export default function HomeClient() {
                       <article
                         key={`post-${p.id}`}
                         id={`feed-row-${i}`}
-                        className="group rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 ring-inset overflow-hidden"
+                        className="group rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20 transition-all duration-300 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 ring-inset overflow-hidden shadow-sm hover:shadow-lg"
                         tabIndex={0}
                         role="button"
                         aria-label={`${p.display_name || p.username || 'Player'} posted${p.game_name ? ` about ${p.game_name}` : ''}`}
@@ -802,18 +802,18 @@ export default function HomeClient() {
                         }}
                       >
                         {/* Post Header with Badge */}
-                        <div className="flex items-center justify-between p-4 pb-3">
+                        <div className="flex items-center justify-between px-5 pt-4 pb-2">
                           <div className="flex items-center gap-3">
                             {/* Content Type Badge */}
-                            <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-blue-500/20 border border-blue-500/30">
-                              <span className="text-blue-400 text-xs font-medium">💬 Post</span>
+                            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-500/15 border border-blue-500/25">
+                              <span className="text-blue-400 text-xs font-semibold tracking-wide">💬 Post</span>
                             </div>
-                            <div className="text-xs text-white/50">{timeAgo(p.created_at)}</div>
+                            <div className="text-xs text-white/50 font-medium">{timeAgo(p.created_at)}</div>
                           </div>
                         </div>
 
                         {/* Main Content */}
-                        <div className="px-4 pb-4">
+                        <div className="px-5 pb-5">
                           <div className="flex items-start gap-4">
                             {/* Avatar */}
                             <Link
@@ -825,7 +825,7 @@ export default function HomeClient() {
                               <img
                                 src={p.avatar_url || '/avatar-placeholder.svg'}
                                 alt=""
-                                className="h-12 w-12 rounded-full object-cover border-2 border-white/20"
+                                className="h-14 w-14 rounded-full object-cover border-2 border-white/20 shadow-md"
                                 loading="lazy"
                                 decoding="async"
                               />
@@ -836,18 +836,18 @@ export default function HomeClient() {
                               <div className="flex items-center gap-2 mb-3">
                                 <Link
                                   href={actorHref}
-                                  className="font-semibold text-white hover:text-blue-400 transition-colors"
+                                  className="font-bold text-white hover:text-blue-400 transition-colors text-base"
                                   onClick={(e) => e.stopPropagation()}
                                 >
                                   {p.display_name || p.username || 'Player'}
                                 </Link>
-                                <span className="text-white/60">posted</span>
+                                <span className="text-white/60 font-medium">posted</span>
                                 {p.game_id && (
                                   <>
-                                    <span className="text-white/60">about</span>
+                                    <span className="text-white/60 font-medium">about</span>
                                     <Link
                                       href={gameHref}
-                                      className="font-semibold text-white hover:text-blue-400 transition-colors"
+                                      className="font-bold text-white hover:text-blue-400 transition-colors text-base"
                                       onClick={(e) => e.stopPropagation()}
                                     >
                                       {p.game_name}
@@ -858,15 +858,15 @@ export default function HomeClient() {
 
                               {/* Post Content */}
                               {p.body?.trim() && (
-                                <div className="bg-white/5 rounded-lg p-3 mb-3">
-                                  <p className="text-white/90 whitespace-pre-wrap leading-relaxed">
+                                <div className="bg-white/5 rounded-xl p-4 mb-4 border border-white/10">
+                                  <p className="text-white/95 whitespace-pre-wrap leading-relaxed text-sm font-medium">
                                     {p.body.trim()}
                                   </p>
                                 </div>
                               )}
 
                               {/* Actions */}
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-3">
                                 <InteractionButton
                                   type="like"
                                   count={entry.count}
@@ -893,7 +893,7 @@ export default function HomeClient() {
                                 <img
                                   src={p.game_cover_url}
                                   alt=""
-                                  className="h-20 w-14 rounded-lg object-cover border border-white/20 shadow-lg"
+                                  className="h-24 w-16 rounded-xl object-cover border border-white/20 shadow-xl"
                                   loading="lazy"
                                   decoding="async"
                                 />

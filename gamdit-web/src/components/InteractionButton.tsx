@@ -23,6 +23,8 @@ const interactionConfig = {
     activeColor: 'text-red-500',
     hoverColor: 'hover:text-red-500',
     bgHover: 'hover:bg-red-500/10',
+    borderColor: 'border-red-500/30',
+    activeBorderColor: 'border-red-500',
   },
   comment: {
     icon: '💬',
@@ -30,6 +32,8 @@ const interactionConfig = {
     activeColor: 'text-blue-500',
     hoverColor: 'hover:text-blue-500',
     bgHover: 'hover:bg-blue-500/10',
+    borderColor: 'border-blue-500/30',
+    activeBorderColor: 'border-blue-500',
   },
   share: {
     icon: '↗',
@@ -37,6 +41,8 @@ const interactionConfig = {
     activeColor: 'text-green-500',
     hoverColor: 'hover:text-green-500',
     bgHover: 'hover:bg-green-500/10',
+    borderColor: 'border-green-500/30',
+    activeBorderColor: 'border-green-500',
   },
   bookmark: {
     icon: '🔖',
@@ -44,6 +50,8 @@ const interactionConfig = {
     activeColor: 'text-yellow-500',
     hoverColor: 'hover:text-yellow-500',
     bgHover: 'hover:bg-yellow-500/10',
+    borderColor: 'border-yellow-500/30',
+    activeBorderColor: 'border-yellow-500',
   },
 };
 
@@ -59,16 +67,25 @@ function InteractionButtonImpl({
   stopPropagation = true,
 }: Props) {
   const config = interactionConfig[type];
-  const pad = size === 'md' ? 'px-3 py-1.5' : 'px-2 py-1';
+  
+  // Optimized dimensions for maximum clarity
+  const dimensions = size === 'md' 
+    ? 'h-10 px-3' 
+    : 'h-8 px-2.5';
+  
   const textSize = size === 'md' ? 'text-sm' : 'text-xs';
+  const iconSize = size === 'md' ? 'text-base' : 'text-sm';
   
   const base = `
-    inline-flex items-center gap-1.5 rounded-full border border-white/10 
-    transition-all duration-200 ${pad} ${textSize}
-    ${active ? config.activeColor : 'text-white/70'}
-    ${active ? 'bg-white/10' : 'bg-white/5'}
+    inline-flex items-center justify-center gap-1.5 
+    rounded-full border-2 transition-all duration-200 
+    ${dimensions} ${textSize}
+    ${active ? config.activeColor : 'text-white/60'}
+    ${active ? config.activeBorderColor : config.borderColor}
+    ${active ? 'bg-transparent' : 'bg-transparent'}
     ${!busy ? `${config.hoverColor} ${config.bgHover}` : ''}
-    ${busy ? 'opacity-60 pointer-events-none' : 'cursor-pointer'}
+    ${busy ? 'opacity-50 pointer-events-none' : 'cursor-pointer hover:scale-105'}
+    font-medium antialiased
     ${className}
   `.trim();
 
@@ -81,13 +98,12 @@ function InteractionButtonImpl({
 
   const getAriaLabel = () => {
     if (ariaLabel) return ariaLabel;
-    const action = active ? 'Unlike' : 'Like';
     switch (type) {
       case 'like': return active ? 'Unlike' : 'Like';
       case 'comment': return 'View comments';
       case 'share': return 'Share';
       case 'bookmark': return active ? 'Remove bookmark' : 'Bookmark';
-      default: return action;
+      default: return 'Interact';
     }
   };
 
@@ -104,13 +120,13 @@ function InteractionButtonImpl({
       data-ignore-context
     >
       <span 
-        className={`transition-colors ${active ? config.activeColor : ''}`}
+        className={`${iconSize} transition-colors ${active ? config.activeColor : ''}`}
         aria-hidden
       >
         {active ? config.activeIcon : config.icon}
       </span>
       {count > 0 && (
-        <span className="tabular-nums font-medium">
+        <span className={`${textSize} tabular-nums font-semibold tracking-tight`}>
           {safeCount}
         </span>
       )}

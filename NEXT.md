@@ -37,6 +37,7 @@
 - Schema: Fixed database schema mismatch (preview → summary column) ✅
 
 ## Recent Changes Log
+- 2025-09-11: Add Midnight Nova Brand Note (docs/brand.md); update NEXT.md with branding scope and acceptance.
 - 2025-09-11: Enhance posts UX: deep-link open via ?postId=, delete confirmation, accessible action menus.
 - 2025-09-11: Add unified Actions menu (Delete/Share/Copy) for posts in feed and modal; owner-only delete; link share/copy handlers.
 - 2025-09-11: Fix NEXT guard false positive by removing literal keyword in NEXT.md
@@ -62,9 +63,13 @@
 - Small, scoped commits; PR with screenshots/logs
 
 ## Next Steps
-1) ✅ Database upgrade testing completed successfully
-2) ✅ CI guard workflow tested and working
-3) Ready for production deployment or feature development
+1) Branding Phase 0 (Midnight Nova)
+   - Create Brand Note at docs/brand.md
+   - Align scope/acceptance and guardrails in NEXT.md
+2) Branding Phase 1–2 (tokens + button decisions)
+   - Define tokens (names + purpose only)
+   - Document button variants/sizes/states and mapping
+3) Incremental adoption via small PRs with screenshots
 
 ## Open Questions / Decisions Needed
 - Should we add more handoff fields to NEXT.md?

@@ -230,18 +230,18 @@ export function useUnifiedContextModal(
                         </button>
                       ) : null}
                       <button
-                        onClick={() => { setMenuOpen(false); onShare(); }}
+                        onClick={() => { setMenuOpen(false); onCopyLink(); }}
                         className={`block w-full text-left px-3 py-2 hover:bg-[rgb(var(--hover))] ${isOwner ? '' : 'rounded-t-lg'}`}
                         role="menuitem"
                       >
-                        Share
+                        Copy link
                       </button>
                       <button
-                        onClick={() => { setMenuOpen(false); onCopyLink(); }}
+                        onClick={() => { setMenuOpen(false); onShare(); }}
                         className="block w-full text-left px-3 py-2 hover:bg-[rgb(var(--hover))] rounded-b-lg"
                         role="menuitem"
                       >
-                        Copy link
+                        Share
                       </button>
                     </div>
                   )}

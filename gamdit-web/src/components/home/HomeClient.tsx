@@ -923,8 +923,8 @@ export default function HomeClient() {
                                   {isOwner ? (
                                     <button onClick={(e)=>{ if (!confirm('Delete this post?')) return; (e.currentTarget.parentElement as HTMLElement).classList.add('hidden'); deletePost(e); }} className="block w-full text-left px-3 py-2 text-[rgb(var(--danger))] hover:bg-[rgb(var(--hover))] rounded-t-lg" role="menuitem">Delete</button>
                                   ) : null}
-                                  <button onClick={(e)=>{ (e.currentTarget.parentElement as HTMLElement).classList.add('hidden'); shareLink(); }} className={`block w-full text-left px-3 py-2 hover:bg-[rgb(var(--hover))] ${isOwner ? '' : 'rounded-t-lg'}`} role="menuitem">Share</button>
-                                  <button onClick={(e)=>{ (e.currentTarget.parentElement as HTMLElement).classList.add('hidden'); copyLink(); }} className="block w-full text-left px-3 py-2 hover:bg-[rgb(var(--hover))] rounded-b-lg" role="menuitem">Copy link</button>
+                                  <button onClick={(e)=>{ (e.currentTarget.parentElement as HTMLElement).classList.add('hidden'); copyLink(); }} className={`block w-full text-left px-3 py-2 hover:bg-[rgb(var(--hover))] ${isOwner ? '' : 'rounded-t-lg'}`} role="menuitem">Copy link</button>
+                                  <button onClick={(e)=>{ (e.currentTarget.parentElement as HTMLElement).classList.add('hidden'); shareLink(); }} className="block w-full text-left px-3 py-2 hover:bg-[rgb(var(--hover))] rounded-b-lg" role="menuitem">Share</button>
                                 </div>
                               </div>
                             </div>

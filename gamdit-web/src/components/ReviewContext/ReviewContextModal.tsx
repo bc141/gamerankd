@@ -354,7 +354,7 @@ export default function ReviewContextModal({
                 )}
                 <button
                   onClick={onCopyLink}
-                  className="w-full text-left px-3 py-2 text-sm hover:bg-[rgb(var(--hover))]"
+                  className={`w-full text-left px-3 py-2 text-sm hover:bg-[rgb(var(--hover))] ${!(viewerId && author && viewerId === author.id) ? 'rounded-t-xl' : ''}`}
                   role="menuitem"
                   type="button"
                 >
@@ -362,7 +362,7 @@ export default function ReviewContextModal({
                 </button>
                 <button
                   onClick={onShare}
-                  className="w-full text-left px-3 py-2 text-sm hover:bg-[rgb(var(--hover))]"
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-[rgb(var(--hover))] rounded-b-xl"
                   role="menuitem"
                   type="button"
                 >

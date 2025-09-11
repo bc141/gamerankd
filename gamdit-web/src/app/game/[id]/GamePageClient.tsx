@@ -197,19 +197,62 @@ export default function GamePageClient({
   const [stats, setStats] = useState(initialStats ?? { ratingsCount: 0, avgStars: null });
 
   async function refetchStats() {
-    const { data } = await supabase
-      .from('game_rating_stats')
-      .select('review_count, avg_rating_100')
-      .eq('game_id', gameId)
-      .maybeSingle();
+    // Try the canonical view schema first
+    let ratingsCount = 0;
+    let avgStars: number | null = null;
 
-    setStats({
-      ratingsCount: data?.review_count ?? 0,
-      avgStars:
-        data?.avg_rating_100 != null
-          ? Number((Number(data.avg_rating_100) / 20).toFixed(1))
-          : null,
-    });
+    try {
+      let viewRes = await supabase
+        .from('game_rating_stats')
+        .select('review_count, avg_rating_100')
+        .eq('game_id', gameId)
+        .maybeSingle();
+
+      if (viewRes.data) {
+        ratingsCount = Number(viewRes.data.review_count ?? 0);
+        avgStars = viewRes.data.avg_rating_100 != null
+          ? Number((Number(viewRes.data.avg_rating_100) / 20).toFixed(1))
+          : null;
+      } else {
+        // Fallback: older view schema (total_ratings, average_rating as 1–100)
+        const legacyRes = await supabase
+          .from('game_rating_stats')
+          .select('total_ratings, average_rating')
+          .eq('game_id', gameId)
+          .maybeSingle();
+
+        if (legacyRes.data) {
+          const anyData = legacyRes.data as any;
+          ratingsCount = Number(anyData.total_ratings ?? 0);
+          avgStars = anyData.average_rating != null
+            ? Number((Number(anyData.average_rating) / 20).toFixed(1))
+            : null;
+        }
+      }
+
+      // Fallback to direct aggregation from reviews if the view is missing or empty
+      if (!viewRes.data) {
+        const countRes = await supabase
+          .from('reviews')
+          .select('*', { count: 'exact', head: true })
+          .eq('game_id', gameId);
+
+        ratingsCount = Number(countRes.count ?? 0);
+
+        const avgRes = await supabase
+          .from('reviews')
+          .select('avg:avg(rating)')
+          .eq('game_id', gameId)
+          .maybeSingle();
+
+        const avg100 = (avgRes.data as any)?.avg as number | null;
+        avgStars = avg100 != null ? Number((Number(avg100) / 20).toFixed(1)) : null;
+      }
+    } catch {
+      // Ignore and keep defaults if anything fails
+    }
+
+    setStats({ ratingsCount, avgStars });
   }
 
   // 🔎 View-in-context modal hook

@@ -1,19 +1,11 @@
 -- Force-replace problematic functions regardless of existing signatures
 
-DO $$
-DECLARE
-  fn text;
-BEGIN
-  FOREACH fn IN ARRAY ARRAY['toggle_block','toggle_mute','app_notify_follow','app_notify_like','app_notify_comment'] LOOP
-    PERFORM 1 FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace AND p.proname = fn LIMIT 1;
-    IF FOUND THEN
-      EXECUTE format(
-        'DO $$BEGIN FOR r IN SELECT oid FROM pg_proc WHERE pronamespace = %s::regnamespace AND proname = %L LOOP EXECUTE format(''DROP FUNCTION IF EXISTS %%s'', r.oid::regprocedure); END LOOP; END$$;',
-        'public',''||fn||''
-      );
-    END IF;
-  END LOOP;
-END$$;
+-- Replace fragile dynamic drop block with explicit drops
+DROP FUNCTION IF EXISTS public.toggle_block(uuid);
+DROP FUNCTION IF EXISTS public.toggle_mute(uuid);
+DROP FUNCTION IF EXISTS public.app_notify_follow(uuid);
+DROP FUNCTION IF EXISTS public.app_notify_like(uuid, bigint);
+DROP FUNCTION IF EXISTS public.app_notify_comment(uuid, bigint, uuid);
 
 -- Recreate with canonical signatures
 

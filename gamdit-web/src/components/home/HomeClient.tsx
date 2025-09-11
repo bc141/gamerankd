@@ -1063,6 +1063,7 @@ function QuickComposer({ onPosted }: { onPosted?: (row: PostRow) => void }) {
   const sb = supabaseBrowser();
   const [body, setBody] = useState('');
   const [busy, setBusy] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
 
   async function handlePost() {
     if (busy || !body.trim()) return;
@@ -1083,6 +1084,24 @@ function QuickComposer({ onPosted }: { onPosted?: (row: PostRow) => void }) {
         console.error('post insert failed', insErr);
         alert('Failed to post. Please try again.');
         return;
+      }
+
+      // Upload media then read hydrated row
+      if (files.length) {
+        for (const file of files) {
+          const ext = (file.name.split('.').pop() || 'bin').toLowerCase();
+          const path = `${uid}/${inserted.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+          const up = await sb.storage.from('post-media').upload(path, file, { upsert: true, contentType: file.type || undefined });
+          if (up.error) {
+            console.warn('media upload failed', up.error);
+            continue;
+          }
+          const { data: pub } = sb.storage.from('post-media').getPublicUrl(path);
+          const url = pub?.publicUrl ?? null;
+          if (!url) continue;
+          const media_type = (file.type || '').startsWith('video') ? 'video' : 'image';
+          await sb.from('post_media').insert({ post_id: inserted.id, url, media_type });
+        }
       }
 
       // Read the hydrated row from the view so counts/user/game fields are present
@@ -1109,6 +1128,7 @@ function QuickComposer({ onPosted }: { onPosted?: (row: PostRow) => void }) {
       if (full) {
         onPosted?.(full);
         setBody('');
+        setFiles([]);
       } else {
         alert('Posted, but could not fetch the hydrated row.');
       }
@@ -1126,10 +1146,17 @@ function QuickComposer({ onPosted }: { onPosted?: (row: PostRow) => void }) {
         rows={3}
         className="w-full border border-white/10 bg-black/20 text-white rounded px-3 py-2"
       />
-      <div className="mt-2 flex justify-end">
+      <div className="mt-2 flex items-center justify-between gap-3">
+        <input
+          type="file"
+          accept="image/*,video/*"
+          multiple
+          onChange={(e)=>setFiles(Array.from(e.target.files ?? []))}
+          className="text-xs text-white/70"
+        />
         <button
           type="button"
-          disabled={busy || body.trim().length === 0}
+          disabled={busy || (body.trim().length === 0 && files.length === 0)}
           onClick={handlePost}
           className="px-3 py-1.5 rounded bg-indigo-600 text-white disabled:opacity-50"
         >

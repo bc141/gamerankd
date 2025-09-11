@@ -143,6 +143,10 @@ export function useUnifiedContextModal(
 
       async function onDeletePost() {
         if (!viewerId || !isOwner) return;
+        if (typeof window !== 'undefined') {
+          const ok = window.confirm('Delete this post?');
+          if (!ok) return;
+        }
         await supabase.from('posts').delete().eq('id', postId).eq('user_id', viewerId);
         close();
       }
@@ -205,6 +209,8 @@ export function useUnifiedContextModal(
                     onClick={() => setMenuOpen((v) => !v)}
                     className="rounded-lg p-2 text-[rgb(var(--txt-muted))] hover:text-[rgb(var(--txt))] hover:bg-[rgb(var(--hover))]"
                     aria-label="More actions"
+                    aria-expanded={menuOpen ? 'true' : 'false'}
+                    aria-haspopup="menu"
                     type="button"
                   >
                     ⋯

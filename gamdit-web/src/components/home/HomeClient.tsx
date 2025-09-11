@@ -267,6 +267,15 @@ export default function HomeClient() {
   // keep URL in sync + (re)load feed on scope changes / login state ready
   const restoredScrollRef = useRef(false);
   useEffect(() => {
+    // Open post by deep link (?postId=)
+    try {
+      if (typeof window !== 'undefined') {
+        const postId = new URLSearchParams(window.location.search).get('postId');
+        if (postId) {
+          openPost(postId);
+        }
+      }
+    } catch {}
     if (typeof window !== 'undefined') {
       const qs = new URLSearchParams(window.location.search);
       qs.set('tab', scope);
@@ -819,15 +828,15 @@ export default function HomeClient() {
                     const copyLink = async () => {
                       try {
                         const base = typeof window !== 'undefined' ? window.location.origin : '';
-                        const url = `${base}/u/${p.username ?? ''}`;
+                        const url = `${base}/u/${p.username ?? ''}?postId=${encodeURIComponent(p.id)}`;
                         await navigator.clipboard.writeText(url);
                       } catch {}
                     };
                     const shareLink = async () => {
                       try {
                         const base = typeof window !== 'undefined' ? window.location.origin : '';
-                        const url = `${base}/u/${p.username ?? ''}`;
-                        if (navigator.share) await navigator.share({ title: p.game_name ?? 'Post', url });
+                        const url = `${base}/u/${p.username ?? ''}?postId=${encodeURIComponent(p.id)}`;
+                        if (navigator.share) await navigator.share({ title: p.game_name ?? 'Post', url, text: p.body ?? undefined });
                         else await navigator.clipboard.writeText(url);
                       } catch {}
                     };
@@ -904,13 +913,15 @@ export default function HomeClient() {
                                   onClick={(e) => { e.stopPropagation(); const el = (e.currentTarget.nextSibling as HTMLElement | null); if (el) el.classList.toggle('hidden'); }}
                                   className="rounded p-1 text-[rgb(var(--txt-muted))] hover:text-[rgb(var(--txt))] hover:bg-[rgb(var(--hover))]"
                                   aria-label="More actions"
+                                  aria-expanded="false"
+                                  aria-haspopup="menu"
                                   type="button"
                                 >
                                   ⋯
                                 </button>
                                 <div className="hidden absolute right-0 mt-2 w-44 rounded-lg border border-[rgb(var(--border))] bg-[rgb(var(--bg-elev))] shadow-[var(--shadow-md)] z-[60]" role="menu" onClick={(e)=>e.stopPropagation()}>
                                   {isOwner ? (
-                                    <button onClick={(e)=>{ (e.currentTarget.parentElement as HTMLElement).classList.add('hidden'); deletePost(e); }} className="block w-full text-left px-3 py-2 text-[rgb(var(--danger))] hover:bg-[rgb(var(--hover))] rounded-t-lg" role="menuitem">Delete</button>
+                                    <button onClick={(e)=>{ if (!confirm('Delete this post?')) return; (e.currentTarget.parentElement as HTMLElement).classList.add('hidden'); deletePost(e); }} className="block w-full text-left px-3 py-2 text-[rgb(var(--danger))] hover:bg-[rgb(var(--hover))] rounded-t-lg" role="menuitem">Delete</button>
                                   ) : null}
                                   <button onClick={(e)=>{ (e.currentTarget.parentElement as HTMLElement).classList.add('hidden'); shareLink(); }} className={`block w-full text-left px-3 py-2 hover:bg-[rgb(var(--hover))] ${isOwner ? '' : 'rounded-t-lg'}`} role="menuitem">Share</button>
                                   <button onClick={(e)=>{ (e.currentTarget.parentElement as HTMLElement).classList.add('hidden'); copyLink(); }} className="block w-full text-left px-3 py-2 hover:bg-[rgb(var(--hover))] rounded-b-lg" role="menuitem">Copy link</button>

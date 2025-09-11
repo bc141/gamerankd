@@ -33,7 +33,7 @@ import { toInList } from '@/lib/sql';
 
 // ---------- constants ----------
 const POSTS_VIEW = 'post_feed_v2'; // fallback to 'post_feed' if v2 isn't present
-const POST_COLS = 'id,user_id,created_at,body,tags,like_count,comment_count,username,display_name,avatar_url,game_id,game_name,game_cover_url';
+const POST_COLS = 'id,user_id,created_at,body,tags,media_urls,like_count,comment_count,username,display_name,avatar_url,game_id,game_name,game_cover_url';
 
 // ---------- helpers ----------
 async function selectPostsWithFallback(
@@ -91,6 +91,7 @@ type PostRow = {
   created_at: string;
   body: string | null;
   tags: string[] | null;
+  media_urls?: string[] | null;
   like_count: number;
   comment_count: number;
   username: string | null;
@@ -805,7 +806,9 @@ export default function HomeClient() {
                     );
                   } else {
                     const p = it.post;
-                    const media = postMedia[p.id] ?? [];
+                    const media = (p.media_urls && p.media_urls.length)
+                      ? p.media_urls.map(u => ({ url: /^https?:\/\//i.test(u) ? u : supabase.storage.from('post-media').getPublicUrl(u).data.publicUrl, media_type: u.match(/\.(mp4|mov|webm|mkv)$/i) ? 'video' : 'image' }))
+                      : (postMedia[p.id] ?? []);
                     const actorHref = p.username ? `/u/${p.username}` : '#';
                     const gameHref = p.game_id ? `/game/${p.game_id}` : '#';
                     const likeK = postLikeKey(p.id);
@@ -1095,17 +1098,37 @@ function QuickComposer({ onPosted }: { onPosted?: (row: PostRow) => void }) {
   const [files, setFiles] = useState<File[]>([]);
 
   async function handlePost() {
-    if (busy || !body.trim()) return;
+    if (busy || (body.trim().length === 0 && files.length === 0)) return;
     setBusy(true);
     try {
       const session = await waitForSession(sb);
       const uid = session?.user?.id;
       if (!uid) { window.location.href = '/login'; return; }
 
-      // Insert (let DB generate id/created_at)
+      // Generate a post id client-side to tie uploads and row
+      const postId = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+      // Upload any selected media first and collect storage paths
+      let mediaPaths: string[] = [];
+      if (files.length) {
+        for (const file of files) {
+          const ext = (file.name.split('.').pop() || 'bin').toLowerCase();
+          const path = `${uid}/${postId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+          const up = await sb.storage.from('post-media').upload(path, file, { upsert: true, contentType: file.type || undefined });
+          if (up.error) {
+            console.warn('media upload failed', up.error);
+            continue;
+          }
+          mediaPaths.push(path);
+        }
+      }
+
+      // Insert the post with our generated id and media_urls
       const { data: inserted, error: insErr } = await sb
         .from('posts')
-        .insert({ user_id: uid, body: body.trim(), tags: [], game_id: null })
+        .insert({ id: postId, user_id: uid, body: body.trim().length ? body.trim() : null, tags: [], game_id: null, media_urls: mediaPaths.length ? mediaPaths : null })
         .select('id')
         .single();
 
@@ -1113,24 +1136,6 @@ function QuickComposer({ onPosted }: { onPosted?: (row: PostRow) => void }) {
         console.error('post insert failed', insErr);
         alert('Failed to post. Please try again.');
         return;
-      }
-
-      // Upload media then read hydrated row
-      if (files.length) {
-        for (const file of files) {
-          const ext = (file.name.split('.').pop() || 'bin').toLowerCase();
-          const path = `${uid}/${inserted.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-          const up = await sb.storage.from('post-media').upload(path, file, { upsert: true, contentType: file.type || undefined });
-          if (up.error) {
-            console.warn('media upload failed', up.error);
-            continue;
-          }
-          const { data: pub } = sb.storage.from('post-media').getPublicUrl(path);
-          const url = pub?.publicUrl ?? null;
-          if (!url) continue;
-          const media_type = (file.type || '').startsWith('video') ? 'video' : 'image';
-          await sb.from('post_media').insert({ post_id: inserted.id, url, media_type });
-        }
       }
 
       // Read the hydrated row from the view so counts/user/game fields are present
@@ -1652,7 +1657,10 @@ async function fetchPostMediaBulk(
   const map: Record<string, { url: string; media_type: 'image' | 'video' }[]> = {};
   for (const row of data as any[]) {
     const pid = String(row.post_id);
-    (map[pid] ||= []).push({ url: String(row.url), media_type: row.media_type === 'video' ? 'video' : 'image' });
+    const path = String(row.url || '');
+    const isHttp = /^https?:\/\//i.test(path);
+    const publicUrl = isHttp ? path : sb.storage.from('post-media').getPublicUrl(path).data.publicUrl;
+    (map[pid] ||= []).push({ url: publicUrl, media_type: row.media_type === 'video' ? 'video' : 'image' });
   }
   return map;
 }

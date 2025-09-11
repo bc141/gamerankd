@@ -139,7 +139,7 @@ export function useUnifiedContextModal(
       return (
         <div className="fixed inset-0 z-[70]">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={close} />
-          <div className="absolute inset-x-0 top-[10vh] mx-auto max-w-2xl rounded-2xl bg-[rgb(var(--bg-card))] border border-[rgb(var(--border))] shadow-[var(--shadow-lg)] overflow-hidden">
+          <div className="absolute inset-x-0 top-[10vh] mx-auto max-w-3xl rounded-2xl bg-[rgb(var(--bg-card))] border border-[rgb(var(--border))] shadow-[var(--shadow-lg)] overflow-hidden">
             {/* Header */}
             <div className="flex items-start gap-4 p-6 border-b border-[rgb(var(--border))]">
               {/* eslint-disable-next-line @next/next/no-img-element */}

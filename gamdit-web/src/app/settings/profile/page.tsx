@@ -265,7 +265,7 @@ export default function EditProfilePage() {
   }
 
   return (
-    <main className="p-8 max-w-2xl mx-auto">
+    <main className="p-6 sm:p-8 w-full max-w-3xl mx-auto">
       <div className="mb-4">
         <button
           type="button"

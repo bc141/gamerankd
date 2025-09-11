@@ -282,7 +282,7 @@ export default function ReviewContextModal({
       <div
         ref={panelRef}
         tabIndex={-1}
-        className="w-full max-w-2xl rounded-2xl bg-[rgb(var(--bg-card))] border border-[rgb(var(--border))] shadow-[var(--shadow-lg)] overflow-hidden focus:outline-none"
+        className="w-full max-w-3xl rounded-2xl bg-[rgb(var(--bg-card))] border border-[rgb(var(--border))] shadow-[var(--shadow-lg)] overflow-hidden focus:outline-none"
         onMouseDown={(e) => e.stopPropagation()}
       >
         {/* Summary (tight; no divider below) */}

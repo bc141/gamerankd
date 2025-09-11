@@ -37,6 +37,7 @@
 - Schema: Fixed database schema mismatch (preview → summary column) ✅
 
 ## Recent Changes Log
+- 2025-09-11: Branding tokens + buttons scaffolding: add brand aliases to tokens.css, create styles/buttons.css, import in globals.css.
 - 2025-09-11: Add Midnight Nova Brand Note (docs/brand.md); update NEXT.md with branding scope and acceptance.
 - 2025-09-11: Enhance posts UX: deep-link open via ?postId=, delete confirmation, accessible action menus.
 - 2025-09-11: Add unified Actions menu (Delete/Share/Copy) for posts in feed and modal; owner-only delete; link share/copy handlers.

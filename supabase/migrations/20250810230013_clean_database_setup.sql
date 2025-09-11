@@ -145,7 +145,20 @@ create policy "profiles: update own"
 create index if not exists games_name_idx on public.games using gin (to_tsvector('english', name));
 create index if not exists games_igdb_id_idx on public.games(igdb_id);
 create index if not exists games_created_at_idx on public.games(created_at desc);
-create index if not exists games_name_trgm_idx on public.games using gin (name gin_trgm_ops);
+-- Create trigram index robustly across environments
+do $$
+begin
+  begin
+    execute 'create index if not exists games_name_trgm_idx on public.games using gin (name extensions.gin_trgm_ops)';
+  exception when undefined_object then
+    begin
+      execute 'create index if not exists games_name_trgm_idx on public.games using gin (name gin_trgm_ops)';
+    exception when undefined_object then
+      -- Operator class not available; skip (pg_trgm may be unavailable on this instance)
+      raise notice 'Skipping games_name_trgm_idx creation: gin_trgm_ops not found';
+    end;
+  end;
+end $$;
 
 create index if not exists reviews_user_id_idx on public.reviews(user_id);
 create index if not exists reviews_game_id_idx on public.reviews(game_id);

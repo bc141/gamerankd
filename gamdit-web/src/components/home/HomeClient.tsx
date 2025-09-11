@@ -1146,14 +1146,26 @@ function QuickComposer({ onPosted }: { onPosted?: (row: PostRow) => void }) {
         rows={3}
         className="w-full border border-white/10 bg-black/20 text-white rounded px-3 py-2"
       />
+      {files.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {files.slice(0,4).map((f, i) => (
+            <div key={i} className="rounded border border-white/10 bg-black/20 px-2 py-1 text-xs text-white/80">
+              {f.type.startsWith('image') ? '🖼️' : f.type.startsWith('video') ? '🎬' : '📎'} {f.name}
+            </div>
+          ))}
+        </div>
+      )}
       <div className="mt-2 flex items-center justify-between gap-3">
-        <input
-          type="file"
-          accept="image/*,video/*"
-          multiple
-          onChange={(e)=>setFiles(Array.from(e.target.files ?? []))}
-          className="text-xs text-white/70"
-        />
+        <label className="inline-flex items-center gap-2 px-3 py-1.5 rounded border border-white/15 text-white/90 hover:bg-white/10 cursor-pointer">
+          <input
+            type="file"
+            accept="image/*,video/*"
+            multiple
+            onChange={(e)=>setFiles(Array.from(e.target.files ?? []))}
+            className="hidden"
+          />
+          <span className="text-sm">Add media</span>
+        </label>
         <button
           type="button"
           disabled={busy || (body.trim().length === 0 && files.length === 0)}

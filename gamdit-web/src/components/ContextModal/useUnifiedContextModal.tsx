@@ -41,6 +41,7 @@ export function useUnifiedContextModal(
 ) {
   const [context, setContext] = useState<ContextData | null>(null);
   const [post, setPost] = useState<PostRow | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   
   // Like state for posts
   const [postLikes, setPostLikes] = useState<Record<string, PostLikeEntry>>({});
@@ -134,9 +135,33 @@ export function useUnifiedContextModal(
     }
 
     if (context.type === 'post') {
-      const likeK = postLikeKey(context.postId);
+      const postId = context.postId;
+      const likeK = postLikeKey(postId);
       const entry = postLikes[likeK] ?? { liked: false, count: (post?.like_count || 0) };
       
+      const isOwner = viewerId && post?.user_id && viewerId === post.user_id;
+
+      async function onDeletePost() {
+        if (!viewerId || !isOwner) return;
+        await supabase.from('posts').delete().eq('id', postId).eq('user_id', viewerId);
+        close();
+      }
+      async function onCopyLink() {
+        try {
+          const base = typeof window !== 'undefined' ? window.location.origin : '';
+          const url = `${base}/u/${post?.username ?? ''}`;
+          await navigator.clipboard.writeText(url);
+        } catch {}
+      }
+      async function onShare() {
+        try {
+          const base = typeof window !== 'undefined' ? window.location.origin : '';
+          const url = `${base}/u/${post?.username ?? ''}`;
+          if (navigator.share) await navigator.share({ title: post?.game_name ?? 'Post', url });
+          else await navigator.clipboard.writeText(url);
+        } catch {}
+      }
+
       return (
         <div className="fixed inset-0 z-[70]">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={close} />
@@ -169,11 +194,53 @@ export function useUnifiedContextModal(
                     count={entry.count}
                     active={entry.liked}
                     busy={postLikeBusy[likeK]}
-                    onClick={() => onTogglePostLike(context.postId)}
+                    onClick={() => onTogglePostLike(postId)}
                   />
                 </div>
               </div>
-              <button
+              <div className="ml-auto flex items-center gap-2">
+                {/* Actions menu */}
+                <div className="relative">
+                  <button
+                    onClick={() => setMenuOpen((v) => !v)}
+                    className="rounded-lg p-2 text-[rgb(var(--txt-muted))] hover:text-[rgb(var(--txt))] hover:bg-[rgb(var(--hover))]"
+                    aria-label="More actions"
+                    type="button"
+                  >
+                    ⋯
+                  </button>
+                  {menuOpen && (
+                    <div
+                      className="absolute right-0 mt-2 w-44 rounded-lg border border-[rgb(var(--border))] bg-[rgb(var(--bg-elev))] shadow-[var(--shadow-md)] z-[75]"
+                      role="menu"
+                    >
+                      {isOwner ? (
+                        <button
+                          onClick={() => { setMenuOpen(false); onDeletePost(); }}
+                          className="block w-full text-left px-3 py-2 text-[rgb(var(--danger))] hover:bg-[rgb(var(--hover))] rounded-t-lg"
+                          role="menuitem"
+                        >
+                          Delete
+                        </button>
+                      ) : null}
+                      <button
+                        onClick={() => { setMenuOpen(false); onShare(); }}
+                        className={`block w-full text-left px-3 py-2 hover:bg-[rgb(var(--hover))] ${isOwner ? '' : 'rounded-t-lg'}`}
+                        role="menuitem"
+                      >
+                        Share
+                      </button>
+                      <button
+                        onClick={() => { setMenuOpen(false); onCopyLink(); }}
+                        className="block w-full text-left px-3 py-2 hover:bg-[rgb(var(--hover))] rounded-b-lg"
+                        role="menuitem"
+                      >
+                        Copy link
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <button
                 onClick={close}
                 className="ml-2 rounded-lg p-2 text-[rgb(var(--txt-muted))] hover:text-[rgb(var(--txt))] hover:bg-[rgb(var(--hover))] transition-colors"
                 aria-label="Close"
@@ -183,6 +250,7 @@ export function useUnifiedContextModal(
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
+              </div>
             </div>
 
             {/* Body + media + thread */}
@@ -207,7 +275,7 @@ export function useUnifiedContextModal(
               )}
 
               <PostCommentThread
-                postId={context.postId}
+                postId={postId}
                 viewerId={viewerId}
                 onClose={close}
                 embed={true}
@@ -220,7 +288,7 @@ export function useUnifiedContextModal(
     }
 
     return null;
-  }, [context, post, viewerId, close, supabase]);
+  }, [context, post, viewerId, close, supabase, menuOpen]);
 
   return { 
     openReview, 

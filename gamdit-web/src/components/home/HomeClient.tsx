@@ -815,6 +815,33 @@ export default function HomeClient() {
                     const entry = postLikes[likeK] ?? { liked: false, count: (p.like_count || 0) };
                     const cKey = postCKey(p.id);
                     const cCount = postCommentCounts[cKey] ?? (p.comment_count || 0);
+                    const isOwner = me && p.user_id && me === p.user_id;
+                    const copyLink = async () => {
+                      try {
+                        const base = typeof window !== 'undefined' ? window.location.origin : '';
+                        const url = `${base}/u/${p.username ?? ''}`;
+                        await navigator.clipboard.writeText(url);
+                      } catch {}
+                    };
+                    const shareLink = async () => {
+                      try {
+                        const base = typeof window !== 'undefined' ? window.location.origin : '';
+                        const url = `${base}/u/${p.username ?? ''}`;
+                        if (navigator.share) await navigator.share({ title: p.game_name ?? 'Post', url });
+                        else await navigator.clipboard.writeText(url);
+                      } catch {}
+                    };
+                    const deletePost = async (e?: React.MouseEvent) => {
+                      e?.stopPropagation();
+                      if (!me || !isOwner) return;
+                      await supabase
+                        .from('posts')
+                        .delete()
+                        .eq('id', p.id)
+                        .eq('user_id', me);
+                      setUnifiedFeed(prev => (prev ?? []).filter(it => !(it.kind === 'post' && it.post.id === p.id)));
+                      setPosts(prev => (prev ?? []).filter(row => row.id !== p.id));
+                    };
 
                     return (
                       <Card
@@ -872,6 +899,23 @@ export default function HomeClient() {
                               )}
                               <span className="text-[rgb(var(--txt-subtle))]">·</span>
                               <span className="text-sm text-[rgb(var(--txt-subtle))]">{timeAgo(p.created_at)}</span>
+                              <div className="ml-auto relative">
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); const el = (e.currentTarget.nextSibling as HTMLElement | null); if (el) el.classList.toggle('hidden'); }}
+                                  className="rounded p-1 text-[rgb(var(--txt-muted))] hover:text-[rgb(var(--txt))] hover:bg-[rgb(var(--hover))]"
+                                  aria-label="More actions"
+                                  type="button"
+                                >
+                                  ⋯
+                                </button>
+                                <div className="hidden absolute right-0 mt-2 w-44 rounded-lg border border-[rgb(var(--border))] bg-[rgb(var(--bg-elev))] shadow-[var(--shadow-md)] z-[60]" role="menu" onClick={(e)=>e.stopPropagation()}>
+                                  {isOwner ? (
+                                    <button onClick={(e)=>{ (e.currentTarget.parentElement as HTMLElement).classList.add('hidden'); deletePost(e); }} className="block w-full text-left px-3 py-2 text-[rgb(var(--danger))] hover:bg-[rgb(var(--hover))] rounded-t-lg" role="menuitem">Delete</button>
+                                  ) : null}
+                                  <button onClick={(e)=>{ (e.currentTarget.parentElement as HTMLElement).classList.add('hidden'); shareLink(); }} className={`block w-full text-left px-3 py-2 hover:bg-[rgb(var(--hover))] ${isOwner ? '' : 'rounded-t-lg'}`} role="menuitem">Share</button>
+                                  <button onClick={(e)=>{ (e.currentTarget.parentElement as HTMLElement).classList.add('hidden'); copyLink(); }} className="block w-full text-left px-3 py-2 hover:bg-[rgb(var(--hover))] rounded-b-lg" role="menuitem">Copy link</button>
+                                </div>
+                              </div>
                             </div>
 
                             {/* Content Type Badge */}

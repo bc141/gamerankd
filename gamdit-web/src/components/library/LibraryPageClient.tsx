@@ -102,7 +102,7 @@ export default function LibraryPageClient() {
 
       // base query
       const { data, error } = await supabase
-        .from('user_game_library')
+        .from('library')
         .select('game_id,status,updated_at,game:games(id,name,cover_url)')
         .eq('user_id', uid)
         .order('updated_at', { ascending: false })

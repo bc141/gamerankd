@@ -138,7 +138,7 @@ export default function ProfileLibraryPage() {
 
     // persist
     await supabase
-      .from('user_game_library')
+      .from('library')
       .upsert(
         { user_id: owner!.id, game_id: gameId, status: next, updated_at: new Date().toISOString() },
         { onConflict: 'user_id,game_id' }
@@ -189,7 +189,7 @@ export default function ProfileLibraryPage() {
 
     // persist delete
     const { error } = await supabase
-      .from('user_game_library')
+      .from('library')
       .delete()
       .eq('user_id', owner.id)
       .eq('game_id', gameId)
@@ -260,7 +260,7 @@ export default function ProfileLibraryPage() {
 
       // --- fetch their library (data) + counts in parallel ---
       let qBase = supabase
-        .from('user_game_library')
+        .from('library')
         .select('game_id,status,updated_at,game:games(id,name,cover_url)')
         .eq('user_id', prof.id);
 
@@ -276,7 +276,7 @@ export default function ProfileLibraryPage() {
 
       // counts: unfiltered, tiny payload
       const qCounts = supabase
-        .from('user_game_library')
+        .from('library')
         .select('status')
         .eq('user_id', prof.id)
         .limit(2000);

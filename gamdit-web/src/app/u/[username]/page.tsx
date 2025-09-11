@@ -263,7 +263,7 @@ export default function PublicProfilePage() {
   async function fetchLibrary(ownerId: string) {
     // Pull most-recent first; join covers for preview
     const { data, error } = await supabase
-      .from('user_game_library')
+      .from('library')
       .select('game_id,status,updated_at,games:game_id (id,cover_url,name)')
       .eq('user_id', ownerId)
       .order('updated_at', { ascending: false })

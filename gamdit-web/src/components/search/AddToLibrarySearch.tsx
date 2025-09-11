@@ -63,7 +63,7 @@ export default function AddToLibrarySearch({ ownerId }: { ownerId: string }) {
   }, [q]);
 
   async function upsertStatus(game_id: number, status: LibraryStatus) {
-    await supabase.from('user_game_library').upsert(
+    await supabase.from('library').upsert(
       { user_id: ownerId, game_id, status, updated_at: new Date().toISOString() },
       { onConflict: 'user_id,game_id' }
     );

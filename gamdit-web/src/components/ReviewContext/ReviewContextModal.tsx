@@ -211,6 +211,39 @@ export default function ReviewContextModal({
 
   const canLinkAuthor = Boolean(author?.username) && !(blockedInfo?.iBlocked || blockedInfo?.blockedMe);
 
+  // Actions menu state
+  const [menuOpen, setMenuOpen] = useState(false);
+  function toggleMenu() { setMenuOpen((v) => !v); }
+  async function onDeleteReview() {
+    if (!viewerId || !author || viewerId !== author.id) return;
+    await supabase
+      .from('reviews')
+      .delete()
+      .eq('user_id', viewerId)
+      .eq('game_id', gameId);
+    onClose();
+  }
+  async function onCopyLink() {
+    try {
+      const base = typeof window !== 'undefined' ? window.location.origin : '';
+      const url = author?.username ? `${base}/u/${author.username}?game=${gameId}` : `${base}/game/${gameId}`;
+      await navigator.clipboard.writeText(url);
+      setMenuOpen(false);
+    } catch {}
+  }
+  async function onShare() {
+    try {
+      const base = typeof window !== 'undefined' ? window.location.origin : '';
+      const url = author?.username ? `${base}/u/${author.username}?game=${gameId}` : `${base}/game/${gameId}`;
+      if (navigator.share) {
+        await navigator.share({ title: row?.games?.name ?? 'Review', url });
+      } else {
+        await navigator.clipboard.writeText(url);
+      }
+      setMenuOpen(false);
+    } catch {}
+  }
+
   const GameCover = row?.games?.id ? (
     <Link
       href={`/game/${row.games.id}`}
@@ -287,7 +320,7 @@ export default function ReviewContextModal({
       >
         {/* Summary (tight; no divider below) */}
         <div className="relative px-6 pt-4 pb-3">
-          {/* Close */}
+          {/* Close + Actions */}
           <button
             onClick={onClose}
             className="absolute top-4 right-4 p-2 rounded-lg hover:bg-[rgb(var(--hover))] text-[rgb(var(--txt-muted))] hover:text-[rgb(var(--txt))] transition-colors"
@@ -296,6 +329,48 @@ export default function ReviewContextModal({
           >
             <XMarkIcon className="h-5 w-5" />
           </button>
+          <div className="absolute top-4 right-14">
+            <button
+              onClick={toggleMenu}
+              className="p-2 rounded-lg hover:bg-[rgb(var(--hover))] text-[rgb(var(--txt-muted))] hover:text-[rgb(var(--txt))] transition-colors"
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              aria-label="More actions"
+              type="button"
+            >
+              ⋯
+            </button>
+            {menuOpen && (
+              <div className="mt-2 w-44 rounded-xl border border-[rgb(var(--border))] bg-[rgb(var(--bg-card))] shadow-[var(--shadow-lg)] overflow-hidden" role="menu">
+                {viewerId && author && viewerId === author.id && (
+                  <button
+                    onClick={onDeleteReview}
+                    className="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-[rgb(var(--hover))]"
+                    role="menuitem"
+                    type="button"
+                  >
+                    Delete review
+                  </button>
+                )}
+                <button
+                  onClick={onCopyLink}
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-[rgb(var(--hover))]"
+                  role="menuitem"
+                  type="button"
+                >
+                  Copy link
+                </button>
+                <button
+                  onClick={onShare}
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-[rgb(var(--hover))]"
+                  role="menuitem"
+                  type="button"
+                >
+                  Share…
+                </button>
+              </div>
+            )}
+          </div>
 
           {loading ? (
             <div className="flex items-center gap-4">
@@ -328,26 +403,26 @@ export default function ReviewContextModal({
                 )}
 
                 <div className="mt-2 flex items-center gap-2 flex-wrap text-sm">
-                  {author ? (
+                  {author && (
                     <>
                       {AuthorAvatar}
-                      <span className="text-[rgb(var(--txt-muted))]">
-                        by{' '}
-                        {canLinkAuthor ? (
-                          <Link
-                            href={`/u/${author.username!}`}
-                            prefetch={false}
-                            className="text-[rgb(var(--txt))] hover:text-[rgb(var(--accent))] hover:underline font-medium"
-                          >
-                            {author.display_name || author.username}
-                          </Link>
-                        ) : (
-                          <span>{author.display_name || author.username || 'Player'}</span>
-                        )}
-                      </span>
+                      {canLinkAuthor ? (
+                        <Link
+                          href={`/u/${author.username!}`}
+                          prefetch={false}
+                          className="text-[rgb(var(--txt))] hover:text-[rgb(var(--accent))] hover:underline font-medium"
+                        >
+                          {author.display_name || author.username}
+                        </Link>
+                      ) : (
+                        <span className="text-[rgb(var(--txt))] font-medium">{author.display_name || author.username || 'Player'}</span>
+                      )}
+                      {author.username && (
+                        <span className="text-[rgb(var(--txt-muted))]">@{author.username}</span>
+                      )}
                       <span className="text-[rgb(var(--txt-subtle))]">·</span>
                     </>
-                  ) : null}
+                  )}
 
                   <StarRating value={stars} readOnly size={16} />
                   <span className="text-[rgb(var(--txt))] font-medium">{stars.toFixed(1)} / 5</span>

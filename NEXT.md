@@ -37,6 +37,7 @@
 - Schema: Fixed database schema mismatch (preview → summary column) ✅
 
 ## Recent Changes Log
+- 2025-09-11: Fix NEXT guard false positive by removing literal keyword in NEXT.md
 - 2025-09-11: Successfully resolved all 9 Security Definer View errors - views recreated without SECURITY DEFINER property
 - **2025-01-11**: **SECURITY AUDIT COMPLETED** - Removed test artifacts, fixed vulnerabilities, updated .gitignore
 - 2025-09-11: Applied aggressive migration to force remove SECURITY DEFINER from all views - linter cache should refresh
@@ -67,4 +68,4 @@
 - Should we add more handoff fields to NEXT.md?
 - Do we need additional CI checks beyond UNFILLED detection?
 
-Use "UNFILLED" literally; CI will fail if these placeholders remain on a PR.
+Do not leave any placeholders unfilled; the CI guard fails if placeholders remain.

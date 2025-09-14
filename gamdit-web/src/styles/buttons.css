@@ -13,7 +13,7 @@
 }
 .btn:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px rgba(var(--brand-accent) / 0.5);
+  box-shadow: none;
 }
 .btn:disabled,
 .btn[aria-busy="true"] {

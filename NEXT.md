@@ -37,6 +37,7 @@
 - Schema: Fixed database schema mismatch (preview → summary column) ✅
 
 ## Recent Changes Log
+- 2025-09-14: Fix search functionality: remove focus ring from search button, fix API key issue in search endpoint
 - 2025-09-11: Apply Midnight Nova button system: header/profile/menu icon buttons; feed post context menu icon style.
 - 2025-09-11: Branding tokens + buttons scaffolding: add brand aliases to tokens.css, create styles/buttons.css, import in globals.css.
 - 2025-09-11: Add Midnight Nova Brand Note (docs/brand.md); update NEXT.md with branding scope and acceptance.

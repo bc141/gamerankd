@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 const SB_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SB_SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY!; // server-only
+const SB_ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 export async function GET(req: NextRequest) {
   const headers = { 'Cache-Control': 'no-store' as const };
@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ items: [], meta: { route: 'v2' } }, { headers });
     }
 
-    const sb = createClient(SB_URL, SB_SERVICE);
+    const sb = createClient(SB_URL, SB_ANON);
 
     const wantGames = scope === 'all' || scope === 'games';
     const wantUsers = scope === 'all' || scope === 'users';

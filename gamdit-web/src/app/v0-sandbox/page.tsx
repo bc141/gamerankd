@@ -75,8 +75,8 @@ export default function V0SandboxPage() {
               <div className="absolute inset-0 bg-black/10" />
             </div>
 
-            <div className="mt-8">
-              {/* V0 Feed Tabs - Exact replica */}
+            <div className="mt-6">
+              {/* V0 Feed Tabs - Midnight Nova spacing rhythm */}
               <div role="tablist" className="flex bg-card rounded-lg p-1 border border-border">
                 <button
                   role="tab"
@@ -106,9 +106,9 @@ export default function V0SandboxPage() {
                 </button>
               </div>
 
-              <div className="mt-6">
-                {/* V0 Composer - Exact replica */}
-                <div className="bg-card border border-border rounded-xl p-6">
+              <div className="mt-4">
+                {/* V0 Composer - Midnight Nova spacing rhythm */}
+                <div className="bg-card border border-border rounded-xl p-4">
                   <div className="flex gap-4">
                     <img src={userAvatar || "/avatar-placeholder.svg"} alt="Your avatar" className="w-10 h-10 rounded-full flex-shrink-0" />
 
@@ -143,7 +143,7 @@ export default function V0SandboxPage() {
                   </div>
                 </div>
 
-                <div className="mt-8 space-y-6">
+                <div className="mt-6 space-y-4">
                   {isLoading ? (
                     <>
                       <div className="bg-card border border-border rounded-xl p-6 animate-pulse">

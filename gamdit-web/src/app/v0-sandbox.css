@@ -60,12 +60,12 @@
   --ring: var(--brand-accent);
   --radius: 0.5rem;
   --sidebar: var(--neutral-bg);
-  --sidebar-foreground: var(--text-muted);
+  --sidebar-foreground: var(--text-subtle);
   --sidebar-primary: var(--brand-accent);
   --sidebar-primary-foreground: var(--text-strong);
   --sidebar-accent: var(--neutral-surface);
-  --sidebar-accent-foreground: var(--text-muted);
-  --sidebar-border: var(--neutral-border);
+  --sidebar-accent-foreground: var(--text-subtle);
+  --sidebar-border: var(--border-subtle);
   --sidebar-ring: var(--brand-accent);
 }
 
@@ -78,21 +78,44 @@
   }
 }
 
-/* V0 Button Variants - Exact match */
+/* V0 Button Variants - Midnight Nova Brand Rules Applied */
 .v0-button {
   @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50;
+  /* Apply outline by default policy */
+  border: 1px solid rgb(var(--neutral-border));
+  background: transparent;
+  color: rgb(var(--text-strong));
 }
 
 .v0-button-default {
-  @apply bg-primary text-primary-foreground shadow-sm hover:bg-primary/90;
+  /* One solid primary per view - only for main CTA */
+  background: rgb(var(--brand-accent));
+  color: rgb(var(--text-strong));
+  border-color: rgb(var(--brand-accent));
 }
 
 .v0-button-ghost {
-  @apply hover:bg-accent hover:text-accent-foreground;
+  /* Quiet outline controls as default */
+  border-color: transparent;
+  background: transparent;
+  color: rgb(var(--text-muted));
+}
+
+.v0-button-ghost:hover {
+  background: rgb(var(--hover));
+  color: rgb(var(--text-strong));
 }
 
 .v0-button-outline {
-  @apply border bg-background shadow-sm hover:bg-accent hover:text-accent-foreground;
+  /* Outline style for secondary actions */
+  border-color: rgb(var(--neutral-border));
+  background: transparent;
+  color: rgb(var(--text-strong));
+}
+
+.v0-button-outline:hover {
+  background: rgb(var(--hover));
+  border-color: rgb(var(--border-strong));
 }
 
 .v0-button-sm {

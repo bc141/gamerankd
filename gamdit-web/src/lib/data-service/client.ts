@@ -12,13 +12,14 @@ import type {
   CreateCommentInput,
   FollowUserInput,
   ReactionInput,
+  ReactionCounts,
   Cursor,
   DataServiceResult,
   DataServiceError
 } from './types'
 
 class ClientDataService {
-  private async handleError(error: any, operation: string): DataServiceError {
+  private handleError(error: any, operation: string): DataServiceError {
     console.error(`Data service error in ${operation}:`, error)
     return {
       code: error.code || 'UNKNOWN_ERROR',
@@ -83,22 +84,22 @@ class ClientDataService {
         updated_at: post.updated_at,
         user_id: post.user_id,
         user: {
-          id: post.user.id,
-          username: post.user.username,
-          display_name: post.user.display_name,
-          avatar_url: post.user.avatar_url,
-          bio: post.user.bio,
-          followers_count: post.user.followers_count || 0,
-          following_count: post.user.following_count || 0,
-          posts_count: post.user.posts_count || 0,
+          id: (post.user as any)?.id || '',
+          username: (post.user as any)?.username || '',
+          display_name: (post.user as any)?.display_name || '',
+          avatar_url: (post.user as any)?.avatar_url,
+          bio: (post.user as any)?.bio,
+          followers_count: (post.user as any)?.followers_count || 0,
+          following_count: (post.user as any)?.following_count || 0,
+          posts_count: (post.user as any)?.posts_count || 0,
           is_following: false, // Will be populated by user context
-          is_verified: post.user.is_verified || false
+          is_verified: (post.user as any)?.is_verified || false
         },
         game_id: post.game_id,
         game: post.game ? {
-          id: post.game.id,
-          name: post.game.name,
-          cover_url: post.game.cover_url,
+          id: (post.game as any)?.id || '',
+          name: (post.game as any)?.name || '',
+          cover_url: (post.game as any)?.cover_url,
           last_played_at: post.created_at, // Approximate
           playtime_minutes: 0, // Would need separate query
           progress_percentage: 0, // Would need separate query
@@ -106,10 +107,10 @@ class ClientDataService {
         } : undefined,
         media_urls: post.media_urls || [],
         reaction_counts: {
-          likes: post.reaction_counts?.likes || 0,
-          comments: post.reaction_counts?.comments || 0,
-          shares: post.reaction_counts?.shares || 0,
-          views: post.reaction_counts?.views || 0
+          likes: (post.reaction_counts as any)?.likes || 0,
+          comments: (post.reaction_counts as any)?.comments || 0,
+          shares: (post.reaction_counts as any)?.shares || 0,
+          views: (post.reaction_counts as any)?.views || 0
         },
         user_reactions: {
           liked: false, // Will be populated by user context
@@ -135,7 +136,7 @@ class ClientDataService {
     } catch (error) {
       return {
         success: false,
-        error: await this.handleError(error, 'getFeedPosts')
+        error: this.handleError(error, 'getFeedPosts')
       }
     }
   }
@@ -157,7 +158,7 @@ class ClientDataService {
     } catch (error) {
       return {
         success: false,
-        error: await this.handleError(error, 'getWhoToFollow')
+        error: this.handleError(error, 'getWhoToFollow')
       }
     }
   }
@@ -179,7 +180,7 @@ class ClientDataService {
     } catch (error) {
       return {
         success: false,
-        error: await this.handleError(error, 'getTrendingTopics')
+        error: this.handleError(error, 'getTrendingTopics')
       }
     }
   }
@@ -201,7 +202,7 @@ class ClientDataService {
     } catch (error) {
       return {
         success: false,
-        error: await this.handleError(error, 'getContinuePlaying')
+        error: this.handleError(error, 'getContinuePlaying')
       }
     }
   }
@@ -265,7 +266,7 @@ class ClientDataService {
     } catch (error) {
       return {
         success: false,
-        error: await this.handleError(error, 'createPost')
+        error: this.handleError(error, 'createPost')
       }
     }
   }
@@ -290,7 +291,7 @@ class ClientDataService {
     } catch (error) {
       return {
         success: false,
-        error: await this.handleError(error, 'toggleReaction')
+        error: this.handleError(error, 'toggleReaction')
       }
     }
   }
@@ -314,7 +315,7 @@ class ClientDataService {
     } catch (error) {
       return {
         success: false,
-        error: await this.handleError(error, 'followUser')
+        error: this.handleError(error, 'followUser')
       }
     }
   }

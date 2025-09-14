@@ -32,7 +32,7 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey, {
 })
 
 class ServerDataService {
-  private async handleError(error: any, operation: string): DataServiceError {
+  private handleError(error: any, operation: string): DataServiceError {
     console.error(`Server data service error in ${operation}:`, error)
     return {
       code: error.code || 'UNKNOWN_ERROR',
@@ -83,22 +83,22 @@ class ServerDataService {
         updated_at: post.updated_at,
         user_id: post.user_id,
         user: {
-          id: post.user.id,
-          username: post.user.username,
-          display_name: post.user.display_name,
-          avatar_url: post.user.avatar_url,
-          bio: post.user.bio,
-          followers_count: post.user.followers_count || 0,
-          following_count: post.user.following_count || 0,
-          posts_count: post.user.posts_count || 0,
+          id: (post.user as any)?.id || '',
+          username: (post.user as any)?.username || '',
+          display_name: (post.user as any)?.display_name || '',
+          avatar_url: (post.user as any)?.avatar_url,
+          bio: (post.user as any)?.bio,
+          followers_count: (post.user as any)?.followers_count || 0,
+          following_count: (post.user as any)?.following_count || 0,
+          posts_count: (post.user as any)?.posts_count || 0,
           is_following: false,
-          is_verified: post.user.is_verified || false
+          is_verified: (post.user as any)?.is_verified || false
         },
         game_id: post.game_id,
         game: post.game ? {
-          id: post.game.id,
-          name: post.game.name,
-          cover_url: post.game.cover_url,
+          id: (post.game as any)?.id || '',
+          name: (post.game as any)?.name || '',
+          cover_url: (post.game as any)?.cover_url,
           last_played_at: post.created_at,
           playtime_minutes: 0,
           progress_percentage: 0,
@@ -135,7 +135,7 @@ class ServerDataService {
     } catch (error) {
       return {
         success: false,
-        error: await this.handleError(error, 'preloadFeedPosts')
+        error: this.handleError(error, 'preloadFeedPosts')
       }
     }
   }
@@ -164,7 +164,7 @@ class ServerDataService {
     } catch (error) {
       return {
         success: false,
-        error: await this.handleError(error, 'preloadSidebarData')
+        error: this.handleError(error, 'preloadSidebarData')
       }
     }
   }
@@ -183,7 +183,7 @@ class ServerDataService {
     } catch (error) {
       return {
         success: false,
-        error: await this.handleError(error, 'getWhoToFollow')
+        error: this.handleError(error, 'getWhoToFollow')
       }
     }
   }
@@ -202,7 +202,7 @@ class ServerDataService {
     } catch (error) {
       return {
         success: false,
-        error: await this.handleError(error, 'getTrendingTopics')
+        error: this.handleError(error, 'getTrendingTopics')
       }
     }
   }
@@ -221,7 +221,7 @@ class ServerDataService {
     } catch (error) {
       return {
         success: false,
-        error: await this.handleError(error, 'getContinuePlaying')
+        error: this.handleError(error, 'getContinuePlaying')
       }
     }
   }

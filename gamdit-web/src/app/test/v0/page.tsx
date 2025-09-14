@@ -146,10 +146,10 @@ function V0TestPageContent() {
               <strong>Posts loaded:</strong> {posts.length}
             </p>
             <p className="text-sm text-foreground">
-              <strong>Games loaded:</strong> {games.length}
+              <strong>Games loaded:</strong> {continuePlaying.length}
             </p>
             <p className="text-sm text-foreground">
-              <strong>Users loaded:</strong> {users.length}
+              <strong>Users loaded:</strong> {whoToFollow.length}
             </p>
           </div>
         </div>
@@ -256,13 +256,13 @@ function V0TestPageContent() {
                 games={continuePlaying.map(game => ({
                   id: game.id,
                   name: game.name,
-                  cover_url: game.cover_url
+                  cover_url: game.cover_url || ''
                 }))}
                 users={whoToFollow.map(user => ({
                   id: user.id,
                   username: user.username,
                   display_name: user.display_name,
-                  avatar_url: user.avatar_url
+                  avatar_url: user.avatar_url || ''
                 }))}
                 onFollow={handleFollow}
                 onPlayGame={handlePlayGame}

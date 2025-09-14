@@ -6,7 +6,7 @@ import { waitForSession } from '@/lib/waitForSession';
 import { timeAgo } from '@/lib/timeAgo';
 import { HomeV0Adapter } from './HomeV0Adapter';
 import { Header } from '@/components/v0-ui';
-import type { PostData, ContinuePlayingGame, WhoToFollowUser } from '@/components/v0-ui';
+import type { PostData, Game, User } from '@/components/v0-ui';
 
 // ---------- constants ----------
 const POSTS_VIEW = 'post_feed_v2';
@@ -30,7 +30,7 @@ interface PostRow {
   game_cover_url: string;
 }
 
-interface User {
+interface LocalUser {
   id: string;
   username: string;
   display_name: string;
@@ -78,10 +78,10 @@ function transformPostToV0(post: PostRow): PostData {
 
 // ---------- main component ----------
 export default function HomeClientV0() {
-  const [me, setMe] = useState<User | null>(null);
+  const [me, setMe] = useState<LocalUser | null>(null);
   const [posts, setPosts] = useState<PostData[]>([]);
-  const [continuePlayingGames, setContinuePlayingGames] = useState<ContinuePlayingGame[]>([]);
-  const [whoToFollow, setWhoToFollow] = useState<WhoToFollowUser[]>([]);
+  const [games, setGames] = useState<Game[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [scope, setScope] = useState<'following' | 'for-you'>('following');
 
@@ -106,35 +106,31 @@ export default function HomeClientV0() {
         setPosts(postsData.map(transformPostToV0));
 
         // Mock data for sidebar (replace with real data later)
-        setContinuePlayingGames([
+        setGames([
           {
             id: '1',
-            title: 'Cyberpunk 2077',
-            cover: '/placeholder.jpg',
-            progress: '67% complete',
+            name: 'Cyberpunk 2077',
+            cover_url: '/placeholder.jpg',
           },
           {
             id: '2',
-            title: 'Elden Ring',
-            cover: '/placeholder.jpg',
-            progress: '23 hours played',
+            name: 'Elden Ring',
+            cover_url: '/placeholder.jpg',
           },
         ]);
 
-        setWhoToFollow([
+        setUsers([
           {
             id: '1',
-            avatar: '/avatar-placeholder.svg',
-            displayName: 'ProGamer_Mike',
-            handle: '@mikeplays',
-            isFollowing: false,
+            username: 'mikeplays',
+            display_name: 'ProGamer_Mike',
+            avatar_url: '/avatar-placeholder.svg',
           },
           {
             id: '2',
-            avatar: '/avatar-placeholder.svg',
-            displayName: 'StreamQueen',
-            handle: '@queenstreams',
-            isFollowing: false,
+            username: 'queenstreams',
+            display_name: 'StreamQueen',
+            avatar_url: '/avatar-placeholder.svg',
           },
         ]);
 
@@ -258,8 +254,8 @@ export default function HomeClientV0() {
 
       <HomeV0Adapter
         posts={posts}
-        continuePlayingGames={continuePlayingGames}
-        whoToFollow={whoToFollow}
+        games={games}
+        users={users}
         userAvatar={me?.avatar_url}
         isLoading={isLoading}
         onTabChange={handleTabChange}

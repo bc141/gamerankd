@@ -48,7 +48,7 @@ export default function V0TestPage() {
   const [games, setGames] = useState<V0Game[]>([])
   const [users, setUsers] = useState<V0User[]>([])
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set())
-  const [activeTab, setActiveTab] = useState('for-you')
+  const [activeTab, setActiveTab] = useState<'following' | 'for-you'>('for-you')
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {

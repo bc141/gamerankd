@@ -7,17 +7,17 @@ import {
   Composer, 
   PostCard, 
   Sidebar, 
-  PostSkeleton,
+  SkeletonPostCard,
   type PostData,
-  type ContinuePlayingGame,
-  type WhoToFollowUser
+  type Game,
+  type User
 } from "@/components/v0-ui"
 
 interface HomeV0AdapterProps {
   // Data props
   posts: PostData[]
-  continuePlayingGames: ContinuePlayingGame[]
-  whoToFollow: WhoToFollowUser[]
+  games: Game[]
+  users: User[]
   userAvatar?: string
   isLoading?: boolean
   
@@ -39,8 +39,8 @@ interface HomeV0AdapterProps {
 
 export function HomeV0Adapter({
   posts,
-  continuePlayingGames,
-  whoToFollow,
+  games,
+  users,
   userAvatar,
   isLoading = false,
   onTabChange,
@@ -58,18 +58,13 @@ export function HomeV0Adapter({
   onDiscoverGames
 }: HomeV0AdapterProps) {
   const [activeTab, setActiveTab] = useState<"following" | "for-you">("following")
-  const [composerContent, setComposerContent] = useState("")
-
   const handleTabChange = (tab: "following" | "for-you") => {
     setActiveTab(tab)
     onTabChange(tab)
   }
 
-  const handlePost = () => {
-    if (composerContent.trim()) {
-      onPost(composerContent)
-      setComposerContent("")
-    }
+  const handlePost = (content: string) => {
+    onPost(content)
   }
 
   return (
@@ -79,8 +74,8 @@ export function HomeV0Adapter({
         <div className="flex-1 min-w-0 lg:min-w-[720px]">
           <HeroCard
             title="Welcome to the Gaming Universe"
-            ctaText="Discover Games"
-            onCtaClick={onDiscoverGames}
+            buttonText="Discover Games"
+            onButtonClick={onDiscoverGames}
           />
 
           <div className="mt-8">
@@ -88,20 +83,17 @@ export function HomeV0Adapter({
 
             <div className="mt-6">
               <Composer
-                content={composerContent}
-                onContentChange={setComposerContent}
-                onSubmit={handlePost}
+                onPost={handlePost}
                 onAddImage={onAddImage}
                 onAddGame={onAddGame}
-                userAvatar={userAvatar}
               />
 
               <div className="mt-8 space-y-6">
                 {isLoading ? (
                   <>
-                    <PostSkeleton />
-                    <PostSkeleton />
-                    <PostSkeleton />
+                    <SkeletonPostCard />
+                    <SkeletonPostCard />
+                    <SkeletonPostCard />
                   </>
                 ) : (
                   posts.map((post) => (
@@ -123,12 +115,10 @@ export function HomeV0Adapter({
         {/* Sidebar */}
         <aside className="hidden lg:block w-[360px] flex-shrink-0">
           <Sidebar
-            continuePlayingGames={continuePlayingGames}
-            whoToFollow={whoToFollow}
-            onGameClick={onGameClick}
-            onFollowUser={onFollowUser}
-            onSeeAllGames={onSeeAllGames}
-            onSeeAllUsers={onSeeAllUsers}
+            games={games}
+            users={users}
+            onPlayGame={onGameClick}
+            onFollow={onFollowUser}
           />
         </aside>
       </div>

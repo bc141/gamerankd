@@ -18,7 +18,7 @@ export function Composer({
   placeholder = "What's happening in your game?"
 }: ComposerProps) {
   const [content, setContent] = useState('')
-  const isValid = content.trim().length > 0
+  const isValid = content.trim().length > 0 && content.trim().length <= 280
 
   const handleSubmit = () => {
     if (isValid) {
@@ -65,15 +65,20 @@ export function Composer({
               </button>
             </div>
 
-            <button
-              onClick={handleSubmit}
-              disabled={!isValid}
-              data-testid="composer-submit"
-              className="composer-submit"
-              type="button"
-            >
-              Post
-            </button>
+            <div className="flex items-center gap-2">
+              <span className={`text-xs ${content.length > 260 ? 'text-red-500' : 'text-muted-foreground'}`}>
+                {content.length}/280
+              </span>
+              <button
+                onClick={handleSubmit}
+                disabled={!isValid}
+                data-testid="composer-submit"
+                className="composer-submit"
+                type="button"
+              >
+                Post
+              </button>
+            </div>
           </div>
         </div>
       </div>

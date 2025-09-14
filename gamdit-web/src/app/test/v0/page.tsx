@@ -191,9 +191,9 @@ export default function V0TestPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
           {/* Main Feed */}
-          <div className="lg:col-span-3 space-y-4">
+          <div className="lg:col-span-3 space-y-3">
             {/* Hero Section */}
             <HeroCard
               title="Welcome to Gamdit"

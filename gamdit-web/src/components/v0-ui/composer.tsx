@@ -1,32 +1,29 @@
 "use client"
 
+import { useState } from 'react'
 import { Button } from './button'
 import { ImageIcon, Gamepad2 } from "lucide-react"
 
 interface ComposerProps {
-  content: string
-  onContentChange: (content: string) => void
-  onSubmit: () => void
+  onPost: (content: string, gameId?: string) => void
   onAddImage: () => void
   onAddGame: () => void
-  userAvatar?: string
   placeholder?: string
 }
 
 export function Composer({ 
-  content, 
-  onContentChange, 
-  onSubmit, 
+  onPost, 
   onAddImage, 
   onAddGame,
-  userAvatar = "/avatar-placeholder.svg",
   placeholder = "What's happening in your game?"
 }: ComposerProps) {
+  const [content, setContent] = useState('')
   const isValid = content.trim().length > 0
 
   const handleSubmit = () => {
     if (isValid) {
-      onSubmit()
+      onPost(content)
+      setContent('')
     }
   }
 
@@ -34,7 +31,7 @@ export function Composer({
     <div className="bg-card border border-border rounded-xl p-6">
       <div className="flex gap-4">
         <img 
-          src={userAvatar} 
+          src="/avatar-placeholder.svg" 
           alt="Your avatar" 
           className="w-10 h-10 rounded-full flex-shrink-0" 
         />
@@ -42,7 +39,7 @@ export function Composer({
         <div className="flex-1">
           <textarea
             value={content}
-            onChange={(e) => onContentChange(e.target.value)}
+            onChange={(e) => setContent(e.target.value)}
             placeholder={placeholder}
             className="w-full bg-transparent text-foreground placeholder:text-muted-foreground resize-none border-none outline-none text-lg min-h-[80px]"
             rows={3}

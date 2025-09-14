@@ -1,4 +1,4 @@
-export function PostSkeleton() {
+export function SkeletonPostCard() {
   return (
     <div className="bg-card border border-border rounded-xl p-6 animate-pulse">
       <div className="flex gap-4">
@@ -27,22 +27,38 @@ export function PostSkeleton() {
   )
 }
 
-export function SidebarSkeleton() {
+export function SkeletonSidebar() {
   return (
-    <div className="bg-sidebar border border-sidebar-border rounded-xl p-6 animate-pulse">
-      <div className="h-6 bg-muted rounded w-32 mb-4" />
-
-      <div className="space-y-4">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-muted rounded-full" />
-            <div className="flex-1">
-              <div className="h-4 bg-muted rounded w-20 mb-1" />
-              <div className="h-3 bg-muted rounded w-16" />
+    <div className="space-y-6">
+      <div className="bg-card border border-border rounded-xl p-6 animate-pulse">
+        <div className="h-6 bg-muted rounded w-32 mb-4" />
+        <div className="space-y-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-muted rounded-lg" />
+              <div className="flex-1">
+                <div className="h-4 bg-muted rounded w-20 mb-1" />
+                <div className="h-3 bg-muted rounded w-16" />
+              </div>
             </div>
-            <div className="h-8 bg-muted rounded w-16" />
-          </div>
-        ))}
+          ))}
+        </div>
+      </div>
+      
+      <div className="bg-card border border-border rounded-xl p-6 animate-pulse">
+        <div className="h-6 bg-muted rounded w-32 mb-4" />
+        <div className="space-y-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-muted rounded-full" />
+              <div className="flex-1">
+                <div className="h-4 bg-muted rounded w-20 mb-1" />
+                <div className="h-3 bg-muted rounded w-16" />
+              </div>
+              <div className="h-8 bg-muted rounded w-16" />
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )

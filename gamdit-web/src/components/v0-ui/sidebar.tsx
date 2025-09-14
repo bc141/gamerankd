@@ -1,104 +1,86 @@
 import { Button } from './button'
 import { Play, UserPlus, TrendingUp } from "lucide-react"
 
-export interface ContinuePlayingGame {
+export interface Game {
   id: string
-  title: string
-  cover: string
-  progress: string
+  name: string
+  cover_url: string
 }
 
-export interface WhoToFollowUser {
+export interface User {
   id: string
-  avatar: string
-  displayName: string
-  handle: string
-  isFollowing: boolean
+  username: string
+  display_name: string
+  avatar_url: string
 }
 
 interface SidebarProps {
-  continuePlayingGames: ContinuePlayingGame[]
-  whoToFollow: WhoToFollowUser[]
-  onGameClick: (gameId: string) => void
-  onFollowUser: (userId: string) => void
-  onSeeAllGames: () => void
-  onSeeAllUsers: () => void
+  games: Game[]
+  users: User[]
+  onFollow: (userId: string) => void
+  onPlayGame: (gameId: string) => void
 }
 
 export function Sidebar({ 
-  continuePlayingGames, 
-  whoToFollow, 
-  onGameClick, 
-  onFollowUser,
-  onSeeAllGames,
-  onSeeAllUsers
+  games, 
+  users, 
+  onFollow, 
+  onPlayGame
 }: SidebarProps) {
   return (
     <div className="space-y-6">
       {/* Continue Playing */}
-      <div className="bg-sidebar border border-sidebar-border rounded-xl p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <Play className="w-5 h-5 text-sidebar-accent" />
-            <h2 className="font-semibold text-sidebar-foreground">Continue Playing</h2>
-          </div>
-          <button 
-            onClick={onSeeAllGames}
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-          >
-            See all
-          </button>
+      <div className="bg-card border border-border rounded-xl p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <Play className="w-5 h-5 text-primary" />
+          <h2 className="font-semibold text-foreground">Continue Playing</h2>
         </div>
 
         <div className="space-y-4">
-          {continuePlayingGames.map((game) => (
-            <div key={game.id} className="flex items-center gap-3">
+          {games.map((game) => (
+            <button
+              key={game.id}
+              onClick={() => onPlayGame(game.id)}
+              className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors"
+            >
               <img
-                src={game.cover || "/placeholder.svg"}
-                alt={`${game.title} cover`}
-                className="w-12 h-12 rounded-lg object-cover border border-sidebar-border"
+                src={game.cover_url || "/placeholder.svg"}
+                alt={`${game.name} cover`}
+                className="w-12 h-12 rounded-lg object-cover border border-border"
               />
-              <div className="flex-1 min-w-0">
-                <h3 className="font-medium text-sidebar-foreground text-sm truncate">{game.title}</h3>
-                <p className="text-xs text-muted-foreground">{game.progress}</p>
+              <div className="flex-1 min-w-0 text-left">
+                <h3 className="font-medium text-foreground text-sm truncate">{game.name}</h3>
+                <p className="text-xs text-muted-foreground">Recently played</p>
               </div>
-            </div>
+            </button>
           ))}
         </div>
       </div>
 
       {/* Who to Follow */}
-      <div className="bg-sidebar border border-sidebar-border rounded-xl p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <UserPlus className="w-5 h-5 text-sidebar-accent" />
-            <h2 className="font-semibold text-sidebar-foreground">Who to Follow</h2>
-          </div>
-          <button 
-            onClick={onSeeAllUsers}
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-          >
-            See all
-          </button>
+      <div className="bg-card border border-border rounded-xl p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <UserPlus className="w-5 h-5 text-primary" />
+          <h2 className="font-semibold text-foreground">Who to Follow</h2>
         </div>
 
         <div className="space-y-4">
-          {whoToFollow.map((user) => (
+          {users.map((user) => (
             <div key={user.id} className="flex items-center gap-3">
               <img
-                src={user.avatar || "/avatar-placeholder.svg"}
-                alt={`${user.displayName} avatar`}
+                src={user.avatar_url || "/avatar-placeholder.svg"}
+                alt={`${user.display_name} avatar`}
                 className="w-8 h-8 rounded-full"
               />
               <div className="flex-1 min-w-0">
-                <h3 className="font-medium text-sidebar-foreground text-sm truncate">{user.displayName}</h3>
-                <p className="text-xs text-muted-foreground">{user.handle}</p>
+                <h3 className="font-medium text-foreground text-sm truncate">{user.display_name || user.username}</h3>
+                <p className="text-xs text-muted-foreground">@{user.username}</p>
               </div>
               <Button 
                 variant="outline" 
                 size="sm" 
                 className="text-xs bg-transparent"
-                onClick={() => onFollowUser(user.id)}
+                onClick={() => onFollow(user.id)}
               >
                 Follow
               </Button>
@@ -108,15 +90,26 @@ export function Sidebar({
       </div>
 
       {/* Trending */}
-      <div className="bg-sidebar border border-sidebar-border rounded-xl p-6">
+      <div className="bg-card border border-border rounded-xl p-6">
         <div className="flex items-center gap-2 mb-4">
-          <TrendingUp className="w-5 h-5 text-sidebar-accent" />
-          <h2 className="font-semibold text-sidebar-foreground">Trending</h2>
+          <TrendingUp className="w-5 h-5 text-primary" />
+          <h2 className="font-semibold text-foreground">Trending</h2>
         </div>
 
-        <div className="text-center py-8">
-          <p className="text-muted-foreground text-sm">No trending topics yet</p>
-          <p className="text-muted-foreground text-xs mt-1">Check back later!</p>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-medium text-foreground text-sm">#Gaming</p>
+              <p className="text-xs text-muted-foreground">1.2K posts</p>
+            </div>
+          </div>
+          
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-medium text-foreground text-sm">#NewGame</p>
+              <p className="text-xs text-muted-foreground">856 posts</p>
+            </div>
+          </div>
         </div>
       </div>
     </div>

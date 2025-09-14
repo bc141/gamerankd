@@ -1,0 +1,524 @@
+/* V0 Sandbox Styles - Scoped to prevent conflicts */
+
+.v0-sandbox {
+  /* V0 Color System */
+  --v0-background: #0a0a0a;
+  --v0-foreground: #ffffff;
+  --v0-muted: #1a1a1a;
+  --v0-muted-foreground: #a3a3a3;
+  --v0-card: #111111;
+  --v0-card-foreground: #ffffff;
+  --v0-popover: #111111;
+  --v0-popover-foreground: #ffffff;
+  --v0-primary: #7a00ff;
+  --v0-primary-foreground: #ffffff;
+  --v0-secondary: #1a1a1a;
+  --v0-secondary-foreground: #ffffff;
+  --v0-accent: #1a1a1a;
+  --v0-accent-foreground: #ffffff;
+  --v0-destructive: #ef4444;
+  --v0-destructive-foreground: #ffffff;
+  --v0-border: #262626;
+  --v0-input: #1a1a1a;
+  --v0-ring: #7a00ff;
+  --v0-chart-1: #7a00ff;
+  --v0-chart-2: #2f3bff;
+  --v0-chart-3: #00d4aa;
+  --v0-chart-4: #ff6b35;
+  --v0-chart-5: #ffd23f;
+
+  /* Override global styles within v0-sandbox */
+  background-color: var(--v0-background);
+  color: var(--v0-foreground);
+}
+
+.v0-sandbox * {
+  box-sizing: border-box;
+}
+
+/* Hero Card Styles */
+.v0-sandbox .hero-card {
+  background: linear-gradient(135deg, var(--v0-primary) 0%, var(--v0-chart-2) 100%);
+  border-radius: 12px;
+  padding: 2rem;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.v0-sandbox .hero-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.1);
+  pointer-events: none;
+}
+
+.v0-sandbox .hero-card h2 {
+  color: white;
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  position: relative;
+  z-index: 1;
+}
+
+.v0-sandbox .hero-card p {
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: 1.5rem;
+  position: relative;
+  z-index: 1;
+}
+
+.v0-sandbox .hero-card button {
+  background: white;
+  color: #1a1a1a;
+  border: none;
+  border-radius: 8px;
+  padding: 0.75rem 1.5rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  z-index: 1;
+}
+
+.v0-sandbox .hero-card button:hover {
+  background: #f5f5f5;
+  transform: translateY(-1px);
+}
+
+/* Feed Tabs Styles */
+.v0-sandbox .feed-tabs {
+  background: var(--v0-card);
+  border: 1px solid var(--v0-border);
+  border-radius: 12px;
+  padding: 0.5rem;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.v0-sandbox .feed-tabs button {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  border: none;
+  background: transparent;
+  color: var(--v0-muted-foreground);
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.v0-sandbox .feed-tabs button.active {
+  background: var(--v0-primary);
+  color: var(--v0-primary-foreground);
+}
+
+.v0-sandbox .feed-tabs button:hover:not(.active) {
+  background: var(--v0-muted);
+  color: var(--v0-foreground);
+}
+
+/* Composer Styles */
+.v0-sandbox .composer {
+  background: var(--v0-card);
+  border: 1px solid var(--v0-border);
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+.v0-sandbox .composer-header {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.v0-sandbox .composer-avatar {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.v0-sandbox .composer-content {
+  flex: 1;
+}
+
+.v0-sandbox .composer-textarea {
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--v0-foreground);
+  font-size: 1.125rem;
+  resize: none;
+  min-height: 100px;
+}
+
+.v0-sandbox .composer-textarea::placeholder {
+  color: var(--v0-muted-foreground);
+}
+
+.v0-sandbox .composer-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--v0-border);
+}
+
+.v0-sandbox .composer-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.v0-sandbox .composer-button {
+  padding: 0.5rem;
+  border: none;
+  background: transparent;
+  color: var(--v0-muted-foreground);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.v0-sandbox .composer-button:hover {
+  background: var(--v0-muted);
+  color: var(--v0-foreground);
+}
+
+.v0-sandbox .composer-submit {
+  background: var(--v0-primary);
+  color: var(--v0-primary-foreground);
+  border: none;
+  border-radius: 8px;
+  padding: 0.75rem 1.5rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.v0-sandbox .composer-submit:hover {
+  background: #6b00e6;
+}
+
+.v0-sandbox .composer-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Post Card Styles */
+.v0-sandbox .post-card {
+  background: var(--v0-card);
+  border: 1px solid var(--v0-border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  transition: all 0.2s ease;
+}
+
+.v0-sandbox .post-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.v0-sandbox .post-header {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.v0-sandbox .post-avatar {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.v0-sandbox .post-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.v0-sandbox .post-user {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.v0-sandbox .post-name {
+  font-weight: 600;
+  color: var(--v0-foreground);
+}
+
+.v0-sandbox .post-handle {
+  color: var(--v0-muted-foreground);
+  font-size: 0.875rem;
+}
+
+.v0-sandbox .post-time {
+  color: var(--v0-muted-foreground);
+  font-size: 0.875rem;
+}
+
+.v0-sandbox .post-more {
+  padding: 0.25rem;
+  border: none;
+  background: transparent;
+  color: var(--v0-muted-foreground);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.v0-sandbox .post-more:hover {
+  background: var(--v0-muted);
+  color: var(--v0-foreground);
+}
+
+.v0-sandbox .post-content {
+  color: var(--v0-foreground);
+  line-height: 1.6;
+  margin-bottom: 1rem;
+}
+
+.v0-sandbox .post-game {
+  margin: 1rem 0;
+  padding: 1rem;
+  background: var(--v0-muted);
+  border-radius: 8px;
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.v0-sandbox .post-game-image {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.v0-sandbox .post-game-info h4 {
+  font-weight: 600;
+  color: var(--v0-foreground);
+  margin-bottom: 0.25rem;
+}
+
+.v0-sandbox .post-game-info p {
+  color: var(--v0-muted-foreground);
+  font-size: 0.875rem;
+}
+
+.v0-sandbox .post-actions {
+  display: flex;
+  gap: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--v0-border);
+}
+
+.v0-sandbox .post-action {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  border: none;
+  background: transparent;
+  color: var(--v0-muted-foreground);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.875rem;
+}
+
+.v0-sandbox .post-action:hover {
+  background: var(--v0-muted);
+  color: var(--v0-foreground);
+}
+
+.v0-sandbox .post-action.liked {
+  color: #ef4444;
+}
+
+.v0-sandbox .post-action.liked:hover {
+  color: #dc2626;
+}
+
+/* Sidebar Styles */
+.v0-sandbox .sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.v0-sandbox .sidebar-card {
+  background: var(--v0-card);
+  border: 1px solid var(--v0-border);
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+.v0-sandbox .sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.v0-sandbox .sidebar-title {
+  font-weight: 600;
+  color: var(--v0-foreground);
+}
+
+.v0-sandbox .sidebar-item {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  color: inherit;
+}
+
+.v0-sandbox .sidebar-item:hover {
+  background: var(--v0-muted);
+}
+
+.v0-sandbox .sidebar-item-image {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.v0-sandbox .sidebar-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.v0-sandbox .sidebar-item-title {
+  font-weight: 500;
+  color: var(--v0-foreground);
+  margin-bottom: 0.25rem;
+  font-size: 0.875rem;
+}
+
+.v0-sandbox .sidebar-item-subtitle {
+  color: var(--v0-muted-foreground);
+  font-size: 0.75rem;
+}
+
+.v0-sandbox .sidebar-follow-button {
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--v0-primary);
+  background: transparent;
+  color: var(--v0-primary);
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.v0-sandbox .sidebar-follow-button:hover {
+  background: var(--v0-primary);
+  color: var(--v0-primary-foreground);
+}
+
+/* Skeleton Styles */
+.v0-sandbox .skeleton {
+  background: linear-gradient(90deg, var(--v0-muted) 25%, var(--v0-border) 50%, var(--v0-muted) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s infinite;
+}
+
+@keyframes skeleton-loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.v0-sandbox .skeleton-post {
+  background: var(--v0-card);
+  border: 1px solid var(--v0-border);
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+.v0-sandbox .skeleton-post-header {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.v0-sandbox .skeleton-avatar {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+}
+
+.v0-sandbox .skeleton-content {
+  flex: 1;
+}
+
+.v0-sandbox .skeleton-line {
+  height: 1rem;
+  border-radius: 4px;
+  margin-bottom: 0.5rem;
+}
+
+.v0-sandbox .skeleton-line.short {
+  width: 60%;
+}
+
+.v0-sandbox .skeleton-line.medium {
+  width: 80%;
+}
+
+.v0-sandbox .skeleton-sidebar {
+  background: var(--v0-card);
+  border: 1px solid var(--v0-border);
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+.v0-sandbox .skeleton-sidebar-header {
+  height: 1.5rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+  width: 60%;
+}
+
+.v0-sandbox .skeleton-sidebar-item {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.v0-sandbox .skeleton-sidebar-image {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 8px;
+}
+
+.v0-sandbox .skeleton-sidebar-content {
+  flex: 1;
+}
+
+.v0-sandbox .skeleton-sidebar-line {
+  height: 0.875rem;
+  border-radius: 4px;
+  margin-bottom: 0.25rem;
+}
+
+.v0-sandbox .skeleton-sidebar-line.short {
+  width: 70%;
+}

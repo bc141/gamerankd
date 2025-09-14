@@ -21,7 +21,6 @@ export default function Header() {
 
   // menu state/refs
   const [open, setOpen] = useState(false);
-  const [searchOverlayOpen, setSearchOverlayOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
@@ -72,7 +71,7 @@ export default function Header() {
     return () => window.removeEventListener('storage', onStorage);
   }, []);
 
-  // Keyboard shortcuts: focus search on "/", close overlay on Escape
+  // Keyboard shortcuts: focus search on "/"
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey) {
@@ -82,14 +81,11 @@ export default function Header() {
           searchInput.focus();
         }
       }
-      if (e.key === 'Escape' && searchOverlayOpen) {
-        setSearchOverlayOpen(false);
-      }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [searchOverlayOpen]);
+  }, []);
 
   // Refresh mini-profile on route change; close menu
   useEffect(() => {
@@ -168,17 +164,6 @@ export default function Header() {
 
         {/* Right: User Actions */}
         <div className="flex items-center gap-3">
-          {/* Mobile Search Button */}
-          <button 
-            className="md:hidden icon-btn btn btn--neutral"
-            aria-label="Search"
-            onClick={() => setSearchOverlayOpen(true)}
-          >
-            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-          </button>
-
           {user ? (
             <>
               {/* Notifications */}
@@ -258,28 +243,6 @@ export default function Header() {
         </nav>
       </div>
 
-      {/* Mobile Search Overlay */}
-      {searchOverlayOpen && (
-        <div className="md:hidden fixed inset-0 z-50 bg-black/80 backdrop-blur">
-          <div className="flex items-center justify-center min-h-screen p-4">
-            <div className="w-full max-w-lg">
-              <div className="flex items-center gap-3 mb-4">
-                <button
-                  onClick={() => setSearchOverlayOpen(false)}
-                  className="icon-btn btn btn--neutral"
-                  aria-label="Close search"
-                >
-                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-                <span className="text-white/80 text-sm">Search games or players</span>
-              </div>
-              <SearchControl />
-            </div>
-          </div>
-        </div>
-      )}
     </header>
   );
 }

@@ -590,25 +590,22 @@ export default function HomeClient() {
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-8">
         {/* CENTER */}
         <section className="min-w-0 space-y-6">
-          {/* Hero Section - Refined for clarity and purpose */}
-          <section className="relative rounded-2xl overflow-hidden">
-            <div className="bg-midnight-nova p-6 md:p-8">
-              <div className="relative z-10">
-                <h1 className="text-xl md:text-2xl font-bold text-white mb-2">
-                  Your gaming feed
-                </h1>
-                <p className="text-sm text-white/90 mb-4 max-w-xl">
-                  Discover reviews, share experiences, and connect with fellow gamers.
-                </p>
-                <div className="flex items-center gap-2 text-xs text-white/70">
-                  <span className="w-1.5 h-1.5 rounded-full bg-brand-spark"></span>
-                  <span>Stay updated with the latest</span>
+          {/* Hero Section - Brief welcome, not main attraction */}
+          <section className="relative rounded-xl overflow-hidden">
+            <div className="bg-midnight-nova p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-brand-spark"></span>
+                  <span className="text-sm text-white/90 font-medium">Your gaming feed</span>
+                </div>
+                <div className="text-xs text-white/60">
+                  {scope === 'following' ? 'From people you follow' : 'Personalized for you'}
                 </div>
               </div>
             </div>
           </section>
 
-          {/* Segmented tabs - Enhanced for clarity */}
+          {/* Segmented tabs - Primary navigation */}
           <div className="flex justify-center">
             <Segmented
               options={[
@@ -617,7 +614,7 @@ export default function HomeClient() {
               ]}
               value={scope}
               onValueChange={(value) => switchScope(value as Scope)}
-              size="md"
+              size="lg"
             />
           </div>
 
@@ -748,8 +745,8 @@ export default function HomeClient() {
                           </Link>
 
                           <div className="min-w-0 flex-1">
-                            {/* Header Row - Cleaner hierarchy */}
-                            <div className="flex items-center gap-2 mb-3">
+                            {/* Header Row - Single scan line */}
+                            <div className="flex items-center gap-2 mb-2">
                               <Link
                                 href={actorHref}
                                 className="font-semibold text-[rgb(var(--txt))] hover:text-[rgb(var(--brand-accent))] transition-colors text-sm"
@@ -769,16 +766,13 @@ export default function HomeClient() {
                               <span className="text-xs text-[rgb(var(--txt-subtle))]">{timeAgo(r.created_at)}</span>
                             </div>
 
-                            {/* Rating Display - More prominent */}
-                            <div className="flex items-center gap-3 mb-4">
-                              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[rgb(var(--bg-elev))] border border-[rgb(var(--border))]">
-                                <StarRating value={stars} readOnly size={16} />
-                                <span className="text-sm font-semibold text-[rgb(var(--txt))]">{stars}/5</span>
-                                <span className="text-xs text-[rgb(var(--txt-muted))]">
-                                  {r.rating >= 80 ? 'Excellent' : r.rating >= 60 ? 'Good' : r.rating >= 40 ? 'Average' : 'Poor'}
-                                </span>
+                            {/* Rating Display - Inline and clean */}
+                            <div className="flex items-center gap-2 mb-3">
+                              <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-[rgb(var(--bg-elev))]">
+                                <StarRating value={stars} readOnly size={14} />
+                                <span className="text-sm font-medium text-[rgb(var(--txt))]">{stars}/5</span>
                               </div>
-                              <div className="text-xs px-2 py-1 rounded-md bg-[rgb(var(--brand-accent))] text-white font-medium">
+                              <div className="text-xs px-2 py-1 rounded-md bg-[rgb(var(--brand-accent))] text-white">
                                 Review
                               </div>
                             </div>
@@ -907,8 +901,8 @@ export default function HomeClient() {
                           </Link>
 
                           <div className="min-w-0 flex-1">
-                            {/* Header Row - Cleaner hierarchy */}
-                            <div className="flex items-center gap-2 mb-3">
+                            {/* Header Row - Single scan line */}
+                            <div className="flex items-center gap-2 mb-2">
                               <Link
                                 href={actorHref}
                                 className="font-semibold text-[rgb(var(--txt))] hover:text-[rgb(var(--brand-accent))] transition-colors text-sm"
@@ -934,7 +928,7 @@ export default function HomeClient() {
                               <div className="ml-auto relative">
                                 <button
                                   onClick={(e) => { e.stopPropagation(); const el = (e.currentTarget.nextSibling as HTMLElement | null); if (el) el.classList.toggle('hidden'); }}
-                                  className="icon-btn btn btn--neutral text-[rgb(var(--txt-muted))] hover:text-[rgb(var(--txt))]"
+                                  className="icon-btn btn btn--ghost text-[rgb(var(--txt-muted))] hover:text-[rgb(var(--txt))]"
                                   aria-label="More actions"
                                   aria-expanded="false"
                                   aria-haspopup="menu"
@@ -952,9 +946,9 @@ export default function HomeClient() {
                               </div>
                             </div>
 
-                            {/* Content Type Badge - More prominent */}
-                            <div className="flex items-center gap-3 mb-4">
-                              <div className="text-xs px-2 py-1 rounded-md bg-[rgb(var(--brand-accent))] text-white font-medium">
+                            {/* Content Type Badge - Inline */}
+                            <div className="flex items-center gap-2 mb-3">
+                              <div className="text-xs px-2 py-1 rounded-md bg-[rgb(var(--brand-accent))] text-white">
                                 Post
                               </div>
                             </div>
@@ -1040,27 +1034,27 @@ export default function HomeClient() {
 
         </section>
 
-        {/* RIGHT RAIL - Supportive and less prominent */}
-        <aside className="space-y-6 lg:sticky lg:top-16">
+        {/* RIGHT RAIL - Weighted down, supportive */}
+        <aside className="space-y-4 lg:sticky lg:top-16">
           {/* Continue playing */}
           <Panel title="Continue playing" rightAction={
             me ? (
               <Link
                 href={myUsername ? `/u/${myUsername}/library?status=playing` : '/login'}
-                className="text-xs text-[rgb(var(--txt-muted))] hover:text-[rgb(var(--txt))] transition-colors"
+                className="text-xs text-[rgb(var(--txt-subtle))] hover:text-[rgb(var(--txt-muted))] transition-colors"
               >
                 See all
               </Link>
             ) : null
           }>
             {!me ? (
-              <div className="p-4 text-sm text-[rgb(var(--txt-muted))]">Sign in to see your library.</div>
+              <div className="p-3 text-xs text-[rgb(var(--txt-subtle))]">Sign in to see your library.</div>
             ) : continueList == null ? (
               <TilesSkeleton />
             ) : continueList.length === 0 ? (
-              <div className="p-4 text-sm text-[rgb(var(--txt-muted))]">No games yet.</div>
+              <div className="p-3 text-xs text-[rgb(var(--txt-subtle))]">No games yet.</div>
             ) : (
-              <ul className="p-3 grid grid-cols-3 gap-3">
+              <ul className="p-2 grid grid-cols-3 gap-2">
                 {continueList.map((r, i) => (
                   <li key={`${r.game?.id}-${i}`} className="relative group">
                     <Link href={r.game ? `/game/${r.game.id}` : '#'} className="block">
@@ -1068,12 +1062,12 @@ export default function HomeClient() {
                       <img
                         src={r.game?.cover_url || '/cover-fallback.png'}
                         alt={r.game?.name || ''}
-                        className="h-20 w-full rounded-lg object-cover border border-[rgb(var(--border))]"
+                        className="h-16 w-full rounded object-cover border border-[rgb(var(--border-subtle))]"
                         loading="lazy"
                         decoding="async"
                       />
-                      <div className="mt-2 text-xs text-[rgb(var(--txt))] truncate font-medium">{r.game?.name}</div>
-                      <div className="text-[10px] text-[rgb(var(--txt-muted))]">
+                      <div className="mt-1 text-[10px] text-[rgb(var(--txt-muted))] truncate">{r.game?.name}</div>
+                      <div className="text-[9px] text-[rgb(var(--txt-subtle))]">
                         {r.status} · {timeAgo(r.updated_at)}
                       </div>
                     </Link>
@@ -1082,11 +1076,11 @@ export default function HomeClient() {
                     {r.game?.id && (
                       <button
                         onClick={(e) => { e.preventDefault(); markCompleted(r.game!.id); }}
-                        className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition text-[10px] px-2 py-1 rounded-md border border-[rgb(var(--border))] bg-[rgb(var(--bg-elev))] hover:bg-[rgb(var(--hover))] text-[rgb(var(--txt))]"
+                        className="absolute top-0.5 right-0.5 opacity-0 group-hover:opacity-100 transition text-[9px] px-1.5 py-0.5 rounded border border-[rgb(var(--border-subtle))] bg-[rgb(var(--bg-elev))] hover:bg-[rgb(var(--hover))] text-[rgb(var(--txt-muted))]"
                         title="Mark completed"
                         aria-label="Mark completed"
                       >
-                        ✓ Done
+                        ✓
                       </button>
                     )}
                   </li>
@@ -1100,27 +1094,27 @@ export default function HomeClient() {
             {whoToFollow == null ? (
               <ListSkeleton rows={3} />
             ) : whoToFollow.length === 0 ? (
-              <div className="p-4 text-sm text-[rgb(var(--txt-muted))]">No suggestions right now.</div>
+              <div className="p-3 text-xs text-[rgb(var(--txt-subtle))]">No suggestions right now.</div>
             ) : (
-              <ul className="p-3 space-y-3">
+              <ul className="p-2 space-y-2">
                 {whoToFollow.map((u) => {
                   const href = u.username ? `/u/${u.username}` : '#';
                   return (
-                    <li key={u.id} className="flex items-center gap-3">
+                    <li key={u.id} className="flex items-center gap-2">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={u.avatar_url || '/avatar-placeholder.svg'}
                         alt=""
-                        className="h-8 w-8 rounded-full object-cover border border-[rgb(var(--border))]"
+                        className="h-6 w-6 rounded-full object-cover border border-[rgb(var(--border-subtle))]"
                         loading="lazy"
                         decoding="async"
                       />
                       <Link href={href} className="min-w-0 flex-1">
-                        <div className="text-sm text-[rgb(var(--txt))] truncate font-medium">
+                        <div className="text-xs text-[rgb(var(--txt-muted))] truncate font-medium">
                           {u.display_name || u.username || 'Player'}
                         </div>
                         {u.username && (
-                          <div className="text-xs text-[rgb(var(--txt-muted))] truncate">@{u.username}</div>
+                          <div className="text-[10px] text-[rgb(var(--txt-subtle))] truncate">@{u.username}</div>
                         )}
                       </Link>
                       <FollowButton targetId={u.id} />
@@ -1135,7 +1129,7 @@ export default function HomeClient() {
           <Panel
             title="Trending this week"
             rightAction={
-              <Link href="/discover" className="text-xs text-[rgb(var(--txt-muted))] hover:text-[rgb(var(--txt))] transition-colors">
+              <Link href="/discover" className="text-xs text-[rgb(var(--txt-subtle))] hover:text-[rgb(var(--txt-muted))] transition-colors">
                 Discover
               </Link>
             }
@@ -1143,9 +1137,9 @@ export default function HomeClient() {
             {trending == null ? (
               <TilesSkeleton />
             ) : trending.length === 0 ? (
-              <div className="p-4 text-sm text-[rgb(var(--txt-muted))]">Nothing yet.</div>
+              <div className="p-3 text-xs text-[rgb(var(--txt-subtle))]">Nothing yet.</div>
             ) : (
-              <ul className="p-3 grid grid-cols-3 gap-3">
+              <ul className="p-2 grid grid-cols-3 gap-2">
                 {trending.map((g) => (
                   <li key={g.id}>
                     <Link href={`/game/${g.id}`} className="block">
@@ -1153,11 +1147,11 @@ export default function HomeClient() {
                       <img
                         src={g.cover_url || '/cover-fallback.png'}
                         alt={g.name}
-                        className="h-20 w-full rounded-lg object-cover border border-[rgb(var(--border))]"
+                        className="h-16 w-full rounded object-cover border border-[rgb(var(--border-subtle))]"
                         loading="lazy"
                         decoding="async"
                       />
-                      <div className="mt-2 text-xs text-[rgb(var(--txt))] truncate font-medium">{g.name}</div>
+                      <div className="mt-1 text-[10px] text-[rgb(var(--txt-muted))] truncate">{g.name}</div>
                     </Link>
                   </li>
                 ))}
@@ -1254,24 +1248,24 @@ function QuickComposer({ onPosted }: { onPosted?: (row: PostRow) => void }) {
   const canPost = body.trim().length > 0 || files.length > 0;
 
   return (
-    <div className="rounded-xl border border-[rgb(var(--border))] bg-[rgb(var(--bg-elev))] p-4">
-      <div className="space-y-3">
+    <div className="rounded-lg border border-[rgb(var(--border))] bg-[rgb(var(--bg-elev))] p-3">
+      <div className="space-y-2">
         <textarea
           value={body}
           onChange={(e)=>setBody(e.target.value)}
           placeholder="What's on your mind?"
-          rows={3}
-          className="w-full resize-none border border-[rgb(var(--border))] bg-[rgb(var(--bg))] text-[rgb(var(--txt))] rounded-lg px-3 py-2.5 text-sm placeholder:text-[rgb(var(--txt-muted))] focus:outline-none focus:ring-2 focus:ring-[rgb(var(--brand-accent))] focus:border-transparent"
+          rows={2}
+          className="w-full resize-none border border-[rgb(var(--border))] bg-[rgb(var(--bg))] text-[rgb(var(--txt))] rounded-md px-3 py-2 text-sm placeholder:text-[rgb(var(--txt-muted))] focus:outline-none focus:ring-1 focus:ring-[rgb(var(--brand-accent))] focus:border-transparent"
         />
         
         {files.length > 0 && (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1.5">
             {files.slice(0,4).map((f, i) => (
-              <div key={i} className="inline-flex items-center gap-1.5 rounded-md border border-[rgb(var(--border))] bg-[rgb(var(--bg))] px-2 py-1 text-xs text-[rgb(var(--txt-muted))]">
+              <div key={i} className="inline-flex items-center gap-1 rounded border border-[rgb(var(--border))] bg-[rgb(var(--bg))] px-2 py-1 text-xs text-[rgb(var(--txt-muted))]">
                 <span className="text-xs">
                   {f.type.startsWith('image') ? '🖼️' : f.type.startsWith('video') ? '🎬' : '📎'}
                 </span>
-                <span className="truncate max-w-20">{f.name}</span>
+                <span className="truncate max-w-16">{f.name}</span>
                 <button
                   onClick={() => setFiles(prev => prev.filter((_, idx) => idx !== i))}
                   className="text-[rgb(var(--txt-muted))] hover:text-[rgb(var(--txt))] ml-1"
@@ -1285,7 +1279,7 @@ function QuickComposer({ onPosted }: { onPosted?: (row: PostRow) => void }) {
         )}
         
         <div className="flex items-center justify-between">
-          <label className="btn btn--neutral btn-sm cursor-pointer">
+          <label className="btn btn--ghost btn-sm cursor-pointer">
             <input
               type="file"
               accept="image/*,video/*"
@@ -1293,14 +1287,14 @@ function QuickComposer({ onPosted }: { onPosted?: (row: PostRow) => void }) {
               onChange={(e)=>setFiles(Array.from(e.target.files ?? []))}
               className="hidden"
             />
-            <span className="text-sm">Add media</span>
+            <span className="text-xs">Add media</span>
           </label>
           
           <button
             type="button"
             disabled={busy || !canPost}
             onClick={handlePost}
-            className={`btn btn-md ${canPost ? 'btn--primary' : 'btn--neutral'}`}
+            className={`btn btn-sm ${canPost ? 'btn--primary' : 'btn--ghost'}`}
             aria-busy={busy}
           >
             {busy ? 'Posting…' : 'Post'}
@@ -1321,9 +1315,9 @@ function Panel({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-[rgb(var(--border))] bg-[rgb(var(--bg-elev))]">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-[rgb(var(--border))]">
-        <h2 className="text-sm font-semibold text-[rgb(var(--txt))]">{title}</h2>
+    <div className="rounded-lg border border-[rgb(var(--border-subtle))] bg-[rgb(var(--bg-elev))]">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-[rgb(var(--border-subtle))]">
+        <h2 className="text-xs font-medium text-[rgb(var(--txt-muted))]">{title}</h2>
         {rightAction}
       </div>
       {children}

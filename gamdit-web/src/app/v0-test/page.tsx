@@ -9,9 +9,57 @@ import { useV0Data } from "@/components/v0-sandbox/V0DataAdapter"
 export default function V0TestPage() {
   const [activeTab, setActiveTab] = useState<"following" | "for-you">("following")
   const [composerContent, setComposerContent] = useState("")
+  const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set())
   
   // Use real data from backend
   const { posts, continuePlayingGames, whoToFollow, userAvatar, isLoading } = useV0Data()
+
+  // Event handlers
+  const handlePost = () => {
+    if (composerContent.trim()) {
+      console.log('Posting:', composerContent)
+      // TODO: Implement actual post creation
+      setComposerContent("")
+    }
+  }
+
+  const handleLike = (postId: string) => {
+    setLikedPosts(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(postId)) {
+        newSet.delete(postId)
+      } else {
+        newSet.add(postId)
+      }
+      return newSet
+    })
+    console.log('Like toggled for post:', postId)
+  }
+
+  const handleComment = (postId: string) => {
+    console.log('Comment on post:', postId)
+    // TODO: Implement comment functionality
+  }
+
+  const handleShare = (postId: string) => {
+    console.log('Share post:', postId)
+    // TODO: Implement share functionality
+  }
+
+  const handleMore = (postId: string) => {
+    console.log('More actions for post:', postId)
+    // TODO: Implement more actions
+  }
+
+  const handleAddImage = () => {
+    console.log('Add image')
+    // TODO: Implement image upload
+  }
+
+  const handleAddGame = () => {
+    console.log('Add game')
+    // TODO: Implement game selection
+  }
 
   return (
     <div className="v0-sandbox min-h-screen bg-background">
@@ -87,10 +135,18 @@ export default function V0TestPage() {
 
                       <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
                         <div className="flex items-center gap-2">
-                          <button className="v0-button v0-button-ghost v0-button-icon" aria-label="Add image">
+                          <button 
+                            className="v0-button v0-button-ghost v0-button-icon" 
+                            aria-label="Add image"
+                            onClick={handleAddImage}
+                          >
                             <ImageIcon className="w-5 h-5" />
                           </button>
-                          <button className="v0-button v0-button-ghost v0-button-icon" aria-label="Add game">
+                          <button 
+                            className="v0-button v0-button-ghost v0-button-icon" 
+                            aria-label="Add game"
+                            onClick={handleAddGame}
+                          >
                             <Gamepad2 className="w-5 h-5" />
                           </button>
                         </div>
@@ -99,6 +155,7 @@ export default function V0TestPage() {
                           className="v0-button v0-button-default transition-all duration-200"
                           disabled={!composerContent.trim()}
                           data-testid="composer-submit"
+                          onClick={handlePost}
                         >
                           Post
                         </button>
@@ -149,7 +206,11 @@ export default function V0TestPage() {
                             <span className="text-muted-foreground text-sm">·</span>
                             <time className="text-muted-foreground text-sm">{post.timestamp}</time>
 
-                            <button className="v0-button v0-button-ghost v0-button-icon ml-auto" aria-label="More options">
+                            <button 
+                              className="v0-button v0-button-ghost v0-button-icon ml-auto" 
+                              aria-label="More options"
+                              onClick={() => handleMore(post.id)}
+                            >
                               <MoreHorizontal className="w-4 h-4" />
                             </button>
                           </div>
@@ -169,19 +230,21 @@ export default function V0TestPage() {
                           <div className="flex items-center gap-6">
                             <button
                               className={`v0-button v0-button-ghost v0-button-sm gap-2 min-h-[44px] transition-colors duration-200 ${
-                                post.isLiked ? "text-red-500 hover:text-red-600" : "text-muted-foreground hover:text-foreground"
+                                likedPosts.has(post.id) ? "text-red-500 hover:text-red-600" : "text-muted-foreground hover:text-foreground"
                               }`}
-                              aria-label={`${post.isLiked ? "Unlike" : "Like"} post`}
+                              aria-label={`${likedPosts.has(post.id) ? "Unlike" : "Like"} post`}
                               data-testid="like-button"
+                              onClick={() => handleLike(post.id)}
                             >
-                              <Heart className={`w-4 h-4 ${post.isLiked ? "fill-current" : ""}`} />
-                              <span className="text-sm">{post.likes}</span>
+                              <Heart className={`w-4 h-4 ${likedPosts.has(post.id) ? "fill-current" : ""}`} />
+                              <span className="text-sm">{post.likes + (likedPosts.has(post.id) ? 1 : 0)}</span>
                             </button>
 
                             <button
                               className="v0-button v0-button-ghost v0-button-sm gap-2 text-muted-foreground hover:text-foreground min-h-[44px] transition-colors duration-200"
                               aria-label="Comment on post"
                               data-testid="comment-button"
+                              onClick={() => handleComment(post.id)}
                             >
                               <MessageCircleIcon className="w-4 h-4" />
                               <span className="text-sm">{post.comments}</span>
@@ -191,6 +254,7 @@ export default function V0TestPage() {
                               className="v0-button v0-button-ghost v0-button-sm gap-2 text-muted-foreground hover:text-foreground min-h-[44px] transition-colors duration-200"
                               aria-label="Share post"
                               data-testid="share-button"
+                              onClick={() => handleShare(post.id)}
                             >
                               <Share className="w-4 h-4" />
                               <span className="text-sm">{post.shares}</span>

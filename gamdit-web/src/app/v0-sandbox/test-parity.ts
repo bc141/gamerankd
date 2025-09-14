@@ -24,11 +24,11 @@ export function testV0Parity() {
   const followingTab = document.querySelector('[data-testid="following-tab"]')
   const forYouTab = document.querySelector('[data-testid="for-you-tab"]')
   
-  if (!followingTab?.getAttribute('role') === 'tab') {
+  if (followingTab?.getAttribute('role') !== 'tab') {
     throw new Error('Following tab missing role="tab"')
   }
   
-  if (!forYouTab?.getAttribute('role') === 'tab') {
+  if (forYouTab?.getAttribute('role') !== 'tab') {
     throw new Error('For You tab missing role="tab"')
   }
 

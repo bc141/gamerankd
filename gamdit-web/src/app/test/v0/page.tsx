@@ -191,9 +191,9 @@ export default function V0TestPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Main Feed */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-3 space-y-4">
             {/* Hero Section */}
             <HeroCard
               title="Welcome to Gamdit"
@@ -240,7 +240,7 @@ export default function V0TestPage() {
           </div>
 
           {/* Sidebar */}
-          <div className="space-y-6">
+          <div className="space-y-4">
             {isLoading ? (
               <SkeletonSidebar />
             ) : (

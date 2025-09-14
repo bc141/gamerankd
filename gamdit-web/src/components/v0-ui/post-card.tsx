@@ -39,76 +39,79 @@ export function PostCard({ post, onLike, onComment, onShare, onMore }: PostCardP
   }
 
   return (
-    <article className="bg-card border border-border rounded-xl p-6 transition-all duration-200 hover:border-border/80">
-      <div className="flex gap-4">
+    <article className="post-card">
+      <div className="post-header">
         <img
           src={post.user.avatar || "/avatar-placeholder.svg"}
           alt={`${post.user.displayName} avatar`}
-          className="w-10 h-10 rounded-full flex-shrink-0"
+          className="post-avatar"
         />
 
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-2">
-            <h3 className="font-semibold text-foreground">{post.user.displayName}</h3>
-            <span className="text-muted-foreground text-sm">{post.user.handle}</span>
-            <span className="text-muted-foreground text-sm">·</span>
-            <time className="text-muted-foreground text-sm">{post.timestamp}</time>
+        <div className="post-info">
+          <div className="post-user">
+            <h3 className="post-name">{post.user.displayName}</h3>
+            <span className="post-handle">{post.user.handle}</span>
+            <span className="post-time">· {post.timestamp}</span>
 
-            <Button variant="ghost" size="icon" className="ml-auto" onClick={() => onMore(post.id)} aria-label="More options">
+            <button 
+              className="post-more" 
+              onClick={() => onMore(post.id)} 
+              aria-label="More options"
+              type="button"
+            >
               <MoreHorizontal className="w-4 h-4" />
-            </Button>
+            </button>
           </div>
 
-          <p className="text-foreground mb-4 leading-relaxed">{post.content}</p>
+          <p className="post-content">{post.content}</p>
 
           {post.gameImage && (
-            <div className="mb-4">
+            <div className="post-game">
               <img
                 src={post.gameImage || "/placeholder.svg"}
                 alt="Game screenshot"
-                className="rounded-lg max-w-full h-auto border border-border"
+                className="post-game-image"
               />
+              <div className="post-game-info">
+                <h4>Game</h4>
+                <p>Recently played</p>
+              </div>
             </div>
           )}
 
-          <div className="flex items-center gap-6">
-            <Button
-              variant="ghost"
-              size="sm"
+          <div className="post-actions">
+            <button
               onClick={handleLike}
               data-testid="like-button"
-              className={`gap-2 min-h-[44px] transition-colors duration-200 ${
-                isLiked ? "text-red-500 hover:text-red-600" : "text-muted-foreground hover:text-foreground"
-              }`}
+              className={`post-action ${isLiked ? "liked" : ""}`}
               aria-label={`${isLiked ? "Unlike" : "Like"} post`}
+              type="button"
             >
-              <Heart className={`w-4 h-4 ${isLiked ? "fill-current" : ""}`} />
-              <span className="text-sm">{likeCount}</span>
-            </Button>
+              <Heart className={isLiked ? "fill-current" : ""} />
+              <span>{likeCount}</span>
+            </button>
 
-            <Button
-              variant="ghost"
-              size="sm"
+            <button
               onClick={() => onComment(post.id)}
               data-testid="comment-button"
-              className="gap-2 text-muted-foreground hover:text-foreground min-h-[44px] transition-colors duration-200"
+              className="post-action"
               aria-label="Comment on post"
+              type="button"
             >
-              <MessageCircle className="w-4 h-4" />
-              <span className="text-sm">{post.comments}</span>
-            </Button>
+              <MessageCircle />
+              <span>{post.comments}</span>
+            </button>
 
-            <Button
-              variant="ghost"
-              size="sm"
+            <button
               onClick={() => onShare(post.id)}
               data-testid="share-button"
-              className="gap-2 text-muted-foreground hover:text-foreground min-h-[44px] transition-colors duration-200"
+              className="post-action"
               aria-label="Share post"
+              type="button"
             >
-              <Share className="w-4 h-4" />
-              <span className="text-sm">{post.shares}</span>
-            </Button>
+              <Share />
+              <span>{post.shares}</span>
+            </button>
           </div>
         </div>
       </div>

@@ -392,8 +392,31 @@ export default function PublicProfilePage() {
 
   return (
     <main className="p-8 max-w-3xl mx-auto">
-      {/* Header */}
-      <section className="flex items-start justify-between gap-6">
+      {/* Header with Midnight Nova accent */}
+      <section className="relative mb-8 rounded-2xl overflow-hidden">
+        <div className="bg-midnight-nova-subtle p-6">
+          <div className="flex items-start justify-between gap-6">
+            <div className="flex items-center gap-4">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={avatarSrc}
+                alt={`${username} avatar`}
+                className="h-16 w-16 rounded-full object-cover border-2 border-white/30 shadow-lg"
+                loading="lazy"
+                decoding="async"
+              />
+              <div>
+                <h1 className="text-2xl font-bold text-white">{profile.display_name || username}</h1>
+                {profile.display_name && <div className="text-white/80">@{username}</div>}
+                {profile.bio && <p className="text-white/90 mt-1">{profile.bio}</p>}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Profile Stats */}
+      <section className="mb-8">
         <div className="flex items-center gap-4">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -406,9 +429,7 @@ export default function PublicProfilePage() {
           <div>
             <h1 className="text-2xl font-bold">{profile.display_name || username}</h1>
             {profile.display_name && <div className="text-white/60">@{username}</div>}
-            {profile.bio && <p className="text-white/70 mt-1">{profile.bio}</p>
-
-            }
+            {profile.bio && <p className="text-white/70 mt-1">{profile.bio}</p>}
             {/* counts */}
             <div className="mt-2 text-sm text-white/60 flex items-center gap-4">
               <Link href={`/u/${username}/followers`} className="hover:underline">

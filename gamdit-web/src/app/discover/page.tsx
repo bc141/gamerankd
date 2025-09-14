@@ -55,24 +55,7 @@ export default async function DiscoverPage() {
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-6">
-      {/* Hero Section with Midnight Nova Gradient */}
-      <section className="relative mb-8 rounded-2xl overflow-hidden">
-        <div className="bg-midnight-nova p-8 md:p-12">
-          <div className="relative z-10">
-            <h1 className="text-3xl md:text-4xl font-bold text-white mb-4">
-              Discover Amazing Games
-            </h1>
-            <p className="text-lg text-white/90 mb-6 max-w-2xl">
-              Find your next favorite game from our curated collection of trending, new, and top-rated titles.
-            </p>
-            <div className="flex items-center gap-2 text-sm text-white/80">
-              <span className="w-2 h-2 rounded-full bg-brand-spark"></span>
-              <span>Updated daily with fresh recommendations</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
+      <h1 className="text-2xl font-bold text-white mb-6">Discover</h1>
       <Row title="Trending this week" games={sections.trending} />
       <Row title="New & noteworthy" games={sections.new} />
       <Row title="Top rated (recent)" games={sections.top} />

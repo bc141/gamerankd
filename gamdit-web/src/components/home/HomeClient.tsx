@@ -590,8 +590,23 @@ export default function HomeClient() {
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-6">
         {/* CENTER */}
         <section className="min-w-0">
-          {/* Title */}
-          <h1 className="text-2xl font-semibold text-[rgb(var(--txt))] mb-6 leading-tight">Home</h1>
+          {/* Hero Section with Midnight Nova Gradient */}
+          <section className="relative mb-8 rounded-2xl overflow-hidden">
+            <div className="bg-midnight-nova p-6 md:p-8">
+              <div className="relative z-10">
+                <h1 className="text-2xl md:text-3xl font-bold text-white mb-3">
+                  Welcome to Gamdit
+                </h1>
+                <p className="text-base text-white/90 mb-4 max-w-2xl">
+                  Share your gaming experiences, discover new titles, and connect with fellow gamers.
+                </p>
+                <div className="flex items-center gap-2 text-sm text-white/80">
+                  <span className="w-2 h-2 rounded-full bg-brand-spark"></span>
+                  <span>Your gaming community awaits</span>
+                </div>
+              </div>
+            </div>
+          </section>
 
           {/* Segmented tabs */}
           <div className="mb-6">

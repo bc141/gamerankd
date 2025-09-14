@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 // V0 Test - Completely isolated from main app
-const USE_V0_TEST = true;
+const USE_V0_TEST = false;
 const USE_V0 = false;
 
 export default function Page() {

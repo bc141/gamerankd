@@ -2,116 +2,20 @@
 
 import { useState } from "react"
 import "./v0-sandbox.css"
-import { Search, Bell, MessageCircle, User, Heart, MessageCircle as MessageCircleIcon, Share, MoreHorizontal, ImageIcon, Gamepad2, Play, UserPlus, TrendingUp } from "lucide-react"
+import { Heart, MessageCircle as MessageCircleIcon, Share, MoreHorizontal, ImageIcon, Gamepad2, Play, UserPlus, TrendingUp } from "lucide-react"
+import { useV0Data } from "@/components/v0-sandbox/V0DataAdapter"
 
-// V0 Test - Completely isolated from main app
+// V0 Test - Completely isolated from main app with real data
 export default function V0TestPage() {
   const [activeTab, setActiveTab] = useState<"following" | "for-you">("following")
   const [composerContent, setComposerContent] = useState("")
-
-  // Mock data for testing
-  const posts = [
-    {
-      id: "1",
-      user: {
-        avatar: "/avatar-placeholder.svg",
-        displayName: "Alex Chen",
-        handle: "@alexgamer",
-      },
-      timestamp: "2h",
-      content: "Just finished an epic raid in Destiny 2! The new expansion is incredible. Who else is playing?",
-      gameImage: "/placeholder.jpg",
-      likes: 24,
-      comments: 8,
-      shares: 3,
-      isLiked: false,
-    },
-    {
-      id: "2",
-      user: {
-        avatar: "/avatar-placeholder.svg",
-        displayName: "Sarah Kim",
-        handle: "@sarahplays",
-      },
-      timestamp: "4h",
-      content: "Finally hit Diamond rank in Valorant! The grind was real but so worth it 🎯",
-      likes: 156,
-      comments: 23,
-      shares: 12,
-      isLiked: true,
-    },
-  ]
-
-  const continuePlayingGames = [
-    {
-      id: "1",
-      title: "Cyberpunk 2077",
-      cover: "/placeholder.jpg",
-      progress: "67% complete",
-    },
-    {
-      id: "2",
-      title: "Elden Ring",
-      cover: "/placeholder.jpg",
-      progress: "23 hours played",
-    },
-  ]
-
-  const whoToFollow = [
-    {
-      id: "1",
-      avatar: "/avatar-placeholder.svg",
-      displayName: "ProGamer_Mike",
-      handle: "@mikeplays",
-      isFollowing: false,
-    },
-    {
-      id: "2",
-      avatar: "/avatar-placeholder.svg",
-      displayName: "StreamQueen",
-      handle: "@queenstreams",
-      isFollowing: false,
-    },
-  ]
+  
+  // Use real data from backend
+  const { posts, continuePlayingGames, whoToFollow, userAvatar, isLoading } = useV0Data()
 
   return (
     <div className="v0-sandbox min-h-screen bg-background">
-      {/* V0 Header - Exact replica */}
-      <header className="sticky top-0 z-50 bg-card/80 backdrop-blur-md border-b border-border">
-        <div className="max-w-[1240px] mx-auto px-6">
-          <div className="flex items-center justify-between h-16">
-            {/* Logo */}
-            <div className="flex items-center">
-              <h1 className="text-xl font-bold text-foreground">Gamdit V0 Test</h1>
-            </div>
-
-            {/* Search */}
-            <div className="flex-1 max-w-md mx-8">
-              <div className="relative" role="search">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                <input
-                  type="search"
-                  placeholder="Search games, players, posts..."
-                  className="w-full pl-10 pr-4 py-2 bg-input border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition-colors duration-200"
-                />
-              </div>
-            </div>
-
-            {/* Navigation */}
-            <nav className="flex items-center gap-2">
-              <button className="v0-button v0-button-ghost v0-button-icon" aria-label="Notifications">
-                <Bell className="w-5 h-5" />
-              </button>
-              <button className="v0-button v0-button-ghost v0-button-icon" aria-label="Messages">
-                <MessageCircle className="w-5 h-5" />
-              </button>
-              <button className="v0-button v0-button-ghost v0-button-icon" aria-label="Profile">
-                <User className="w-5 h-5" />
-              </button>
-            </nav>
-          </div>
-        </div>
-      </header>
+      {/* No header - use main app's header */}
 
       <main className="max-w-[1240px] mx-auto px-6 py-8">
         <div className="flex gap-8 lg:gap-12">
@@ -170,7 +74,7 @@ export default function V0TestPage() {
                 {/* V0 Composer - Midnight Nova spacing rhythm */}
                 <div className="bg-card border border-border rounded-xl p-4">
                   <div className="flex gap-4">
-                    <img src="/avatar-placeholder.svg" alt="Your avatar" className="w-10 h-10 rounded-full flex-shrink-0" />
+                    <img src={userAvatar || "/avatar-placeholder.svg"} alt="Your avatar" className="w-10 h-10 rounded-full flex-shrink-0" />
 
                     <div className="flex-1">
                       <textarea
@@ -204,7 +108,32 @@ export default function V0TestPage() {
                 </div>
 
                 <div className="mt-6 space-y-4">
-                  {posts.map((post) => (
+                  {isLoading ? (
+                    <>
+                      <div className="bg-card border border-border rounded-xl p-6 animate-pulse">
+                        <div className="flex gap-4">
+                          <div className="w-10 h-10 bg-muted rounded-full flex-shrink-0" />
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="h-4 bg-muted rounded w-24" />
+                              <div className="h-4 bg-muted rounded w-16" />
+                              <div className="h-4 bg-muted rounded w-8" />
+                            </div>
+                            <div className="space-y-2 mb-4">
+                              <div className="h-4 bg-muted rounded w-full" />
+                              <div className="h-4 bg-muted rounded w-3/4" />
+                            </div>
+                            <div className="flex items-center gap-6">
+                              <div className="h-8 bg-muted rounded w-16" />
+                              <div className="h-8 bg-muted rounded w-16" />
+                              <div className="h-8 bg-muted rounded w-16" />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    posts.map((post) => (
                     <article key={post.id} className="bg-card border border-border rounded-xl p-6 transition-all duration-200 hover:border-border/80">
                       <div className="flex gap-4">
                         <img
@@ -270,7 +199,8 @@ export default function V0TestPage() {
                         </div>
                       </div>
                     </article>
-                  ))}
+                    ))
+                  )}
                 </div>
               </div>
             </div>

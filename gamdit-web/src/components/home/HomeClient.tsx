@@ -586,30 +586,30 @@ export default function HomeClient() {
 
   // ---------- UI ----------
   return (
-    <main className="mx-auto max-w-[1240px] px-6 py-8">
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-6">
+    <main className="mx-auto max-w-[1240px] px-4 py-6 lg:px-6 lg:py-8">
+      <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-8">
         {/* CENTER */}
-        <section className="min-w-0">
-          {/* Hero Section with Midnight Nova Gradient */}
-          <section className="relative mb-8 rounded-2xl overflow-hidden">
+        <section className="min-w-0 space-y-6">
+          {/* Hero Section - Refined for clarity and purpose */}
+          <section className="relative rounded-2xl overflow-hidden">
             <div className="bg-midnight-nova p-6 md:p-8">
               <div className="relative z-10">
-                <h1 className="text-2xl md:text-3xl font-bold text-white mb-3">
-                  Welcome to Gamdit
+                <h1 className="text-xl md:text-2xl font-bold text-white mb-2">
+                  Your gaming feed
                 </h1>
-                <p className="text-base text-white/90 mb-4 max-w-2xl">
-                  Share your gaming experiences, discover new titles, and connect with fellow gamers.
+                <p className="text-sm text-white/90 mb-4 max-w-xl">
+                  Discover reviews, share experiences, and connect with fellow gamers.
                 </p>
-                <div className="flex items-center gap-2 text-sm text-white/80">
-                  <span className="w-2 h-2 rounded-full bg-brand-spark"></span>
-                  <span>Your gaming community awaits</span>
+                <div className="flex items-center gap-2 text-xs text-white/70">
+                  <span className="w-1.5 h-1.5 rounded-full bg-brand-spark"></span>
+                  <span>Stay updated with the latest</span>
                 </div>
               </div>
             </div>
           </section>
 
-          {/* Segmented tabs */}
-          <div className="mb-6">
+          {/* Segmented tabs - Enhanced for clarity */}
+          <div className="flex justify-center">
             <Segmented
               options={[
                 { value: 'following', label: 'Following' },
@@ -640,51 +640,57 @@ export default function HomeClient() {
           />
 
           {!ready ? (
-            <PostCardSkeleton />
+            <div className="space-y-6">
+              <PostCardSkeleton />
+              <PostCardSkeleton />
+            </div>
           ) : !me && scope === 'following' ? (
-            <Card className="text-center py-12">
+            <Card className="text-center py-16">
               <div className="space-y-4">
-                <div className="text-4xl">👋</div>
-                <h3 className="text-lg font-semibold text-[rgb(var(--txt))]">Welcome to Gamdit</h3>
-                <p className="text-[rgb(var(--txt-muted))] max-w-md mx-auto">
-                  Sign in to see reviews from people you follow. In the meantime, check out what's trending.
+                <div className="text-3xl">👋</div>
+                <h3 className="text-lg font-semibold text-[rgb(var(--txt))]">Sign in to see Following</h3>
+                <p className="text-[rgb(var(--txt-muted))] max-w-sm mx-auto text-sm">
+                  View reviews from people you follow. Check out trending games in the meantime.
                 </p>
                 <Link 
                   href="/discover" 
-                  className="inline-flex items-center px-4 py-2 bg-[rgb(var(--accent))] text-[rgb(var(--accent-contrast))] rounded-lg font-medium hover:bg-[rgb(var(--accent-hover))] transition-colors"
+                  className="btn btn--primary btn-md"
                 >
                   Discover Games
                 </Link>
               </div>
             </Card>
           ) : feedErr ? (
-            <Card className="text-center py-8">
+            <Card className="text-center py-12">
               <div className="text-[rgb(var(--danger))]">
-                <div className="text-2xl mb-2">⚠️</div>
-                <p className="font-medium">Something went wrong</p>
-                <p className="text-sm text-[rgb(var(--txt-muted))] mt-1">{feedErr}</p>
+                <div className="text-2xl mb-3">⚠️</div>
+                <p className="font-medium mb-1">Something went wrong</p>
+                <p className="text-sm text-[rgb(var(--txt-muted))]">{feedErr}</p>
               </div>
             </Card>
           ) : unifiedFeed == null ? (
-            <PostCardSkeleton />
+            <div className="space-y-6">
+              <PostCardSkeleton />
+              <PostCardSkeleton />
+            </div>
           ) : unifiedFeed.length === 0 ? (
-            <Card className="text-center py-12">
+            <Card className="text-center py-16">
               <div className="space-y-4">
-                <div className="text-4xl">🎮</div>
+                <div className="text-3xl">🎮</div>
                 <h3 className="text-lg font-semibold text-[rgb(var(--txt))]">No content yet</h3>
-                <p className="text-[rgb(var(--txt-muted))] max-w-md mx-auto">
-                  Nothing here yet. Try following more players or check out trending games.
+                <p className="text-[rgb(var(--txt-muted))] max-w-sm mx-auto text-sm">
+                  Follow more players or discover trending games to see content here.
                 </p>
                 <div className="flex gap-3 justify-center">
                   <Link 
                     href="/discover" 
-                    className="inline-flex items-center px-4 py-2 bg-[rgb(var(--accent))] text-[rgb(var(--accent-contrast))] rounded-lg font-medium hover:bg-[rgb(var(--accent-hover))] transition-colors"
+                    className="btn btn--primary btn-md"
                   >
                     Discover Games
                   </Link>
                   <Link 
                     href="/search" 
-                    className="inline-flex items-center px-4 py-2 border border-[rgb(var(--border))] text-[rgb(var(--txt))] rounded-lg font-medium hover:bg-[rgb(var(--hover))] transition-colors"
+                    className="btn btn--neutral btn-md"
                   >
                     Find Players
                   </Link>
@@ -693,7 +699,7 @@ export default function HomeClient() {
             </Card>
           ) : (
             <>
-              <div className="space-y-4">
+              <div className="space-y-6">
                 {unifiedFeed?.map((it, i) => {
                   if (it.kind === 'review') {
                     const r = it.review;
@@ -735,44 +741,44 @@ export default function HomeClient() {
                             <img
                               src={a?.avatar_url || '/avatar-placeholder.svg'}
                               alt=""
-                              className="h-12 w-12 rounded-full object-cover border border-[rgb(var(--border))]"
+                              className="h-10 w-10 rounded-full object-cover border border-[rgb(var(--border))]"
                               loading="lazy"
                               decoding="async"
                             />
                           </Link>
 
                           <div className="min-w-0 flex-1">
-                            {/* Header Row */}
-                            <div className="flex items-center gap-2 mb-2">
+                            {/* Header Row - Cleaner hierarchy */}
+                            <div className="flex items-center gap-2 mb-3">
                               <Link
                                 href={actorHref}
-                                className="font-semibold text-[rgb(var(--txt))] hover:text-[rgb(var(--accent))] transition-colors"
+                                className="font-semibold text-[rgb(var(--txt))] hover:text-[rgb(var(--brand-accent))] transition-colors text-sm"
                                 onClick={(e) => e.stopPropagation()}
                               >
                                 {a?.display_name || a?.username || 'Player'}
                               </Link>
-                              <span className="text-[rgb(var(--txt-muted))]">rated</span>
+                              <span className="text-[rgb(var(--txt-muted))] text-sm">rated</span>
                               <Link
                                 href={gameHref}
-                                className="font-semibold text-[rgb(var(--txt))] hover:text-[rgb(var(--accent))] transition-colors"
+                                className="font-semibold text-[rgb(var(--txt))] hover:text-[rgb(var(--brand-accent))] transition-colors text-sm"
                                 onClick={(e) => e.stopPropagation()}
                               >
                                 {g?.name ?? 'a game'}
                               </Link>
                               <span className="text-[rgb(var(--txt-subtle))]">·</span>
-                              <span className="text-sm text-[rgb(var(--txt-subtle))]">{timeAgo(r.created_at)}</span>
+                              <span className="text-xs text-[rgb(var(--txt-subtle))]">{timeAgo(r.created_at)}</span>
                             </div>
 
-                            {/* Rating Display */}
-                            <div className="flex items-center gap-3 mb-3">
-                              <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-[rgb(var(--bg-elev))] border border-[rgb(var(--border))]">
-                                <StarRating value={stars} readOnly size={14} />
-                                <span className="text-sm font-medium text-[rgb(var(--txt))]">{stars}/5</span>
+                            {/* Rating Display - More prominent */}
+                            <div className="flex items-center gap-3 mb-4">
+                              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[rgb(var(--bg-elev))] border border-[rgb(var(--border))]">
+                                <StarRating value={stars} readOnly size={16} />
+                                <span className="text-sm font-semibold text-[rgb(var(--txt))]">{stars}/5</span>
                                 <span className="text-xs text-[rgb(var(--txt-muted))]">
                                   {r.rating >= 80 ? 'Excellent' : r.rating >= 60 ? 'Good' : r.rating >= 40 ? 'Average' : 'Poor'}
                                 </span>
                               </div>
-                              <div className="text-xs px-2 py-1 rounded-full bg-[rgb(var(--bg-elev))] text-[rgb(var(--txt-muted))]">
+                              <div className="text-xs px-2 py-1 rounded-md bg-[rgb(var(--brand-accent))] text-white font-medium">
                                 Review
                               </div>
                             </div>
@@ -786,8 +792,8 @@ export default function HomeClient() {
                               </div>
                             )}
 
-                            {/* Actions */}
-                            <div className="flex items-center gap-3">
+                            {/* Actions - Better spacing and consistency */}
+                            <div className="flex items-center gap-2">
                               {a?.id && (
                                 <InteractionButton
                                   type="like"
@@ -795,6 +801,7 @@ export default function HomeClient() {
                                   active={(likes[likeK]?.liked) ?? false}
                                   busy={!!likeBusy[likeK]}
                                   onClick={() => onToggleLike(a.id!, r.game_id)}
+                                  size="sm"
                                 />
                               )}
 
@@ -803,12 +810,13 @@ export default function HomeClient() {
                                   type="comment"
                                   count={commentCounts[cKey] ?? 0}
                                   onClick={() => openReview(a!.id, r.game_id)}
+                                  size="sm"
                                 />
                               )}
                             </div>
                           </div>
 
-                          {/* Game Cover */}
+                          {/* Game Cover - Slightly larger */}
                           {g?.cover_url && (
                             <Link
                               href={gameHref}
@@ -819,7 +827,7 @@ export default function HomeClient() {
                               <img
                                 src={g.cover_url}
                                 alt=""
-                                className="h-20 w-14 rounded-lg object-cover border border-[rgb(var(--border))]"
+                                className="h-24 w-16 rounded-lg object-cover border border-[rgb(var(--border))]"
                                 loading="lazy"
                                 decoding="async"
                               />
@@ -892,29 +900,29 @@ export default function HomeClient() {
                             <img
                               src={p.avatar_url || '/avatar-placeholder.svg'}
                               alt=""
-                              className="h-12 w-12 rounded-full object-cover border border-[rgb(var(--border))]"
+                              className="h-10 w-10 rounded-full object-cover border border-[rgb(var(--border))]"
                               loading="lazy"
                               decoding="async"
                             />
                           </Link>
 
                           <div className="min-w-0 flex-1">
-                            {/* Header Row */}
-                            <div className="flex items-center gap-2 mb-2">
+                            {/* Header Row - Cleaner hierarchy */}
+                            <div className="flex items-center gap-2 mb-3">
                               <Link
                                 href={actorHref}
-                                className="font-semibold text-[rgb(var(--txt))] hover:text-[rgb(var(--accent))] transition-colors"
+                                className="font-semibold text-[rgb(var(--txt))] hover:text-[rgb(var(--brand-accent))] transition-colors text-sm"
                                 onClick={(e) => e.stopPropagation()}
                               >
                                 {p.display_name || p.username || 'Player'}
                               </Link>
-                              <span className="text-[rgb(var(--txt-muted))]">posted</span>
+                              <span className="text-[rgb(var(--txt-muted))] text-sm">posted</span>
                               {p.game_id && (
                                 <>
-                                  <span className="text-[rgb(var(--txt-muted))]">about</span>
+                                  <span className="text-[rgb(var(--txt-muted))] text-sm">about</span>
                                   <Link
                                     href={gameHref}
-                                    className="font-semibold text-[rgb(var(--txt))] hover:text-[rgb(var(--accent))] transition-colors"
+                                    className="font-semibold text-[rgb(var(--txt))] hover:text-[rgb(var(--brand-accent))] transition-colors text-sm"
                                     onClick={(e) => e.stopPropagation()}
                                   >
                                     {p.game_name}
@@ -922,7 +930,7 @@ export default function HomeClient() {
                                 </>
                               )}
                               <span className="text-[rgb(var(--txt-subtle))]">·</span>
-                              <span className="text-sm text-[rgb(var(--txt-subtle))]">{timeAgo(p.created_at)}</span>
+                              <span className="text-xs text-[rgb(var(--txt-subtle))]">{timeAgo(p.created_at)}</span>
                               <div className="ml-auto relative">
                                 <button
                                   onClick={(e) => { e.stopPropagation(); const el = (e.currentTarget.nextSibling as HTMLElement | null); if (el) el.classList.toggle('hidden'); }}
@@ -944,9 +952,9 @@ export default function HomeClient() {
                               </div>
                             </div>
 
-                            {/* Content Type Badge */}
-                            <div className="flex items-center gap-3 mb-3">
-                              <div className="text-xs px-2 py-1 rounded-full bg-[rgb(var(--bg-elev))] text-[rgb(var(--txt-muted))]">
+                            {/* Content Type Badge - More prominent */}
+                            <div className="flex items-center gap-3 mb-4">
+                              <div className="text-xs px-2 py-1 rounded-md bg-[rgb(var(--brand-accent))] text-white font-medium">
                                 Post
                               </div>
                             </div>
@@ -960,9 +968,9 @@ export default function HomeClient() {
                               </div>
                             )}
 
-                            {/* Media */}
+                            {/* Media - Better grid layout */}
                             {media.length > 0 && (
-                              <div className="mb-3 grid grid-cols-2 gap-2">
+                              <div className="mb-4 grid grid-cols-2 gap-3">
                                 {media.slice(0,4).map((m, idx) => (
                                   m.media_type === 'video' ? (
                                     <video key={idx} controls className="w-full rounded-lg border border-[rgb(var(--border))]">
@@ -976,24 +984,26 @@ export default function HomeClient() {
                               </div>
                             )}
 
-                            {/* Actions */}
-                            <div className="flex items-center gap-3">
+                            {/* Actions - Better spacing and consistency */}
+                            <div className="flex items-center gap-2">
                               <InteractionButton
                                 type="like"
                                 count={entry.count}
                                 active={entry.liked}
                                 busy={postLikeBusy[likeK]}
                                 onClick={() => onTogglePostLike(p.id)}
+                                size="sm"
                               />
                               <InteractionButton
                                 type="comment"
                                 count={cCount}
                                 onClick={() => openPost(p.id, { focusInput: true })}
+                                size="sm"
                               />
                             </div>
                           </div>
 
-                          {/* Game Cover */}
+                          {/* Game Cover - Slightly larger */}
                           {p.game_cover_url && (
                             <Link
                               href={gameHref}
@@ -1004,7 +1014,7 @@ export default function HomeClient() {
                               <img
                                 src={p.game_cover_url}
                                 alt=""
-                                className="h-20 w-14 rounded-lg object-cover border border-[rgb(var(--border))]"
+                                className="h-24 w-16 rounded-lg object-cover border border-[rgb(var(--border))]"
                                 loading="lazy"
                                 decoding="async"
                               />
@@ -1030,27 +1040,27 @@ export default function HomeClient() {
 
         </section>
 
-        {/* RIGHT RAIL */}
+        {/* RIGHT RAIL - Supportive and less prominent */}
         <aside className="space-y-6 lg:sticky lg:top-16">
           {/* Continue playing */}
           <Panel title="Continue playing" rightAction={
             me ? (
               <Link
                 href={myUsername ? `/u/${myUsername}/library?status=playing` : '/login'}
-                className="text-xs text-white/60 hover:text-white"
+                className="text-xs text-[rgb(var(--txt-muted))] hover:text-[rgb(var(--txt))] transition-colors"
               >
                 See all
               </Link>
             ) : null
           }>
             {!me ? (
-              <div className="p-3 text-sm text-white/60">Sign in to see your library.</div>
+              <div className="p-4 text-sm text-[rgb(var(--txt-muted))]">Sign in to see your library.</div>
             ) : continueList == null ? (
               <TilesSkeleton />
             ) : continueList.length === 0 ? (
-              <div className="p-3 text-sm text-white/60">No games yet.</div>
+              <div className="p-4 text-sm text-[rgb(var(--txt-muted))]">No games yet.</div>
             ) : (
-              <ul className="p-2 grid grid-cols-3 gap-2">
+              <ul className="p-3 grid grid-cols-3 gap-3">
                 {continueList.map((r, i) => (
                   <li key={`${r.game?.id}-${i}`} className="relative group">
                     <Link href={r.game ? `/game/${r.game.id}` : '#'} className="block">
@@ -1058,12 +1068,12 @@ export default function HomeClient() {
                       <img
                         src={r.game?.cover_url || '/cover-fallback.png'}
                         alt={r.game?.name || ''}
-                        className="h-24 w-full rounded object-cover border border-white/10"
+                        className="h-20 w-full rounded-lg object-cover border border-[rgb(var(--border))]"
                         loading="lazy"
                         decoding="async"
                       />
-                      <div className="mt-1 text-[11px] text-white/80 truncate">{r.game?.name}</div>
-                      <div className="text-[10px] text-white/40">
+                      <div className="mt-2 text-xs text-[rgb(var(--txt))] truncate font-medium">{r.game?.name}</div>
+                      <div className="text-[10px] text-[rgb(var(--txt-muted))]">
                         {r.status} · {timeAgo(r.updated_at)}
                       </div>
                     </Link>
@@ -1072,7 +1082,7 @@ export default function HomeClient() {
                     {r.game?.id && (
                       <button
                         onClick={(e) => { e.preventDefault(); markCompleted(r.game!.id); }}
-                        className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition text-[10px] px-1.5 py-0.5 rounded border border-white/20 bg-black/50 hover:bg-black/60"
+                        className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition text-[10px] px-2 py-1 rounded-md border border-[rgb(var(--border))] bg-[rgb(var(--bg-elev))] hover:bg-[rgb(var(--hover))] text-[rgb(var(--txt))]"
                         title="Mark completed"
                         aria-label="Mark completed"
                       >
@@ -1090,27 +1100,27 @@ export default function HomeClient() {
             {whoToFollow == null ? (
               <ListSkeleton rows={3} />
             ) : whoToFollow.length === 0 ? (
-              <div className="p-3 text-sm text-white/60">No suggestions right now.</div>
+              <div className="p-4 text-sm text-[rgb(var(--txt-muted))]">No suggestions right now.</div>
             ) : (
-              <ul className="p-2 space-y-2">
+              <ul className="p-3 space-y-3">
                 {whoToFollow.map((u) => {
                   const href = u.username ? `/u/${u.username}` : '#';
                   return (
-                    <li key={u.id} className="flex items-center gap-2">
+                    <li key={u.id} className="flex items-center gap-3">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={u.avatar_url || '/avatar-placeholder.svg'}
                         alt=""
-                        className="h-7 w-7 rounded-full object-cover border border-white/10"
+                        className="h-8 w-8 rounded-full object-cover border border-[rgb(var(--border))]"
                         loading="lazy"
                         decoding="async"
                       />
                       <Link href={href} className="min-w-0 flex-1">
-                        <div className="text-sm text-white truncate">
+                        <div className="text-sm text-[rgb(var(--txt))] truncate font-medium">
                           {u.display_name || u.username || 'Player'}
                         </div>
                         {u.username && (
-                          <div className="text-xs text-white/40 truncate">@{u.username}</div>
+                          <div className="text-xs text-[rgb(var(--txt-muted))] truncate">@{u.username}</div>
                         )}
                       </Link>
                       <FollowButton targetId={u.id} />
@@ -1125,7 +1135,7 @@ export default function HomeClient() {
           <Panel
             title="Trending this week"
             rightAction={
-              <Link href="/discover" className="text-xs text-white/60 hover:text-white">
+              <Link href="/discover" className="text-xs text-[rgb(var(--txt-muted))] hover:text-[rgb(var(--txt))] transition-colors">
                 Discover
               </Link>
             }
@@ -1133,9 +1143,9 @@ export default function HomeClient() {
             {trending == null ? (
               <TilesSkeleton />
             ) : trending.length === 0 ? (
-              <div className="p-3 text-sm text-white/60">Nothing yet.</div>
+              <div className="p-4 text-sm text-[rgb(var(--txt-muted))]">Nothing yet.</div>
             ) : (
-              <ul className="p-2 grid grid-cols-3 gap-2">
+              <ul className="p-3 grid grid-cols-3 gap-3">
                 {trending.map((g) => (
                   <li key={g.id}>
                     <Link href={`/game/${g.id}`} className="block">
@@ -1143,11 +1153,11 @@ export default function HomeClient() {
                       <img
                         src={g.cover_url || '/cover-fallback.png'}
                         alt={g.name}
-                        className="h-24 w-full rounded object-cover border border-white/10"
+                        className="h-20 w-full rounded-lg object-cover border border-[rgb(var(--border))]"
                         loading="lazy"
                         decoding="async"
                       />
-                      <div className="mt-1 text-[11px] text-white/80 truncate">{g.name}</div>
+                      <div className="mt-2 text-xs text-[rgb(var(--txt))] truncate font-medium">{g.name}</div>
                     </Link>
                   </li>
                 ))}
@@ -1241,43 +1251,61 @@ function QuickComposer({ onPosted }: { onPosted?: (row: PostRow) => void }) {
     }
   }
 
+  const canPost = body.trim().length > 0 || files.length > 0;
+
   return (
-    <div className="mb-4 rounded-lg border border-white/10 bg-white/5 p-3">
-      <textarea
-        value={body}
-        onChange={(e)=>setBody(e.target.value)}
-        placeholder="Share a thought, clip link, or screenshot URL…"
-        rows={3}
-        className="w-full border border-white/10 bg-black/20 text-white rounded px-3 py-2"
-      />
-      {files.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-2">
-          {files.slice(0,4).map((f, i) => (
-            <div key={i} className="rounded border border-white/10 bg-black/20 px-2 py-1 text-xs text-white/80">
-              {f.type.startsWith('image') ? '🖼️' : f.type.startsWith('video') ? '🎬' : '📎'} {f.name}
-            </div>
-          ))}
+    <div className="rounded-xl border border-[rgb(var(--border))] bg-[rgb(var(--bg-elev))] p-4">
+      <div className="space-y-3">
+        <textarea
+          value={body}
+          onChange={(e)=>setBody(e.target.value)}
+          placeholder="What's on your mind?"
+          rows={3}
+          className="w-full resize-none border border-[rgb(var(--border))] bg-[rgb(var(--bg))] text-[rgb(var(--txt))] rounded-lg px-3 py-2.5 text-sm placeholder:text-[rgb(var(--txt-muted))] focus:outline-none focus:ring-2 focus:ring-[rgb(var(--brand-accent))] focus:border-transparent"
+        />
+        
+        {files.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {files.slice(0,4).map((f, i) => (
+              <div key={i} className="inline-flex items-center gap-1.5 rounded-md border border-[rgb(var(--border))] bg-[rgb(var(--bg))] px-2 py-1 text-xs text-[rgb(var(--txt-muted))]">
+                <span className="text-xs">
+                  {f.type.startsWith('image') ? '🖼️' : f.type.startsWith('video') ? '🎬' : '📎'}
+                </span>
+                <span className="truncate max-w-20">{f.name}</span>
+                <button
+                  onClick={() => setFiles(prev => prev.filter((_, idx) => idx !== i))}
+                  className="text-[rgb(var(--txt-muted))] hover:text-[rgb(var(--txt))] ml-1"
+                  aria-label="Remove file"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        
+        <div className="flex items-center justify-between">
+          <label className="btn btn--neutral btn-sm cursor-pointer">
+            <input
+              type="file"
+              accept="image/*,video/*"
+              multiple
+              onChange={(e)=>setFiles(Array.from(e.target.files ?? []))}
+              className="hidden"
+            />
+            <span className="text-sm">Add media</span>
+          </label>
+          
+          <button
+            type="button"
+            disabled={busy || !canPost}
+            onClick={handlePost}
+            className={`btn btn-md ${canPost ? 'btn--primary' : 'btn--neutral'}`}
+            aria-busy={busy}
+          >
+            {busy ? 'Posting…' : 'Post'}
+          </button>
         </div>
-      )}
-      <div className="mt-2 flex items-center justify-between gap-3">
-        <label className="inline-flex items-center gap-2 px-3 py-1.5 rounded border border-white/15 text-white/90 hover:bg-white/10 cursor-pointer">
-          <input
-            type="file"
-            accept="image/*,video/*"
-            multiple
-            onChange={(e)=>setFiles(Array.from(e.target.files ?? []))}
-            className="hidden"
-          />
-          <span className="text-sm">Add media</span>
-        </label>
-        <button
-          type="button"
-          disabled={busy || (body.trim().length === 0 && files.length === 0)}
-          onClick={handlePost}
-          className="px-3 py-1.5 rounded bg-indigo-600 text-white disabled:opacity-50"
-        >
-          {busy ? 'Posting…' : 'Post'}
-        </button>
       </div>
     </div>
   );
@@ -1293,9 +1321,9 @@ function Panel({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-lg border border-white/10 bg-white/5">
-      <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
-        <h2 className="text-sm font-semibold text-white/90">{title}</h2>
+    <div className="rounded-xl border border-[rgb(var(--border))] bg-[rgb(var(--bg-elev))]">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-[rgb(var(--border))]">
+        <h2 className="text-sm font-semibold text-[rgb(var(--txt))]">{title}</h2>
         {rightAction}
       </div>
       {children}
@@ -1327,9 +1355,8 @@ function FollowButton({ targetId }: { targetId: string }) {
           setBusy(false);
         }
       }}
-      className={`text-xs px-2 py-1 rounded border ${
-        done ? 'border-white/20 text-white/40' : 'border-white/20 hover:border-white/30'
-      }`}
+      className={`btn btn-sm ${done ? 'btn--neutral' : 'btn--accent'}`}
+      aria-busy={busy}
     >
       {done ? 'Following' : busy ? '…' : 'Follow'}
     </button>

@@ -16,10 +16,10 @@
   --accent-hover: 124 58 237; /* #7c3aed - Accent hover (violet-600) */
   
   /* Brand — Midnight Nova */
-  --brand-gradient-start: 13 11 31; /* Deep Midnight */
-  --brand-gradient-end: 108 77 255; /* Nova Violet */
-  --brand-accent: var(--accent); /* Solid Violet (reuse) */
-  --brand-spark: 59 231 224; /* Cyan Spark */
+  --brand-gradient-start: 13 11 31; /* Deep Midnight - anchor for hero gradients */
+  --brand-gradient-end: 108 77 255; /* Nova Violet - energetic edge of gradient */
+  --brand-accent: 139 92 246; /* Solid Violet - primary CTA, focus ring, key accents */
+  --brand-spark: 59 231 224; /* Cyan Spark - subtle highlight/selection tint */
   
   /* Semantic Colors */
   --success: 34 197 94;  /* #22c55e - Success green */
@@ -86,6 +86,24 @@
   --z-modal: 1050;
   --z-popover: 1060;
   --z-tooltip: 1070;
+  
+  /* Motion Guidelines */
+  --duration-fast: 150ms;
+  --duration-normal: 200ms;
+  --duration-slow: 250ms;
+  --easing-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --easing-standard: ease-out;
+  
+  /* Gradient Utilities */
+  --gradient-midnight-nova: linear-gradient(135deg, rgb(var(--brand-gradient-start)) 0%, rgb(var(--brand-gradient-end)) 100%);
+  --gradient-midnight-nova-subtle: linear-gradient(135deg, rgba(var(--brand-gradient-start) / 0.8) 0%, rgba(var(--brand-gradient-end) / 0.6) 100%);
+  
+  /* Brand Utility Classes */
+  .bg-midnight-nova { background: var(--gradient-midnight-nova); }
+  .bg-midnight-nova-subtle { background: var(--gradient-midnight-nova-subtle); }
+  .text-brand-accent { color: rgb(var(--brand-accent)); }
+  .text-brand-spark { color: rgb(var(--brand-spark)); }
+  .border-brand-accent { border-color: rgb(var(--brand-accent)); }
 }
 
 /* Dark theme (same as root for now, allows future light theme) */

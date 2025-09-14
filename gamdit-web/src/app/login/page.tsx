@@ -33,24 +33,24 @@ export default function LoginPage() {
           variables: {
             default: {
               colors: {
-                brand: '#6366f1',
-                brandAccent: '#4f46e5',
+                brand: 'rgb(139, 92, 246)', // brand-accent
+                brandAccent: 'rgb(124, 58, 237)', // accent-hover
                 inputText: 'white',
                 inputPlaceholder: 'rgba(255,255,255,0.55)',
                 inputBorder: 'rgba(255,255,255,0.2)',
                 inputBackground: 'rgb(23 23 23)',
               },
-              radii: { inputBorderRadius: '0.5rem', buttonBorderRadius: '0.375rem' },
+              radii: { inputBorderRadius: '1rem', buttonBorderRadius: '1rem' },
             },
           },
           className: {
             container: 'bg-transparent text-white',
             label: 'text-white',
             input:
-              'bg-neutral-900 text-white placeholder:text-white/60 border border-white/20 focus:border-white/40 focus:ring-0',
-            button: 'bg-indigo-600 hover:bg-indigo-500',
+              'bg-neutral-900 text-white placeholder:text-white/60 border border-white/20 focus:border-brand-accent focus:ring-2 focus:ring-brand-accent/20',
+            button: 'btn btn--primary',
             message: 'text-white',
-            anchor: 'text-indigo-400',
+            anchor: 'text-brand-accent hover:text-brand-accent/80',
           },
         }}
       />

@@ -50,6 +50,7 @@ export default function V0TestPage() {
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set())
   const [activeTab, setActiveTab] = useState<'following' | 'for-you'>('for-you')
   const [isLoading, setIsLoading] = useState(true)
+  const [showScrollToTop, setShowScrollToTop] = useState(false)
 
   useEffect(() => {
     async function loadData() {
@@ -120,6 +121,20 @@ export default function V0TestPage() {
     loadData()
   }, [])
 
+  // Scroll to top functionality
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollToTop(window.scrollY > 300)
+    }
+
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   const handleLike = (postId: string) => {
     setLikedPosts(prev => {
       const newSet = new Set(prev)
@@ -173,8 +188,8 @@ export default function V0TestPage() {
   }
 
   return (
-    <div className="v0-sandbox min-h-screen bg-background">
-      <div className="max-w-6xl mx-auto px-4 py-8">
+    <div className="v0-sandbox">
+      <div className="main-container">
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-foreground mb-2">V0 UI Test</h1>
           <p className="text-muted-foreground">Testing v0 components with real backend data</p>
@@ -191,7 +206,7 @@ export default function V0TestPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Main Feed */}
           <div className="lg:col-span-3 space-y-3">
             {/* Hero Section */}
@@ -202,11 +217,29 @@ export default function V0TestPage() {
               onButtonClick={() => console.log('Get Started clicked')}
             />
 
-            {/* Feed Tabs */}
-            <FeedTabs
-              activeTab={activeTab}
-              onTabChange={setActiveTab}
-            />
+            {/* Sticky Feed Tabs */}
+            <div className="sticky-tabs">
+              <FeedTabs
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+              />
+            </div>
+
+            {/* Quick Filter Chips */}
+            <div className="filter-chips">
+              <button className="filter-chip active" type="button">
+                All
+              </button>
+              <button className="filter-chip" type="button">
+                Clips
+              </button>
+              <button className="filter-chip" type="button">
+                Reviews
+              </button>
+              <button className="filter-chip" type="button">
+                Screens
+              </button>
+            </div>
 
             {/* Composer */}
             <Composer
@@ -254,6 +287,16 @@ export default function V0TestPage() {
           </div>
         </div>
       </div>
+
+      {/* Scroll to Top Button */}
+      <button
+        className={`scroll-to-top ${showScrollToTop ? 'visible' : ''}`}
+        onClick={scrollToTop}
+        aria-label="Scroll to top"
+        type="button"
+      >
+        ↑
+      </button>
     </div>
   )
 }

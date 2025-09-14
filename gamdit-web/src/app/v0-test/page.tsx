@@ -65,10 +65,9 @@ export default function V0TestPage() {
     <div className="v0-sandbox min-h-screen bg-background">
       {/* No header - use main app's header */}
 
-      <main className="max-w-[1240px] mx-auto px-6 py-8">
-        <div className="flex gap-8 lg:gap-12">
-          {/* Main Feed - Ensure first feed item is visible on laptop */}
-          <div className="flex-1 min-w-0 lg:min-w-[720px]">
+      <main className="main-layout py-8">
+        {/* Main Feed - Ensure first feed item is visible on laptop */}
+        <div className="space-y-6">
             {/* V0 Hero Card - Compact for laptop viewport */}
             <div
               className="relative overflow-hidden rounded-xl p-4 text-center"
@@ -95,10 +94,8 @@ export default function V0TestPage() {
                   aria-selected={activeTab === "following"}
                   data-testid="following-tab"
                   onClick={() => setActiveTab("following")}
-                  className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-all duration-200 min-h-[44px] ${
-                    activeTab === "following"
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                  className={`tab-button flex-1 px-4 py-2 text-sm font-medium rounded-md transition-all duration-200 min-h-[44px] ${
+                    activeTab === "following" ? "active" : ""
                   }`}
                 >
                   Following
@@ -108,10 +105,8 @@ export default function V0TestPage() {
                   aria-selected={activeTab === "for-you"}
                   data-testid="for-you-tab"
                   onClick={() => setActiveTab("for-you")}
-                  className={`flex-1 px-4 py-2 text-sm font-medium rounded-md transition-all duration-200 min-h-[44px] ${
-                    activeTab === "for-you"
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                  className={`tab-button flex-1 px-4 py-2 text-sm font-medium rounded-md transition-all duration-200 min-h-[44px] ${
+                    activeTab === "for-you" ? "active" : ""
                   }`}
                 >
                   For You
@@ -120,7 +115,7 @@ export default function V0TestPage() {
 
               <div className="mt-4">
                 {/* V0 Composer - Midnight Nova spacing rhythm */}
-                <div className="bg-card border border-border rounded-xl p-4">
+                <div className="composer-card">
                   <div className="flex gap-4">
                     <img src={userAvatar || "/avatar-placeholder.svg"} alt="Your avatar" className="w-10 h-10 rounded-full flex-shrink-0" />
 
@@ -191,7 +186,7 @@ export default function V0TestPage() {
                     </>
                   ) : (
                     posts.map((post) => (
-                    <article key={post.id} className="bg-card border border-border rounded-xl p-6 transition-all duration-200 hover:border-border/80">
+                    <article key={post.id} className="post-card transition-all duration-200 hover:border-border/80">
                       <div className="flex gap-4">
                         <img
                           src={post.user.avatar || "/avatar-placeholder.svg"}
@@ -268,13 +263,12 @@ export default function V0TestPage() {
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* V0 Sidebar - Exact replica */}
-          <aside className="hidden lg:block w-[360px] flex-shrink-0">
+            {/* V0 Sidebar - Exact replica */}
+            <aside className="hidden lg:block w-[360px] flex-shrink-0">
             <div className="space-y-6">
               {/* Continue Playing */}
-              <div className="bg-sidebar border border-sidebar-border rounded-xl p-6">
+              <div className="sidebar-card">
                 <div className="flex items-center gap-2 mb-4">
                   <Play className="w-5 h-5 text-sidebar-accent" />
                   <h2 className="font-semibold text-sidebar-foreground">Continue Playing</h2>
@@ -298,7 +292,7 @@ export default function V0TestPage() {
               </div>
 
               {/* Who to Follow */}
-              <div className="bg-sidebar border border-sidebar-border rounded-xl p-6">
+              <div className="sidebar-card">
                 <div className="flex items-center gap-2 mb-4">
                   <UserPlus className="w-5 h-5 text-sidebar-accent" />
                   <h2 className="font-semibold text-sidebar-foreground">Who to Follow</h2>

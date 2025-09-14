@@ -116,19 +116,19 @@ export default function V0SandboxPage() {
 
       <main className="max-w-[1240px] mx-auto px-6 py-8">
         <div className="flex gap-8 lg:gap-12">
-          {/* Main Feed */}
+          {/* Main Feed - Ensure first feed item is visible on laptop */}
           <div className="flex-1 min-w-0 lg:min-w-[720px]">
-            {/* V0 Hero Card - Exact replica */}
+            {/* V0 Hero Card - Compact for laptop viewport */}
             <div
-              className="relative overflow-hidden rounded-xl p-8 text-center"
+              className="relative overflow-hidden rounded-xl p-4 text-center"
               style={{
                 background: `linear-gradient(135deg, var(--brand-gradient-start) 0%, var(--brand-gradient-end) 100%)`,
               }}
             >
               <div className="relative z-10">
-                <h2 className="text-2xl font-bold text-white mb-4">Welcome to the Gaming Universe</h2>
+                <h2 className="text-xl font-bold text-white mb-2">Welcome to the Gaming Universe</h2>
                 <button
-                  className="v0-button v0-button-default v0-button-lg bg-black/80 hover:bg-black/90 text-white border-black/50 backdrop-blur-sm transition-all duration-200"
+                  className="v0-button v0-button-default v0-button-sm bg-black/80 hover:bg-black/90 text-white border-black/50 backdrop-blur-sm transition-all duration-200"
                 >
                   Discover Games
                 </button>

@@ -2,6 +2,19 @@
 @import "tailwindcss";
 @import "../styles/tokens.css";
 
+/* Override any global button styles that might interfere */
+.v0-sandbox {
+  /* Reset any global button styles */
+  .btn, .icon-btn {
+    all: unset;
+  }
+  
+  /* Ensure v0 buttons are not affected by global styles */
+  button {
+    all: unset;
+  }
+}
+
 :root {
   /* Map to Midnight Nova Brand Tokens - Visual result should be identical */
   --brand-gradient-start: var(--brand-gradient-start);

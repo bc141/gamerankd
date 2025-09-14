@@ -14,7 +14,7 @@ export default function V0SandboxPage() {
   const { posts, continuePlayingGames, whoToFollow, userAvatar, isLoading } = useV0Data()
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="v0-sandbox min-h-screen bg-background">
       {/* V0 Header - Exact replica */}
       <header className="sticky top-0 z-50 bg-card/80 backdrop-blur-md border-b border-border">
         <div className="max-w-[1240px] mx-auto px-6">

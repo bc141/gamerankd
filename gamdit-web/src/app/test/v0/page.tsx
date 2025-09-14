@@ -2,8 +2,9 @@
 
 import './v0-sandbox.css'
 import { useState, useEffect } from 'react'
-import { supabaseBrowser } from '@/lib/supabaseBrowser'
-import { waitForSession } from '@/lib/waitForSession'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
+import { useFeedPosts, useWhoToFollow, useTrendingTopics, useContinuePlaying, useCreatePost, useToggleReaction, useFollowUser } from '@/lib/data-service/hooks'
 import { timeAgo } from '@/lib/timeAgo'
 
 // Import v0 components
@@ -13,113 +14,49 @@ import { Composer } from '@/components/v0-ui/composer'
 import { PostCard } from '@/components/v0-ui/post-card'
 import { Sidebar } from '@/components/v0-ui/sidebar'
 import { SkeletonPostCard, SkeletonSidebar } from '@/components/v0-ui/skeletons'
+import type { FeedPost, WhoToFollow, TrendingTopic, GameProgress } from '@/lib/data-service/types'
 
-interface V0Post {
-  id: string
-  user: {
-    avatar: string
-    displayName: string
-    handle: string
-  }
-  timestamp: string
-  content: string
-  gameImage?: string
-  likes: number
-  comments: number
-  shares: number
-  isLiked: boolean
-}
+// Create a query client
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30000,
+      gcTime: 300000,
+    },
+  },
+})
 
-interface V0Game {
-  id: string
-  name: string
-  cover_url: string
-}
-
-interface V0User {
-  id: string
-  username: string
-  display_name: string
-  avatar_url: string
-}
-
-export default function V0TestPage() {
-  const [posts, setPosts] = useState<V0Post[]>([])
-  const [games, setGames] = useState<V0Game[]>([])
-  const [users, setUsers] = useState<V0User[]>([])
-  const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set())
+function V0TestPageContent() {
   const [activeTab, setActiveTab] = useState<'following' | 'for-you'>('for-you')
-  const [isLoading, setIsLoading] = useState(true)
   const [showScrollToTop, setShowScrollToTop] = useState(false)
+  const [selectedGame, setSelectedGame] = useState<GameProgress | null>(null)
+  const [showGameModal, setShowGameModal] = useState(false)
 
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const sb = supabaseBrowser()
-        const session = await waitForSession(sb)
+  // Data fetching hooks
+  const { 
+    data: feedData, 
+    isLoading: feedLoading, 
+    fetchNextPage, 
+    hasNextPage, 
+    isFetchingNextPage 
+  } = useFeedPosts()
+  
+  const { data: whoToFollowData, isLoading: whoToFollowLoading } = useWhoToFollow()
+  const { data: trendingData, isLoading: trendingLoading } = useTrendingTopics()
+  const { data: continuePlayingData, isLoading: continuePlayingLoading } = useContinuePlaying()
 
-        // Load posts
-        const { data: postsData, error: postsError } = await sb
-          .from('post_feed_v2')
-          .select('id,user_id,created_at,body,tags,media_urls,like_count,comment_count,username,display_name,avatar_url,game_id,game_name,game_cover_url')
-          .order('created_at', { ascending: false })
-          .limit(10)
+  // Mutation hooks
+  const createPostMutation = useCreatePost()
+  const toggleReactionMutation = useToggleReaction()
+  const followUserMutation = useFollowUser()
 
-        if (postsError) {
-          console.error('Error loading posts:', postsError)
-        }
+  // Flatten feed posts from all pages
+  const posts = feedData?.pages.flatMap(page => page.success ? page.data.data : []) || []
+  const whoToFollow = whoToFollowData?.success ? whoToFollowData.data : []
+  const trendingTopics = trendingData?.success ? trendingData.data : []
+  const continuePlaying = continuePlayingData?.success ? continuePlayingData.data : []
 
-        // Load games
-        const { data: gamesData, error: gamesError } = await sb
-          .from('games')
-          .select('id, name, cover_url')
-          .order('created_at', { ascending: false })
-          .limit(5)
-
-        if (gamesError) {
-          console.error('Error loading games:', gamesError)
-        }
-
-        // Load users
-        const { data: usersData, error: usersError } = await sb
-          .from('profiles')
-          .select('id, username, display_name, avatar_url')
-          .neq('id', session?.user?.id)
-          .limit(3)
-
-        if (usersError) {
-          console.error('Error loading users:', usersError)
-        }
-
-        // Transform posts
-        const transformedPosts: V0Post[] = (postsData || []).map((post: any) => ({
-          id: post.id,
-          user: {
-            avatar: post.avatar_url || '/avatar-placeholder.svg',
-            displayName: post.display_name || post.username,
-            handle: `@${post.username}`,
-          },
-          timestamp: timeAgo(new Date(post.created_at)),
-          content: post.body,
-          gameImage: post.game_cover_url || undefined,
-          likes: post.like_count || 0,
-          comments: post.comment_count || 0,
-          shares: 0,
-          isLiked: false,
-        }))
-
-        setPosts(transformedPosts)
-        setGames(gamesData || [])
-        setUsers(usersData || [])
-      } catch (error) {
-        console.error('Error loading data:', error)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    loadData()
-  }, [])
+  const isLoading = feedLoading || whoToFollowLoading || trendingLoading || continuePlayingLoading
 
   // Scroll to top functionality
   useEffect(() => {
@@ -136,20 +73,27 @@ export default function V0TestPage() {
   }
 
   const handleLike = (postId: string) => {
-    setLikedPosts(prev => {
-      const newSet = new Set(prev)
-      if (newSet.has(postId)) {
-        newSet.delete(postId)
-      } else {
-        newSet.add(postId)
-      }
-      return newSet
+    const post = posts.find(p => p.id === postId)
+    if (!post) return
+
+    const isLiked = post.user_reactions.liked
+    toggleReactionMutation.mutate({
+      post_id: postId,
+      reaction_type: 'like',
+      action: isLiked ? 'remove' : 'add'
     })
   }
 
-  const handlePost = (content: string, gameId?: string) => {
-    console.log('Post created:', { content, gameId })
-    // TODO: Implement post creation
+  const handlePost = (content: string) => {
+    createPostMutation.mutate({
+      content,
+      game_id: selectedGame?.id
+    }, {
+      onSuccess: () => {
+        setSelectedGame(null)
+        setShowGameModal(false)
+      }
+    })
   }
 
   const handleAddImage = () => {
@@ -158,8 +102,7 @@ export default function V0TestPage() {
   }
 
   const handleAddGame = () => {
-    console.log('Add game')
-    // TODO: Implement game selection
+    setShowGameModal(true)
   }
 
   const handleComment = (postId: string) => {
@@ -178,8 +121,13 @@ export default function V0TestPage() {
   }
 
   const handleFollow = (userId: string) => {
-    console.log('Follow user:', userId)
-    // TODO: Implement follow functionality
+    const user = whoToFollow.find(u => u.id === userId)
+    if (!user) return
+
+    followUserMutation.mutate({
+      user_id: userId,
+      follow: !user.is_following
+    })
   }
 
   const handlePlayGame = (gameId: string) => {
@@ -250,7 +198,7 @@ export default function V0TestPage() {
             />
 
             {/* Posts */}
-            <div className="space-y-4">
+            <div className="space-y-3">
               {isLoading ? (
                 <>
                   <SkeletonPostCard />
@@ -261,13 +209,40 @@ export default function V0TestPage() {
                 posts.map((post) => (
                   <PostCard
                     key={post.id}
-                    post={post}
+                    post={{
+                      id: post.id,
+                      user: {
+                        avatar: post.user.avatar_url || '/avatar-placeholder.svg',
+                        displayName: post.user.display_name,
+                        handle: `@${post.user.username}`
+                      },
+                      timestamp: timeAgo(new Date(post.created_at)),
+                      content: post.content,
+                      gameImage: post.game?.cover_url,
+                      likes: post.reaction_counts.likes,
+                      comments: post.reaction_counts.comments,
+                      shares: post.reaction_counts.shares,
+                      isLiked: post.user_reactions.liked
+                    }}
                     onLike={() => handleLike(post.id)}
                     onComment={() => handleComment(post.id)}
                     onShare={() => handleShare(post.id)}
                     onMore={() => handleMore(post.id)}
                   />
                 ))
+              )}
+              
+              {/* Load more button */}
+              {hasNextPage && (
+                <div className="flex justify-center py-4">
+                  <button
+                    onClick={() => fetchNextPage()}
+                    disabled={isFetchingNextPage}
+                    className="px-6 py-2 bg-primary text-primary-foreground rounded-lg disabled:opacity-50"
+                  >
+                    {isFetchingNextPage ? 'Loading...' : 'Load More'}
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -278,8 +253,17 @@ export default function V0TestPage() {
               <SkeletonSidebar />
             ) : (
               <Sidebar
-                games={games}
-                users={users}
+                games={continuePlaying.map(game => ({
+                  id: game.id,
+                  name: game.name,
+                  cover_url: game.cover_url
+                }))}
+                users={whoToFollow.map(user => ({
+                  id: user.id,
+                  username: user.username,
+                  display_name: user.display_name,
+                  avatar_url: user.avatar_url
+                }))}
                 onFollow={handleFollow}
                 onPlayGame={handlePlayGame}
               />
@@ -298,5 +282,14 @@ export default function V0TestPage() {
         ↑
       </button>
     </div>
+  )
+}
+
+export default function V0TestPage() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <V0TestPageContent />
+      <ReactQueryDevtools initialIsOpen={false} />
+    </QueryClientProvider>
   )
 }

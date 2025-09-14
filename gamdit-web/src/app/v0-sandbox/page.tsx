@@ -3,77 +3,15 @@
 import { useState } from "react"
 import "../v0-sandbox.css"
 import { Search, Bell, MessageCircle, User, Heart, MessageCircle as MessageCircleIcon, Share, MoreHorizontal, ImageIcon, Gamepad2, Play, UserPlus, TrendingUp } from "lucide-react"
+import { useV0Data } from "@/components/v0-sandbox/V0DataAdapter"
 
-// V0 Sandbox - Exact replica of v0 components with original styling
+// V0 Sandbox - Exact replica of v0 components with real data
 export default function V0SandboxPage() {
   const [activeTab, setActiveTab] = useState<"following" | "for-you">("following")
-  const [isLoading, setIsLoading] = useState(false)
   const [composerContent, setComposerContent] = useState("")
-
-  // Mock data for posts
-  const posts = [
-    {
-      id: "1",
-      user: {
-        avatar: "/diverse-gaming-avatars.png",
-        displayName: "Alex Chen",
-        handle: "@alexgamer",
-      },
-      timestamp: "2h",
-      content: "Just finished an epic raid in Destiny 2! The new expansion is incredible. Who else is playing?",
-      gameImage: "/destiny-2-game.jpg",
-      likes: 24,
-      comments: 8,
-      shares: 3,
-      isLiked: false,
-    },
-    {
-      id: "2",
-      user: {
-        avatar: "/female-gamer-avatar.png",
-        displayName: "Sarah Kim",
-        handle: "@sarahplays",
-      },
-      timestamp: "4h",
-      content: "Finally hit Diamond rank in Valorant! The grind was real but so worth it 🎯",
-      likes: 156,
-      comments: 23,
-      shares: 12,
-      isLiked: true,
-    },
-  ]
-
-  const continuePlayingGames = [
-    {
-      id: "1",
-      title: "Cyberpunk 2077",
-      cover: "/cyberpunk-cityscape.png",
-      progress: "67% complete",
-    },
-    {
-      id: "2",
-      title: "Elden Ring",
-      cover: "/elden-ring-inspired-landscape.png",
-      progress: "23 hours played",
-    },
-  ]
-
-  const whoToFollow = [
-    {
-      id: "1",
-      avatar: "/gamer-avatar-1.png",
-      displayName: "ProGamer_Mike",
-      handle: "@mikeplays",
-      isFollowing: false,
-    },
-    {
-      id: "2",
-      avatar: "/gamer-avatar-2.png",
-      displayName: "StreamQueen",
-      handle: "@queenstreams",
-      isFollowing: false,
-    },
-  ]
+  
+  // Use data adapter to get real data
+  const { posts, continuePlayingGames, whoToFollow, userAvatar, isLoading } = useV0Data()
 
   return (
     <div className="min-h-screen bg-background">
@@ -171,7 +109,7 @@ export default function V0SandboxPage() {
                 {/* V0 Composer - Exact replica */}
                 <div className="bg-card border border-border rounded-xl p-6">
                   <div className="flex gap-4">
-                    <img src="/diverse-user-avatars.png" alt="Your avatar" className="w-10 h-10 rounded-full flex-shrink-0" />
+                    <img src={userAvatar || "/avatar-placeholder.svg"} alt="Your avatar" className="w-10 h-10 rounded-full flex-shrink-0" />
 
                     <div className="flex-1">
                       <textarea

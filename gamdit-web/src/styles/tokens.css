@@ -104,6 +104,36 @@
   .text-brand-accent { color: rgb(var(--brand-accent)); }
   .text-brand-spark { color: rgb(var(--brand-spark)); }
   .border-brand-accent { border-color: rgb(var(--brand-accent)); }
+
+  /* V0 Integration - Map v0 tokens to Midnight Nova */
+  --background: var(--neutral-bg);
+  --foreground: var(--text-strong);
+  --card: var(--neutral-bgElevated);
+  --card-foreground: var(--text-strong);
+  --popover: var(--neutral-surface);
+  --popover-foreground: var(--text-strong);
+  --primary: var(--brand-accent);
+  --primary-foreground: var(--text-strong);
+  --secondary: var(--neutral-surface);
+  --secondary-foreground: var(--text-strong);
+  --muted: var(--neutral-surface);
+  --muted-foreground: var(--text-muted);
+  --accent: var(--brand-accent);
+  --accent-foreground: var(--text-strong);
+  --destructive: var(--status-danger);
+  --destructive-foreground: var(--text-strong);
+  --border: var(--neutral-border);
+  --input: var(--neutral-surface);
+  --ring: var(--brand-accent);
+  --radius: 8px;
+  --sidebar: var(--neutral-bgElevated);
+  --sidebar-foreground: var(--text-strong);
+  --sidebar-primary: var(--brand-accent);
+  --sidebar-primary-foreground: var(--text-strong);
+  --sidebar-accent: var(--neutral-surface);
+  --sidebar-accent-foreground: var(--text-strong);
+  --sidebar-border: var(--neutral-border);
+  --sidebar-ring: var(--brand-accent);
 }
 
 /* Dark theme (same as root for now, allows future light theme) */

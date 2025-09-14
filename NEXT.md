@@ -36,7 +36,40 @@
 - CI: NEXT guard workflow created and tested ✅
 - Schema: Fixed database schema mismatch (preview → summary column) ✅
 
+## V0 Package Audit Summary
+
+**Components Found:**
+- Header: Search bar, navigation icons (Bell, MessageCircle, User)
+- Hero Card: Gradient background with CTA button
+- Feed Tabs: Following/For You segmented control with proper ARIA
+- Composer: Textarea with media/game attachment buttons
+- Post Card: User info, content, game image, action buttons (like/comment/share)
+- Sidebar: Continue Playing, Who to Follow, Trending sections
+- Skeletons: Post and sidebar loading states
+- UI Library: Complete shadcn/ui component set
+
+**External Dependencies:**
+- Radix UI primitives (accordion, dialog, dropdown, etc.)
+- Lucide React icons
+- Class Variance Authority for button variants
+- Tailwind CSS with custom theme
+
+**Design Token Issues:**
+- Uses CSS custom properties that map to Midnight Nova tokens
+- Some hardcoded gradient text in hero (needs solid text)
+- Sidebar uses custom sidebar-* tokens
+- Button variants follow shadcn patterns
+
+**Integration Strategy:**
+- Map v0 tokens to existing Midnight Nova system
+- Create presentational components in shared UI layer
+- Build thin adapters to connect existing data
+- Maintain single source of truth for design tokens
+
 ## Recent Changes Log
+- 2025-01-11: **V0 INTEGRATION STARTED** - Begin integration of v0-generated Home UI components
+- 2025-01-11: Round 2 Home improvements: minimize hero, enhance tabs, reduce composer weight, weight down sidebar
+- 2025-09-14: Transform Home experience: apply Midnight Nova design system, improve hierarchy, enhance UX with premium feel
 - 2025-09-14: Fix search functionality: remove focus ring from search button, fix API key issue in search endpoint
 - 2025-09-11: Apply Midnight Nova button system: header/profile/menu icon buttons; feed post context menu icon style.
 - 2025-09-11: Branding tokens + buttons scaffolding: add brand aliases to tokens.css, create styles/buttons.css, import in globals.css.

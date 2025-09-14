@@ -19,3 +19,4 @@ out/
 
 # Supabase local artifacts
 supabase/.temp/
+.v0-temp/

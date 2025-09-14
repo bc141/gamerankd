@@ -25,22 +25,22 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-          cache-dependency-path: gamebox-web/package-lock.json
+          cache-dependency-path: gamdit-web/package-lock.json
 
       - name: Install dependencies
-        working-directory: ./gamebox-web
+        working-directory: ./gamdit-web
         run: npm ci
 
       - name: Type check
-        working-directory: ./gamebox-web
+        working-directory: ./gamdit-web
         run: npm run typecheck
 
       - name: Lint
-        working-directory: ./gamebox-web
+        working-directory: ./gamdit-web
         run: npm run lint || true
 
       - name: Build
-        working-directory: ./gamebox-web
+        working-directory: ./gamdit-web
         run: npm run build
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
@@ -62,22 +62,22 @@ jobs:
           version: latest
 
       - name: Link to preview project
-        if: ${{ secrets.PREVIEW_PROJECT_REF }}
-        working-directory: ./gamebox-web
+        if: ${{ secrets.PREVIEW_PROJECT_REF != '' }}
+        working-directory: ./gamdit-web
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           supabase link --project-ref ${{ secrets.PREVIEW_PROJECT_REF }}
 
       - name: Push migrations and seed data
-        if: ${{ secrets.PREVIEW_PROJECT_REF }}
-        working-directory: ./gamebox-web
+        if: ${{ secrets.PREVIEW_PROJECT_REF != '' }}
+        working-directory: ./gamdit-web
         run: |
           supabase db push
           supabase db seed
 
       - name: Comment PR with preview info
-        if: ${{ secrets.PREVIEW_PROJECT_REF }}
+        if: ${{ secrets.PREVIEW_PROJECT_REF != '' }}
         uses: actions/github-script@v7
         with:
           script: |
@@ -131,11 +131,11 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        working-directory: ./gamebox-web
+        working-directory: ./gamdit-web
         run: npm ci
 
       - name: Build for preview
-        working-directory: ./gamebox-web
+        working-directory: ./gamdit-web
         run: npm run build
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ env.PREVIEW_URL }}
@@ -148,5 +148,5 @@ jobs:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
           vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
           vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-          working-directory: ./gamebox-web
+          working-directory: ./gamdit-web
           scope: ${{ secrets.VERCEL_ORG_ID }}

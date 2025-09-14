@@ -1,0 +1,130 @@
+/* Design Tokens for Gamdit Home Feed v2 */
+:root {
+  /* Background Colors */
+  --bg: 17 17 19;        /* #111113 - Main background */
+  --bg-elev: 24 24 28;   /* #18181c - Elevated surfaces */
+  --bg-card: 22 22 26;   /* #16161a - Card backgrounds */
+  
+  /* Text Colors */
+  --txt: 232 232 236;    /* #e8e8ec - Primary text */
+  --txt-muted: 160 160 170; /* #a0a0aa - Muted text */
+  --txt-subtle: 120 120 130; /* #787882 - Subtle text */
+  
+  /* Accent Colors */
+  --accent: 139 92 246;  /* #8b5cf6 - Primary accent (violet-500) */
+  --accent-contrast: 255 255 255; /* White text on accent */
+  --accent-hover: 124 58 237; /* #7c3aed - Accent hover (violet-600) */
+  
+  /* Brand — Midnight Nova */
+  --brand-gradient-start: 13 11 31; /* Deep Midnight - anchor for hero gradients */
+  --brand-gradient-end: 108 77 255; /* Nova Violet - energetic edge of gradient */
+  --brand-accent: 139 92 246; /* Solid Violet - primary CTA, focus ring, key accents */
+  --brand-spark: 59 231 224; /* Cyan Spark - subtle highlight/selection tint */
+  
+  /* Semantic Colors */
+  --success: 34 197 94;  /* #22c55e - Success green */
+  --warn: 234 179 8;     /* #eab308 - Warning yellow */
+  --danger: 239 68 68;   /* #ef4444 - Danger red */
+  --info: 59 130 246;    /* #3b82f6 - Info blue */
+  --rating-star: 250 204 21; /* #facc15 - Star */
+  
+  /* Border & Surface */
+  --border: 42 42 48;    /* #2a2a30 - Default borders */
+  --border-subtle: 35 35 40; /* #232328 - Subtle borders */
+  --border-strong: 60 60 70; /* #3c3c46 - Strong borders */
+  
+  /* Aliases to match Brand Note naming */
+  --neutral-bg: var(--bg);
+  --neutral-bgElevated: var(--bg-elev);
+  --neutral-surface: var(--bg-card);
+  --neutral-border: var(--border);
+  --text-strong: var(--txt);
+  --text-muted: var(--txt-muted);
+  
+  /* Interactive States */
+  --hover: 0 0 0 / 0.05; /* Subtle hover overlay */
+  --active: 0 0 0 / 0.1;  /* Active state overlay */
+  --focus: 139 92 246 / 0.2; /* Focus ring color */
+  
+  /* Shadows */
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.15);
+  --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.4);
+  
+  /* Border Radius */
+  --radius: 16px;        /* Default border radius */
+  --radius-sm: 8px;      /* Small radius */
+  --radius-lg: 24px;     /* Large radius */
+  
+  /* Spacing Scale */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+  
+  /* Typography Scale */
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-base: 16px;
+  --text-lg: 18px;
+  --text-xl: 20px;
+  --text-2xl: 22px;
+  --text-3xl: 28px;
+  
+  /* Line Heights */
+  --leading-tight: 1.2;
+  --leading-normal: 1.4;
+  --leading-relaxed: 1.6;
+  
+  /* Z-Index Scale */
+  --z-dropdown: 1000;
+  --z-sticky: 1020;
+  --z-fixed: 1030;
+  --z-modal-backdrop: 1040;
+  --z-modal: 1050;
+  --z-popover: 1060;
+  --z-tooltip: 1070;
+  
+  /* Motion Guidelines */
+  --duration-fast: 150ms;
+  --duration-normal: 200ms;
+  --duration-slow: 250ms;
+  --easing-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --easing-standard: ease-out;
+  
+  /* Gradient Utilities */
+  --gradient-midnight-nova: linear-gradient(135deg, rgb(var(--brand-gradient-start)) 0%, rgb(var(--brand-gradient-end)) 100%);
+  --gradient-midnight-nova-subtle: linear-gradient(135deg, rgba(var(--brand-gradient-start) / 0.8) 0%, rgba(var(--brand-gradient-end) / 0.6) 100%);
+  
+  /* Brand Utility Classes */
+  .bg-midnight-nova { background: var(--gradient-midnight-nova); }
+  .bg-midnight-nova-subtle { background: var(--gradient-midnight-nova-subtle); }
+  .text-brand-accent { color: rgb(var(--brand-accent)); }
+  .text-brand-spark { color: rgb(var(--brand-spark)); }
+  .border-brand-accent { border-color: rgb(var(--brand-accent)); }
+}
+
+/* Dark theme (same as root for now, allows future light theme) */
+.dark {
+  /* Inherits all values from :root */
+}
+
+/* Light theme (future implementation) */
+.light {
+  --bg: 255 255 255;
+  --bg-elev: 248 250 252;
+  --bg-card: 255 255 255;
+  --txt: 15 23 42;
+  --txt-muted: 100 116 139;
+  --txt-subtle: 148 163 184;
+  --border: 226 232 240;
+  --border-subtle: 241 245 249;
+  --border-strong: 203 213 225;
+  --hover: 0 0 0 / 0.02;
+  --active: 0 0 0 / 0.05;
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.15);
+}

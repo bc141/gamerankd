@@ -25,16 +25,16 @@
   --brand-accent: #8b5cf6;
   --brand-spark: #5de1ff;
 
-  /* V0 Neutral Colors */
-  --neutral-bg: #0f1117;
-  --neutral-bg-elevated: #151a22;
-  --neutral-surface: #181a20;
-  --neutral-border: #2a2f3a;
+  /* V0 Neutral Colors - Lighter for better contrast */
+  --neutral-bg: #0a0a0a;
+  --neutral-bg-elevated: #111111;
+  --neutral-surface: #1a1a1a;
+  --neutral-border: #262626;
 
-  /* V0 Text Colors */
-  --text-strong: #f5f7ff;
-  --text-muted: #a0a6b1;
-  --text-subtle: #6b7280;
+  /* V0 Text Colors - Better contrast */
+  --text-strong: #ffffff;
+  --text-muted: #a3a3a3;
+  --text-subtle: #737373;
 
   /* V0 Status Colors */
   --status-success: #22c55e;

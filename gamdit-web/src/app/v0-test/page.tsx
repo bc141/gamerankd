@@ -10,6 +10,8 @@ export default function V0TestPage() {
   const [activeTab, setActiveTab] = useState<"following" | "for-you">("following")
   const [composerContent, setComposerContent] = useState("")
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set())
+  const [selectedGame, setSelectedGame] = useState<{id: string, name: string, cover: string} | null>(null)
+  const [showGameSelector, setShowGameSelector] = useState(false)
   
   // Use real data from backend
   const { posts, continuePlayingGames, whoToFollow, userAvatar, isLoading } = useV0Data()
@@ -58,7 +60,18 @@ export default function V0TestPage() {
 
   const handleAddGame = () => {
     console.log('Add game')
-    // TODO: Implement game selection
+    setShowGameSelector(true)
+  }
+
+  const handleSelectGame = (game: {id: string, name: string, cover: string}) => {
+    setSelectedGame(game)
+    setShowGameSelector(false)
+    console.log('Selected game:', game)
+  }
+
+  const handleRemoveGame = () => {
+    setSelectedGame(null)
+    console.log('Removed game')
   }
 
   return (
@@ -127,6 +140,28 @@ export default function V0TestPage() {
                         className="w-full bg-transparent text-foreground placeholder:text-muted-foreground resize-none border-none outline-none text-lg min-h-[80px]"
                         rows={3}
                       />
+
+                      {/* Selected Game Display */}
+                      {selectedGame && (
+                        <div className="mt-3 p-3 bg-muted rounded-lg border border-border flex items-center gap-3">
+                          <img
+                            src={selectedGame.cover}
+                            alt={selectedGame.name}
+                            className="w-12 h-12 rounded-lg object-cover"
+                          />
+                          <div className="flex-1">
+                            <h4 className="font-medium text-foreground text-sm">{selectedGame.name}</h4>
+                            <p className="text-xs text-muted-foreground">Game</p>
+                          </div>
+                          <button
+                            onClick={handleRemoveGame}
+                            className="v0-button v0-button-ghost v0-button-sm text-muted-foreground hover:text-foreground"
+                            aria-label="Remove game"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      )}
 
                       <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
                         <div className="flex items-center gap-2">
@@ -334,6 +369,44 @@ export default function V0TestPage() {
           </aside>
         </div>
       </main>
+
+      {/* Game Selector Modal */}
+      {showGameSelector && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-card border border-border rounded-xl p-6 max-w-md w-full mx-4 max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-foreground">Select a Game</h3>
+              <button
+                onClick={() => setShowGameSelector(false)}
+                className="v0-button v0-button-ghost v0-button-icon text-muted-foreground hover:text-foreground"
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+            
+            <div className="space-y-2">
+              {continuePlayingGames.map((game) => (
+                <button
+                  key={game.id}
+                  onClick={() => handleSelectGame({id: game.id, name: game.title, cover: game.cover})}
+                  className="w-full p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors flex items-center gap-3"
+                >
+                  <img
+                    src={game.cover}
+                    alt={game.title}
+                    className="w-12 h-12 rounded-lg object-cover"
+                  />
+                  <div className="flex-1 text-left">
+                    <h4 className="font-medium text-foreground text-sm">{game.title}</h4>
+                    <p className="text-xs text-muted-foreground">{game.progress}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

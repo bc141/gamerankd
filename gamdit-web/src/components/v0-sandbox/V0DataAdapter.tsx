@@ -94,38 +94,44 @@ export function useV0Data(): V0Data {
           isLiked: false, // Will be updated by like handlers
         }))
 
-        // Mock data for sidebar (replace with real data later)
-        const v0Games: V0Game[] = [
-          {
-            id: '1',
-            title: 'Cyberpunk 2077',
-            cover: '/placeholder.jpg',
-            progress: '67% complete',
-          },
-          {
-            id: '2',
-            title: 'Elden Ring',
-            cover: '/placeholder.jpg',
-            progress: '23 hours played',
-          },
-        ]
+        // Load real games from database
+        const { data: gamesData, error: gamesError } = await sb
+          .from('games')
+          .select('id, name, cover_url')
+          .order('created_at', { ascending: false })
+          .limit(5)
 
-        const v0Users: V0User[] = [
-          {
-            id: '1',
-            avatar: '/avatar-placeholder.svg',
-            displayName: 'ProGamer_Mike',
-            handle: '@mikeplays',
-            isFollowing: false,
-          },
-          {
-            id: '2',
-            avatar: '/avatar-placeholder.svg',
-            displayName: 'StreamQueen',
-            handle: '@queenstreams',
-            isFollowing: false,
-          },
-        ]
+        if (gamesError) {
+          console.error('Error loading games:', gamesError)
+        }
+
+        // Transform games to v0 format
+        const v0Games: V0Game[] = (gamesData || []).map((game: any) => ({
+          id: game.id,
+          title: game.name,
+          cover: game.cover_url || '/placeholder.jpg',
+          progress: 'Recently played',
+        }))
+
+        // Load real users for who to follow
+        const { data: usersData, error: usersError } = await sb
+          .from('profiles')
+          .select('id, username, display_name, avatar_url')
+          .neq('id', session?.user?.id) // Exclude current user
+          .limit(3)
+
+        if (usersError) {
+          console.error('Error loading users:', usersError)
+        }
+
+        // Transform users to v0 format
+        const v0Users: V0User[] = (usersData || []).map((user: any) => ({
+          id: user.id,
+          avatar: user.avatar_url || '/avatar-placeholder.svg',
+          displayName: user.display_name || user.username,
+          handle: `@${user.username}`,
+          isFollowing: false,
+        }))
 
         setData({
           posts: v0Posts,
@@ -140,23 +146,8 @@ export function useV0Data(): V0Data {
         // Set fallback data to prevent crashes
         setData({
           posts: [],
-          continuePlayingGames: [
-            {
-              id: '1',
-              title: 'Cyberpunk 2077',
-              cover: '/placeholder.jpg',
-              progress: '67% complete',
-            }
-          ],
-          whoToFollow: [
-            {
-              id: '1',
-              avatar: '/avatar-placeholder.svg',
-              displayName: 'ProGamer_Mike',
-              handle: '@mikeplays',
-              isFollowing: false,
-            }
-          ],
+          continuePlayingGames: [],
+          whoToFollow: [],
           userAvatar: '/avatar-placeholder.svg',
           isLoading: false
         })

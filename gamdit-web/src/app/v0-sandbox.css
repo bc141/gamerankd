@@ -1,0 +1,94 @@
+/* V0 Sandbox - Isolated styling to match v0 preview exactly */
+@import "tailwindcss";
+
+:root {
+  /* V0 Brand Colors - Exact match */
+  --brand-gradient-start: #7a00ff;
+  --brand-gradient-end: #2f3bff;
+  --brand-accent: #8b5cf6;
+  --brand-spark: #5de1ff;
+
+  /* V0 Neutral Colors */
+  --neutral-bg: #0f1117;
+  --neutral-bg-elevated: #151a22;
+  --neutral-surface: #181a20;
+  --neutral-border: #2a2f3a;
+
+  /* V0 Text Colors */
+  --text-strong: #f5f7ff;
+  --text-muted: #a0a6b1;
+
+  /* V0 Status Colors */
+  --status-success: #22c55e;
+  --status-warning: #eab308;
+  --status-danger: #ef4444;
+  --rating-star: #f5c518;
+
+  /* V0 Semantic Design Tokens */
+  --background: var(--neutral-bg);
+  --foreground: var(--text-strong);
+  --card: var(--neutral-bg-elevated);
+  --card-foreground: var(--text-strong);
+  --popover: var(--neutral-surface);
+  --popover-foreground: var(--text-strong);
+  --primary: var(--brand-accent);
+  --primary-foreground: var(--text-strong);
+  --secondary: var(--neutral-surface);
+  --secondary-foreground: var(--text-strong);
+  --muted: var(--neutral-surface);
+  --muted-foreground: var(--text-muted);
+  --accent: var(--brand-accent);
+  --accent-foreground: var(--text-strong);
+  --destructive: var(--status-danger);
+  --destructive-foreground: var(--text-strong);
+  --border: var(--neutral-border);
+  --input: var(--neutral-surface);
+  --ring: var(--brand-accent);
+  --radius: 0.5rem;
+  --sidebar: var(--neutral-bg-elevated);
+  --sidebar-foreground: var(--text-strong);
+  --sidebar-primary: var(--brand-accent);
+  --sidebar-primary-foreground: var(--text-strong);
+  --sidebar-accent: var(--neutral-surface);
+  --sidebar-accent-foreground: var(--text-strong);
+  --sidebar-border: var(--neutral-border);
+  --sidebar-ring: var(--brand-accent);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* V0 Button Variants - Exact match */
+.v0-button {
+  @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50;
+}
+
+.v0-button-default {
+  @apply bg-primary text-primary-foreground shadow-sm hover:bg-primary/90;
+}
+
+.v0-button-ghost {
+  @apply hover:bg-accent hover:text-accent-foreground;
+}
+
+.v0-button-outline {
+  @apply border bg-background shadow-sm hover:bg-accent hover:text-accent-foreground;
+}
+
+.v0-button-sm {
+  @apply h-8 rounded-md gap-1.5 px-3;
+}
+
+.v0-button-lg {
+  @apply h-10 rounded-md px-6;
+}
+
+.v0-button-icon {
+  @apply size-9;
+}

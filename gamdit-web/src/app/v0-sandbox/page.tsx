@@ -4,7 +4,6 @@ import { useState } from "react"
 import "../v0-sandbox.css"
 import { Search, Bell, MessageCircle, User, Heart, MessageCircle as MessageCircleIcon, Share, MoreHorizontal, ImageIcon, Gamepad2, Play, UserPlus, TrendingUp } from "lucide-react"
 import { useV0Data } from "@/components/v0-sandbox/V0DataAdapter"
-import "./test-parity"
 
 // V0 Sandbox - Exact replica of v0 components with real data
 export default function V0SandboxPage() {
@@ -13,6 +12,11 @@ export default function V0SandboxPage() {
   
   // Use data adapter to get real data
   const { posts, continuePlayingGames, whoToFollow, userAvatar, isLoading } = useV0Data()
+
+  // Fallback for any rendering issues
+  if (typeof window === 'undefined') {
+    return <div>Loading...</div>
+  }
 
   return (
     <div className="v0-sandbox min-h-screen bg-background">

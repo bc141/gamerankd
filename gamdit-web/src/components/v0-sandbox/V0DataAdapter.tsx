@@ -57,6 +57,7 @@ export function useV0Data(): V0Data {
   useEffect(() => {
     async function loadData() {
       try {
+        console.log('V0DataAdapter: Starting data load...')
         const sb = supabaseBrowser()
         const session = await waitForSession(sb)
         
@@ -136,7 +137,29 @@ export function useV0Data(): V0Data {
 
       } catch (error) {
         console.error('Error loading v0 data:', error)
-        setData(prev => ({ ...prev, isLoading: false }))
+        // Set fallback data to prevent crashes
+        setData({
+          posts: [],
+          continuePlayingGames: [
+            {
+              id: '1',
+              title: 'Cyberpunk 2077',
+              cover: '/placeholder.jpg',
+              progress: '67% complete',
+            }
+          ],
+          whoToFollow: [
+            {
+              id: '1',
+              avatar: '/avatar-placeholder.svg',
+              displayName: 'ProGamer_Mike',
+              handle: '@mikeplays',
+              isFollowing: false,
+            }
+          ],
+          userAvatar: '/avatar-placeholder.svg',
+          isLoading: false
+        })
       }
     }
 

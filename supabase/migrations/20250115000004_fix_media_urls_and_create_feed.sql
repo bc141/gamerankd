@@ -170,11 +170,15 @@ ALTER VIEW public.post_feed_v2 SET (security_invoker = true);
 ALTER VIEW public.post_feed SET (security_invoker = true);
 ALTER VIEW public.post_with_counts SET (security_invoker = true);
 
--- Grant access to authenticated users
+-- Grant access to authenticated users and service role
 GRANT SELECT ON public.feed_unified_v1 TO authenticated;
+GRANT SELECT ON public.feed_unified_v1 TO service_role;
 GRANT SELECT ON public.post_feed_v2 TO authenticated;
+GRANT SELECT ON public.post_feed_v2 TO service_role;
 GRANT SELECT ON public.post_feed TO authenticated;
+GRANT SELECT ON public.post_feed TO service_role;
 GRANT SELECT ON public.post_with_counts TO authenticated;
+GRANT SELECT ON public.post_with_counts TO service_role;
 
 -- Add comment for documentation
 COMMENT ON VIEW public.feed_unified_v1 IS 'Unified feed view merging posts, reviews, and ratings with common shape for feed display';

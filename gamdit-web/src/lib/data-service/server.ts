@@ -179,6 +179,31 @@ class ServerDataService {
 
       const next_cursor = posts.length === limit ? posts[posts.length - 1]._cursor : undefined
 
+      // Debug logging to verify multiple authors in For-You
+      const distinctUsers = new Set(filteredData.map((r: any) => r.user_id)).size
+      console.log('[feed]', tab, 'items:', filteredData.length, 'distinctUsers:', distinctUsers, filteredData.slice(0,5).map((r: any) => r.user_id))
+      
+      // If distinctUsers is 1, check for RLS leakage by comparing anon vs admin
+      if (distinctUsers === 1 && tab === 'for-you') {
+        console.warn('[feed] RLS LEAKAGE DETECTED: Only 1 distinct user in For-You feed')
+        try {
+          // Test with anon client to see if RLS is blocking
+          const anonClient = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+          )
+          const { data: anonData } = await anonClient
+            .from('feed_unified_v1')
+            .select('user_id')
+            .limit(5)
+          const anonUsers = new Set(anonData?.map((r: any) => r.user_id) || []).size
+          console.log('[feed] anon client distinct users:', anonUsers)
+          console.log('[feed] admin client distinct users:', distinctUsers)
+        } catch (anonError) {
+          console.log('[feed] anon client error (expected):', anonError.message)
+        }
+      }
+      
       console.log('[serverDataService.getFeed] posts:', posts.length, 'tab:', tab, 'filter:', filter, 'viewerId:', viewerId ?? 'anon')
       // Return PaginatedResponse<FeedPost> to satisfy types; API maps to {items,nextCursor,hasMore}
       return {

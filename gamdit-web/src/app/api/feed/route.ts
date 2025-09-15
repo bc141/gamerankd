@@ -8,6 +8,7 @@ const ALLOWED_FILTERS = ['all', 'clips', 'reviews', 'screens'] as const
 export type FeedFilter = typeof ALLOWED_FILTERS[number]
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
 
 export async function POST(req: NextRequest) {
   try {

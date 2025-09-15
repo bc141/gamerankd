@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import HeaderLegacy from '@/components/Header';
 import { Header as HeaderV0 } from '@/components/v0-ui';
+import { ToastProvider } from '@/components/ui/toast';
 
 const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] });
 const geistMono = Geist_Mono({ variable: '--font-geist-mono', subsets: ['latin'] });
@@ -48,17 +49,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`} style={{ ['--app-header-height' as any]: headerHeight }}>
-        {useV0Header ? (
-          <HeaderV0
-            onSearch={() => {}}
-            onNotifications={() => {}}
-            onMessages={() => {}}
-            onProfile={() => {}}
-          />
-        ) : (
-          <HeaderLegacy />
-        )}
-        {children}
+        <ToastProvider>
+          {useV0Header ? (
+            <HeaderV0
+              onSearch={() => {}}
+              onNotifications={() => {}}
+              onMessages={() => {}}
+              onProfile={() => {}}
+            />
+          ) : (
+            <HeaderLegacy />
+          )}
+          {children}
+        </ToastProvider>
       </body>
     </html>
   );

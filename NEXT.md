@@ -114,6 +114,10 @@
 - Updated `HomeClientV0` to consume `res.items`, preserve last good page on errors, guard pagination by `nextCursor`, reset scroll on tab/filter changes, and show a small toast on failures.
 - Guarded notifications page initial fetch/focus refresh to suppress noisy errors so real console issues are visible.
 
+### Toast Provider Fix
+- Issue: `useToast must be used within a ToastProvider` thrown by `HomeClientV0` when showing error toasts.
+- Resolution: Mounted a single `ToastProvider` at the app root in `src/app/layout.tsx` wrapping the header and `{children}`. Removed need for any down-tree providers.
+
 ## Constraints / Out of Scope
 - Don't touch `main`
 - No prod keys; RLS stays on

@@ -127,7 +127,12 @@ class ServerDataService {
         .order('id', { ascending: false })
         .limit(limit)
 
-      if (error) throw error
+      if (error) {
+        console.error('[serverDataService.getFeed] query error:', error)
+        throw error
+      }
+      
+      console.log('[serverDataService.getFeed] raw data count:', data?.length || 0)
 
       // Apply client-side filters for clips/screens (until we add SQL detection)
       let filteredData = data || []
@@ -195,7 +200,21 @@ class ServerDataService {
           has_more: posts.length === limit
         }
       }
-    } catch (error) {
+    } catch (error: any) {
+      // If the unified feed view is missing (e.g., migration not applied),
+      // fall back to the legacy posts-only preload so the feed never goes blank.
+      const msg = String(error?.message ?? '')
+      const code = String(error?.code ?? '')
+      const missingUnifiedView = code === '42P01' || msg.includes('feed_unified_v1') || msg.includes('relation') && msg.includes('does not exist')
+
+      if (missingUnifiedView) {
+        console.warn('[serverDataService.getFeed] unified view missing – falling back to posts-only preload')
+        const fallback = await this.preloadFeedPosts(params.limit ?? 20)
+        if (fallback.success) {
+          return fallback
+        }
+      }
+
       return { success: false, error: this.handleError(error, 'getFeed') }
     }
   }

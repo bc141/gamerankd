@@ -1,8 +1,10 @@
--- Create unified feed view that merges posts, reviews, and ratings
+-- Fix feed_unified_v1 view to work with actual database schema
 -- This view provides a common shape for all feed content types
 
+DROP VIEW IF EXISTS public.feed_unified_v1 CASCADE;
+
 CREATE OR REPLACE VIEW public.feed_unified_v1 AS
--- Posts from post_feed_v2 (already has all the joins we need)
+-- Posts from posts table with joins
 SELECT 
   p.id::text as id,
   p.user_id,
@@ -10,22 +12,26 @@ SELECT
   'post'::text as kind,
   p.body,
   NULL::integer as rating_score,
-  p.media_urls,
+  COALESCE(p.media_urls, ARRAY[]::text[]) as media_urls,
   p.game_id,
-  p.game_name,
-  p.game_cover_url,
-  p.like_count,
-  p.comment_count,
-  p.username,
-  p.display_name,
-  p.avatar_url
-FROM public.post_feed_v2 p
+  g.name as game_name,
+  g.cover_url as game_cover_url,
+  COALESCE(plc.like_count, 0) as like_count,
+  COALESCE(pcc.comment_count, 0) as comment_count,
+  prof.username,
+  prof.display_name,
+  prof.avatar_url
+FROM public.posts p
+LEFT JOIN public.profiles prof ON prof.id = p.user_id
+LEFT JOIN public.games g ON g.id = p.game_id
+LEFT JOIN public.post_like_counts plc ON p.id = plc.post_id
+LEFT JOIN public.post_comment_counts pcc ON p.id = pcc.post_id
 
 UNION ALL
 
 -- Reviews (with text content)
 SELECT 
-  r.id::text as id,
+  ('review_' || r.id)::text as id,
   r.user_id,
   r.created_at,
   'review'::text as kind,
@@ -49,7 +55,7 @@ UNION ALL
 
 -- Ratings (without text content, just score)
 SELECT 
-  r.id::text as id,
+  ('rating_' || r.id)::text as id,
   r.user_id,
   r.created_at,
   'rating'::text as kind,

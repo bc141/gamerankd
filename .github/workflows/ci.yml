@@ -76,6 +76,17 @@ jobs:
           supabase db push
           supabase db seed
 
+      - name: Verify feed_unified_v1 view
+        if: ${{ secrets.PREVIEW_PROJECT_REF != '' }}
+        working-directory: ./gamdit-web
+        run: |
+          echo "Testing feed_unified_v1 view..."
+          supabase db shell --command "SELECT 1 FROM feed_unified_v1 LIMIT 1;" || {
+            echo "❌ feed_unified_v1 view test failed"
+            exit 1
+          }
+          echo "✅ feed_unified_v1 view is accessible"
+
       - name: Comment PR with preview info
         if: ${{ secrets.PREVIEW_PROJECT_REF != '' }}
         uses: actions/github-script@v7

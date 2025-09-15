@@ -51,27 +51,26 @@ class ServerDataService {
   }): Promise<DataServiceResult<PaginatedResponse<FeedPost>>> {
     const { viewerId, tab, filter, cursor, limit = 20 } = params
     try {
+      // Use the consolidated feed view that backs v0 tests
+      // Columns: id, user_id, created_at, body, tags, media_urls,
+      // like_count, comment_count, username, display_name, avatar_url,
+      // game_id, game_name, game_cover_url
       let baseQuery = supabase
-        .from('posts')
+        .from('post_feed_v2')
         .select(`
           id,
-          content,
-          created_at,
-          updated_at,
           user_id,
-          game_id,
+          created_at,
+          body,
           media_urls,
-          user:profiles!posts_user_id_fkey (
-            id,
-            username,
-            display_name,
-            avatar_url
-          ),
-          game:games!posts_game_id_fkey (
-            id,
-            name,
-            cover_url
-          )
+          like_count,
+          comment_count,
+          username,
+          display_name,
+          avatar_url,
+          game_id,
+          game_name,
+          game_cover_url
         `)
 
       // Tab filter
@@ -96,11 +95,11 @@ class ServerDataService {
 
       // Content filter (simple heuristic on content/media)
       if (filter === 'clips') {
-        baseQuery = baseQuery.or('content.ilike.%clip%,content.ilike.%video%')
+        baseQuery = baseQuery.or('body.ilike.%clip%,body.ilike.%video%')
       } else if (filter === 'reviews') {
-        baseQuery = baseQuery.or('content.ilike.%review%,content.ilike.%rating%')
+        baseQuery = baseQuery.or('body.ilike.%review%,body.ilike.%rating%')
       } else if (filter === 'screens') {
-        baseQuery = baseQuery.or('content.ilike.%screenshot%,content.ilike.%screen%')
+        baseQuery = baseQuery.or('body.ilike.%screenshot%,body.ilike.%screen%')
       }
 
       // Cursor pagination (created_at DESC, tie-breaker id)
@@ -116,15 +115,15 @@ class ServerDataService {
 
       const posts: FeedPost[] = (data || []).map((post: any) => ({
         id: post.id,
-        content: post.content,
+        content: post.body,
         created_at: post.created_at,
-        updated_at: post.updated_at,
+        updated_at: post.created_at,
         user_id: post.user_id,
         user: {
-          id: post.user?.id || '',
-          username: post.user?.username || '',
-          display_name: post.user?.display_name || '',
-          avatar_url: post.user?.avatar_url,
+          id: post.user_id || '',
+          username: post.username || '',
+          display_name: post.display_name || '',
+          avatar_url: post.avatar_url || null,
           bio: undefined,
           followers_count: 0,
           following_count: 0,
@@ -132,12 +131,12 @@ class ServerDataService {
           is_following: false,
           is_verified: false
         },
-        game_id: post.game?.id,
-        game: post.game
+        game_id: post.game_id,
+        game: post.game_id
           ? {
-              id: post.game.id,
-              name: post.game.name,
-              cover_url: post.game.cover_url,
+              id: post.game_id,
+              name: post.game_name,
+              cover_url: post.game_cover_url,
               last_played_at: post.created_at,
               playtime_minutes: 0,
               progress_percentage: 0,
@@ -145,7 +144,7 @@ class ServerDataService {
             }
           : undefined,
         media_urls: post.media_urls || [],
-        reaction_counts: { likes: 0, comments: 0, shares: 0, views: 0 },
+        reaction_counts: { likes: post.like_count || 0, comments: post.comment_count || 0, shares: 0, views: 0 },
         user_reactions: { liked: false, commented: false, shared: false },
         _cursor: { id: post.id, created_at: post.created_at }
       }))

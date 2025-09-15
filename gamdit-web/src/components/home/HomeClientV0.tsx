@@ -64,17 +64,20 @@ export default function HomeClientV0() {
   const [showScrollToTop, setShowScrollToTop] = useState(false);
   const [selectedGame, setSelectedGame] = useState<V0Game | null>(null);
   const [showGameModal, setShowGameModal] = useState(false);
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [sessionUserId, setSessionUserId] = useState<string | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
 
-  // Load data
+  // Load session once on mount
   useEffect(() => {
-    async function loadData() {
+    let isMounted = true;
+    
+    async function loadSession() {
       try {
         const sb = supabaseBrowser();
         const session = await waitForSession(sb);
         
-        if (session?.user) {
-          setCurrentUser(session.user);
+        if (isMounted && session?.user) {
+          setSessionUserId(session.user.id);
           
           // Load user's following data
           const { data: followingData } = await sb
@@ -86,16 +89,41 @@ export default function HomeClientV0() {
             setFollowedUsers(new Set(followingData.map(f => f.following_id)));
           }
         }
+      } catch (error) {
+        console.error('Error loading session:', error);
+      } finally {
+        if (isMounted) {
+          setIsMounted(true);
+        }
+      }
+    }
 
+    loadSession();
+    
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Load data based on activeTab and sessionUserId
+  useEffect(() => {
+    if (!isMounted) return;
+    
+    let abortController = new AbortController();
+    
+    async function loadData() {
+      try {
+        const sb = supabaseBrowser();
+        
         // Load posts based on active tab
         let postsData, postsError;
         
-        if (activeTab === 'following' && currentUser) {
+        if (activeTab === 'following' && sessionUserId) {
           // Get posts from users I follow
           const { data: followingIds } = await sb
             .from('follows')
             .select('following_id')
-            .eq('follower_id', currentUser.id);
+            .eq('follower_id', sessionUserId);
           
           if (followingIds && followingIds.length > 0) {
             const followingUserIds = followingIds.map(f => f.following_id);
@@ -109,8 +137,10 @@ export default function HomeClientV0() {
             postsError = error;
           } else {
             // No following, show empty
-            setPosts([]);
-            setIsLoading(false);
+            if (!abortController.signal.aborted) {
+              setPosts([]);
+              setIsLoading(false);
+            }
             return;
           }
         } else {
@@ -124,6 +154,8 @@ export default function HomeClientV0() {
           postsError = error;
         }
 
+        if (abortController.signal.aborted) return;
+
         if (postsError) {
           console.error('Error loading posts:', postsError);
         }
@@ -135,6 +167,8 @@ export default function HomeClientV0() {
           .order('created_at', { ascending: false })
           .limit(5);
 
+        if (abortController.signal.aborted) return;
+
         if (gamesError) {
           console.error('Error loading games:', gamesError);
         }
@@ -144,6 +178,8 @@ export default function HomeClientV0() {
           .from('profiles')
           .select('id, username, display_name, avatar_url')
           .limit(3);
+
+        if (abortController.signal.aborted) return;
 
         if (usersError) {
           console.error('Error loading users:', usersError);
@@ -166,19 +202,27 @@ export default function HomeClientV0() {
           isLiked: false,
         }));
 
-        setPosts(transformedPosts);
-        setGames(gamesData || []);
-        setUsers(usersData || []);
+        if (!abortController.signal.aborted) {
+          setPosts(transformedPosts);
+          setGames(gamesData || []);
+          setUsers(usersData || []);
+          setIsLoading(false);
+        }
 
       } catch (error) {
-        console.error('Error loading data:', error);
-      } finally {
-        setIsLoading(false);
+        if (!abortController.signal.aborted) {
+          console.error('Error loading data:', error);
+          setIsLoading(false);
+        }
       }
     }
 
     loadData();
-  }, [activeTab, currentUser]);
+    
+    return () => {
+      abortController.abort();
+    };
+  }, [activeTab, sessionUserId, isMounted]);
 
   // Scroll to top functionality
   useEffect(() => {
@@ -195,7 +239,7 @@ export default function HomeClientV0() {
   };
 
   const handleLike = async (postId: string) => {
-    if (!currentUser) return;
+    if (!sessionUserId) return;
     
     const sb = supabaseBrowser();
     const isLiked = likedPosts.has(postId);
@@ -213,9 +257,9 @@ export default function HomeClientV0() {
 
     try {
       if (isLiked) {
-        await sb.from('likes').delete().eq('post_id', postId).eq('user_id', currentUser.id);
+        await sb.from('likes').delete().eq('post_id', postId).eq('user_id', sessionUserId);
       } else {
-        await sb.from('likes').insert({ post_id: postId, user_id: currentUser.id });
+        await sb.from('likes').insert({ post_id: postId, user_id: sessionUserId });
       }
     } catch (error) {
       console.error('Error toggling like:', error);
@@ -233,13 +277,13 @@ export default function HomeClientV0() {
   };
 
   const handlePost = async (content: string) => {
-    if (!currentUser || !content.trim()) return;
+    if (!sessionUserId || !content.trim()) return;
     
     try {
       const sb = supabaseBrowser();
       const { error } = await sb.from('posts').insert({
         body: content,
-        user_id: currentUser.id,
+        user_id: sessionUserId,
         game_id: selectedGame?.id || null,
       });
 
@@ -279,7 +323,7 @@ export default function HomeClientV0() {
   };
 
   const handleFollow = async (userId: string) => {
-    if (!currentUser) return;
+    if (!sessionUserId) return;
     
     const sb = supabaseBrowser();
     const isFollowing = followedUsers.has(userId);
@@ -297,9 +341,9 @@ export default function HomeClientV0() {
 
     try {
       if (isFollowing) {
-        await sb.from('follows').delete().eq('follower_id', currentUser.id).eq('following_id', userId);
+        await sb.from('follows').delete().eq('follower_id', sessionUserId).eq('following_id', userId);
       } else {
-        await sb.from('follows').insert({ follower_id: currentUser.id, following_id: userId });
+        await sb.from('follows').insert({ follower_id: sessionUserId, following_id: userId });
       }
     } catch (error) {
       console.error('Error toggling follow:', error);
@@ -343,8 +387,8 @@ export default function HomeClientV0() {
   };
 
   const handleProfile = () => {
-    if (currentUser) {
-      router.push(`/u/${currentUser.user_metadata?.username || currentUser.id}`);
+    if (sessionUserId) {
+      router.push(`/u/${sessionUserId}`);
     } else {
       router.push('/login');
     }
@@ -361,6 +405,15 @@ export default function HomeClientV0() {
     // Scroll to top when changing filter
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  // Filter posts based on active filter
+  const filteredPosts = posts.filter(post => {
+    if (activeFilter === 'all') return true;
+    if (activeFilter === 'clips') return post.content.toLowerCase().includes('clip') || post.content.toLowerCase().includes('video');
+    if (activeFilter === 'reviews') return post.content.toLowerCase().includes('review') || post.content.toLowerCase().includes('rating');
+    if (activeFilter === 'screens') return post.content.toLowerCase().includes('screenshot') || post.content.toLowerCase().includes('screen');
+    return true;
+  });
 
   return (
     <div className="v0-sandbox">
@@ -435,27 +488,27 @@ export default function HomeClientV0() {
               placeholder="What's happening in your game?"
             />
 
-            {/* Posts */}
-            <div className="space-y-3">
-              {isLoading ? (
-                <>
-                  <SkeletonPostCard />
-                  <SkeletonPostCard />
-                  <SkeletonPostCard />
-                </>
-              ) : (
-                posts.map((post) => (
-                  <PostCard
-                    key={post.id}
-                    post={post}
-                    onLike={() => handleLike(post.id)}
-                    onComment={() => handleComment(post.id)}
-                    onShare={() => handleShare(post.id)}
-                    onMore={() => handleMore(post.id)}
-                  />
-                ))
-              )}
-            </div>
+                    {/* Posts */}
+                    <div className="space-y-3">
+                      {isLoading ? (
+                        <>
+                          <SkeletonPostCard />
+                          <SkeletonPostCard />
+                          <SkeletonPostCard />
+                        </>
+                      ) : (
+                        filteredPosts.map((post) => (
+                          <PostCard
+                            key={post.id}
+                            post={post}
+                            onLike={() => handleLike(post.id)}
+                            onComment={() => handleComment(post.id)}
+                            onShare={() => handleShare(post.id)}
+                            onMore={() => handleMore(post.id)}
+                          />
+                        ))
+                      )}
+                    </div>
           </div>
 
           {/* Sidebar */}

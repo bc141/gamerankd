@@ -424,6 +424,34 @@
   outline-offset: 2px;
 }
 
+/* Media Constraints - Reserved aspect boxes to prevent CLS */
+.v0-sandbox .post-media {
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: 16/9;
+  object-fit: cover;
+  border-radius: 8px;
+  background: var(--v0-muted);
+  display: block;
+}
+
+.v0-sandbox .post-media-container {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16/9;
+  background: var(--v0-muted);
+  border-radius: 8px;
+  overflow: hidden;
+  margin: 0.5rem 0;
+}
+
+.v0-sandbox .post-media-container img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
 .v0-sandbox .post-header {
   display: flex;
   gap: 0.75rem;

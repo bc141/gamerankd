@@ -66,16 +66,12 @@ export function PostCard({ post, onLike, onComment, onShare, onMore }: PostCardP
           <p className="post-content">{post.content}</p>
 
           {post.gameImage && (
-            <div className="post-game">
+            <div className="post-media-container">
               <img
                 src={post.gameImage || "/placeholder.svg"}
                 alt="Game screenshot"
-                className="post-game-image"
+                className="post-media"
               />
-              <div className="post-game-info">
-                <h4>Game</h4>
-                <p>Recently played</p>
-              </div>
             </div>
           )}
 

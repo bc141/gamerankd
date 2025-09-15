@@ -78,6 +78,8 @@
 ✅ **MIGRATED TO MAIN INTERFACE** - v0 UI is now the default interface (USE_V0 = true)
 
 ## Recent Changes Log
+- 2025-01-15: **FEED SWITCHED TO UNIFIED VIEW** - Updated serverDataService.getFeed to query feed_unified_v1 directly with proper filtering and pagination
+- 2025-01-15: **MIXED CONTENT ENABLED** - Following tab now includes self ∪ followees, For-You shows all content, proper kind-based filtering implemented
 - 2025-01-15: **FEED UNIFIED VIEW CREATED** - Successfully created feed_unified_v1 view that UNION ALL merges posts, reviews, and ratings with proper joins to profiles and games tables
 - 2025-01-15: **MIGRATION APPLIED** - Fixed media_urls column type issues and applied migration to preview database
 - 2025-01-15: **CI SMOKE CHECK ADDED** - Added database verification step to CI pipeline to ensure feed_unified_v1 view is accessible

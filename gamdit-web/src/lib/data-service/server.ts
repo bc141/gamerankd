@@ -148,16 +148,16 @@ class ServerDataService {
         _cursor: { id: post.id, created_at: post.created_at }
       }))
 
-      const nextCursor = posts.length === limit ? posts[posts.length - 1]._cursor : undefined
+      const next_cursor = posts.length === limit ? posts[posts.length - 1]._cursor : undefined
 
       console.log('[serverDataService.getFeed] posts:', posts.length, 'tab:', tab, 'filter:', filter, 'viewerId:', viewerId ?? 'anon')
-      // Standardized feed contract used by the app UI
+      // Return PaginatedResponse<FeedPost> to satisfy types; API maps to {items,nextCursor,hasMore}
       return {
         success: true,
         data: {
-          items: posts,
-          nextCursor,
-          hasMore: posts.length === limit
+          data: posts,
+          next_cursor,
+          has_more: posts.length === limit
         }
       }
     } catch (error) {
@@ -249,13 +249,13 @@ class ServerDataService {
       const next_cursor = posts.length === limit ? posts[posts.length - 1]._cursor : undefined
 
       console.log('[serverDataService.preloadFeedPosts] posts:', posts.length)
-      // Standardized feed contract used by the app UI
+      // Return PaginatedResponse<FeedPost> to satisfy types; API maps to {items,nextCursor,hasMore}
       return {
         success: true,
         data: {
-          items: posts,
-          nextCursor: next_cursor,
-          hasMore: posts.length === limit
+          data: posts,
+          next_cursor,
+          has_more: posts.length === limit
         }
       }
     } catch (error) {

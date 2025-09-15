@@ -35,6 +35,7 @@
 - App: Live deployment fully functional, all features operational ✅
 - CI: NEXT guard workflow created and tested ✅
 - Schema: Fixed database schema mismatch (preview → summary column) ✅
+- **Feed: Unified view created and applied - server now uses feed_unified_v1 for mixed content** ✅
 
 ## V0 Package Audit Summary
 
@@ -77,6 +78,9 @@
 ✅ **MIGRATED TO MAIN INTERFACE** - v0 UI is now the default interface (USE_V0 = true)
 
 ## Recent Changes Log
+- 2025-01-15: **FEED UNIFIED VIEW CREATED** - Successfully created feed_unified_v1 view that UNION ALL merges posts, reviews, and ratings with proper joins to profiles and games tables
+- 2025-01-15: **MIGRATION APPLIED** - Fixed media_urls column type issues and applied migration to preview database
+- 2025-01-15: **CI SMOKE CHECK ADDED** - Added database verification step to CI pipeline to ensure feed_unified_v1 view is accessible
 - 2025-09-15: Align feed API and client; stabilize response; preserve last-good page; guard notifications
 - 2025-01-11: **V0 UI DEPLOYED TO PRODUCTION** - Successfully shipped v0 UI to main interface and pushed to remote repository for Vercel deployment
 - 2025-01-11: **V0 UI MIGRATION COMPLETED** - Successfully migrated main page to use v0 UI as default interface, replacing original HomeClient

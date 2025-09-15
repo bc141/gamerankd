@@ -120,11 +120,34 @@ export default function HomeClientV0({ initialItems = [], initialNextCursor, ini
     })
     setPosts((initialItems || []).map(transform));
     loadSession();
+
+    // load sidebar via API (server-backed) to avoid RLS
+    ;(async () => {
+      try {
+        const res = await fetch('/api/sidebar')
+        if (res.ok) {
+          const data = await res.json()
+          setGames(data.games || [])
+          setUsers(data.users || [])
+        }
+      } catch (e) {
+        console.error('Sidebar load failed', e)
+      }
+    })()
     
     return () => {
       isMounted = false;
     };
   }, []);
+
+  // Reset feed cache when tab or filter changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    setIsLoading(true)
+    setPosts([])
+    setNextCursor(undefined)
+    setHasMore(false)
+  }, [activeTab, activeFilter])
 
   // Helper to call server feed API
   async function fetchFeed(params: { viewerId: string | null; tab: 'following' | 'for-you'; filter: 'all' | 'clips' | 'reviews' | 'screens'; cursor?: { id: string; created_at: string } | null }) {
@@ -402,14 +425,14 @@ export default function HomeClientV0({ initialItems = [], initialNextCursor, ini
   };
 
   const handleTabChange = (tab: 'following' | 'for-you') => {
+    if (tab === activeTab) return
     setActiveTab(tab);
-    // Scroll to top when switching tabs
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleFilterChange = (filter: 'all' | 'clips' | 'reviews' | 'screens') => {
+    if (filter === activeFilter) return
     setActiveFilter(filter);
-    // Scroll to top when changing filter
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 

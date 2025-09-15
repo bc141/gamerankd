@@ -150,11 +150,11 @@ class ServerDataService {
         _cursor: { id: post.id, created_at: post.created_at }
       }))
 
-      const next_cursor = posts.length === limit ? posts[posts.length - 1]._cursor : undefined
+      const nextCursor = posts.length === limit ? posts[posts.length - 1]._cursor : undefined
 
       return {
         success: true,
-        data: { data: posts, next_cursor, has_more: posts.length === limit }
+        data: { data: posts, next_cursor: nextCursor, has_more: posts.length === limit }
       }
     } catch (error) {
       return { success: false, error: this.handleError(error, 'getFeed') }

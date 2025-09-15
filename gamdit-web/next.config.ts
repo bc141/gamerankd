@@ -27,12 +27,12 @@ const nextConfig: NextConfig = {
 
     const previewCsp = [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://vercel.live",
-      "connect-src 'self' https://vercel.live https: wss:",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      "connect-src 'self' https: wss:",
       "img-src 'self' blob: data: https://*.supabase.co",
       "style-src 'self' 'unsafe-inline'",
       "font-src 'self' data:",
-      "frame-src https://vercel.live",
+      "frame-src 'none'",
       "frame-ancestors 'none'",
     ].join('; ');
 

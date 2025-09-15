@@ -286,6 +286,9 @@ export default function V0TestPage() {
                 users={users}
                 onFollow={handleFollow}
                 onPlayGame={handlePlayGame}
+                onGameClick={handlePlayGame}
+                onUserClick={(userId) => console.log('User click:', userId)}
+                followedUsers={new Set()}
               />
             )}
           </div>

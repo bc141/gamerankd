@@ -19,13 +19,19 @@ interface SidebarProps {
   users: User[]
   onFollow: (userId: string) => void
   onPlayGame: (gameId: string) => void
+  onGameClick: (gameId: string) => void
+  onUserClick: (userId: string) => void
+  followedUsers?: Set<string>
 }
 
 export function Sidebar({ 
   games, 
   users, 
   onFollow, 
-  onPlayGame
+  onPlayGame,
+  onGameClick,
+  onUserClick,
+  followedUsers = new Set()
 }: SidebarProps) {
   return (
     <div className="sidebar">
@@ -40,9 +46,10 @@ export function Sidebar({
           {games.map((game) => (
             <button
               key={game.id}
-              onClick={() => onPlayGame(game.id)}
+              onClick={() => onGameClick(game.id)}
               className="sidebar-item"
               type="button"
+              aria-label={`View ${game.name} details`}
             >
               <img
                 src={game.cover_url || "/placeholder.svg"}
@@ -66,26 +73,37 @@ export function Sidebar({
         </div>
 
         <div className="space-y-2">
-          {users.map((user) => (
-            <div key={user.id} className="sidebar-item">
-              <img
-                src={user.avatar_url || "/avatar-placeholder.svg"}
-                alt={`${user.display_name} avatar`}
-                className="sidebar-item-image"
-              />
-              <div className="sidebar-item-info">
-                <h3 className="sidebar-item-title">{user.display_name || user.username}</h3>
-                <p className="sidebar-item-subtitle">@{user.username}</p>
+          {users.map((user) => {
+            const isFollowing = followedUsers.has(user.id);
+            return (
+              <div key={user.id} className="sidebar-item">
+                <button
+                  onClick={() => onUserClick(user.id)}
+                  className="flex items-center gap-3 flex-1 min-w-0"
+                  type="button"
+                  aria-label={`View ${user.display_name || user.username} profile`}
+                >
+                  <img
+                    src={user.avatar_url || "/avatar-placeholder.svg"}
+                    alt={`${user.display_name || user.username} avatar`}
+                    className="sidebar-item-image"
+                  />
+                  <div className="sidebar-item-info">
+                    <h3 className="sidebar-item-title">{user.display_name || user.username}</h3>
+                    <p className="sidebar-item-subtitle">@{user.username}</p>
+                  </div>
+                </button>
+                <button
+                  onClick={() => onFollow(user.id)}
+                  className={`sidebar-follow-button ${isFollowing ? 'following' : ''}`}
+                  type="button"
+                  aria-label={`${isFollowing ? 'Unfollow' : 'Follow'} ${user.display_name || user.username}`}
+                >
+                  {isFollowing ? 'Following' : 'Follow'}
+                </button>
               </div>
-              <button 
-                className="sidebar-follow-button"
-                onClick={() => onFollow(user.id)}
-                type="button"
-              >
-                Follow
-              </button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 

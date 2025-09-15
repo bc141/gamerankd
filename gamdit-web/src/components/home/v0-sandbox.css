@@ -601,15 +601,15 @@
 .v0-sandbox .sidebar {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  min-width: 280px; /* Comfortable min-width, not cramped */
+  gap: 1.5rem;
+  min-width: 300px; /* More comfortable min-width */
 }
 
 .v0-sandbox .sidebar-card {
   background: var(--v0-surface-bg);
   border: 1px solid var(--v0-border-subtle);
-  border-radius: 8px;
-  padding: 1rem;
+  border-radius: 12px;
+  padding: 1.5rem; /* More internal padding */
 }
 
 .v0-sandbox .sidebar-header {
@@ -678,16 +678,16 @@
 }
 
 .v0-sandbox .sidebar-follow-button {
-  padding: 0.25rem 0.5rem;
+  padding: 0.375rem 0.75rem;
   border: 1px solid var(--v0-border-subtle);
   background: transparent;
   color: var(--v0-muted-foreground);
-  border-radius: 4px;
-  font-size: 0.7rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s ease;
-  min-height: 28px;
+  min-height: 32px;
   flex-shrink: 0;
 }
 
@@ -695,6 +695,17 @@
   background: var(--v0-muted);
   color: var(--v0-foreground);
   border-color: var(--v0-border);
+}
+
+.v0-sandbox .sidebar-follow-button.following {
+  background: var(--v0-primary);
+  color: var(--v0-primary-foreground);
+  border-color: var(--v0-primary);
+}
+
+.v0-sandbox .sidebar-follow-button.following:hover {
+  background: #6b00e6;
+  border-color: #6b00e6;
 }
 
 .v0-sandbox .sidebar-follow-button:focus-visible {

@@ -138,6 +138,9 @@ export function HomeV0Adapter({
           users={users}
           onPlayGame={onGameClick}
           onFollow={onFollowUser}
+          onGameClick={onGameClick}
+          onUserClick={(userId) => console.log('User click:', userId)}
+          followedUsers={new Set()}
         />
       </div>
     </div>

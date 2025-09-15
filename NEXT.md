@@ -77,6 +77,7 @@
 ✅ **MIGRATED TO MAIN INTERFACE** - v0 UI is now the default interface (USE_V0 = true)
 
 ## Recent Changes Log
+- 2025-09-15: Align feed API and client; stabilize response; preserve last-good page; guard notifications
 - 2025-01-11: **V0 UI DEPLOYED TO PRODUCTION** - Successfully shipped v0 UI to main interface and pushed to remote repository for Vercel deployment
 - 2025-01-11: **V0 UI MIGRATION COMPLETED** - Successfully migrated main page to use v0 UI as default interface, replacing original HomeClient
 - 2025-01-11: **V0 INTEGRATION COMPLETED** - Successfully integrated v0-generated Home UI components with full accessibility and Midnight Nova design system
@@ -106,6 +107,13 @@
 - 2025-09-10: Verified RLS policies and database security hardening
 - 2025-09-10: Application integration tested and working
 
+## Feed API + Client Alignment (2025-09-15)
+- Implemented POST /api/feed server route calling `serverDataService.getFeed({ viewerId, tab, filter, cursor })` with input validation.
+- Standardized response to `{ items, nextCursor, hasMore }`; errors return 200 with an empty payload to prevent UI blanking.
+- Ensured server-side execution uses `SUPABASE_SERVICE_ROLE_KEY`; for-you tab shows public posts; following includes self ∪ follows.
+- Updated `HomeClientV0` to consume `res.items`, preserve last good page on errors, guard pagination by `nextCursor`, reset scroll on tab/filter changes, and show a small toast on failures.
+- Guarded notifications page initial fetch/focus refresh to suppress noisy errors so real console issues are visible.
+
 ## Constraints / Out of Scope
 - Don't touch `main`
 - No prod keys; RLS stays on
@@ -119,6 +127,11 @@
    - Define tokens (names + purpose only)
    - Document button variants/sizes/states and mapping
 3) Incremental adoption via small PRs with screenshots
+
+## UI Flags / Notes
+
+- Header toggle: set `NEXT_PUBLIC_USE_V0_HEADER=true` to enable the new v0 header. Default is `false` to use the legacy header so auth/search/profile flows remain stable while iterating on the feed.
+- Only one header is rendered globally from `src/app/layout.tsx`. The home tab bar uses `--app-header-height` for sticky offset.
 
 ## Open Questions / Decisions Needed
 - Should we add more handoff fields to NEXT.md?

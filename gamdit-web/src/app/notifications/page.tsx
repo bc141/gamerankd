@@ -224,13 +224,22 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     let cancelled = false;
-    (async () => { if (!cancelled) await fetchAll(); })();
+    (async () => {
+      try {
+        if (!cancelled) await fetchAll();
+      } catch (e) {
+        // Guard noisy errors during boot; avoid masking other console errors
+        console.warn('[notifications] initial load suppressed error')
+      }
+    })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase]);
 
   useEffect(() => {
-    const onFocus = () => { void fetchAll(); };
+    const onFocus = () => {
+      try { void fetchAll(); } catch { /* no-op */ }
+    };
     window.addEventListener('focus', onFocus);
     return () => window.removeEventListener('focus', onFocus);
     // eslint-disable-next-line react-hooks/exhaustive-deps

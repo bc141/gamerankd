@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useToast } from '@/components/ui/toast';
 import { useRouter } from 'next/navigation';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { waitForSession } from '@/lib/waitForSession';
@@ -55,6 +56,7 @@ interface V0User {
 // ---------- main component ----------
 export default function HomeClientV0({ initialItems = [], initialNextCursor, initialHasMore = false }: { initialItems?: any[]; initialNextCursor?: InitialCursor; initialHasMore?: boolean }) {
   const router = useRouter();
+  const { addToast } = useToast();
   const [posts, setPosts] = useState<V0Post[]>([]);
   const [nextCursor, setNextCursor] = useState<{ id: string; created_at: string } | undefined>(initialNextCursor);
   const [hasMore, setHasMore] = useState<boolean>(initialHasMore);
@@ -140,13 +142,10 @@ export default function HomeClientV0({ initialItems = [], initialNextCursor, ini
     };
   }, []);
 
-  // Reset feed cache when tab or filter changes
+  // Reset feed loading when tab or filter changes (preserve last good page until next load succeeds)
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' })
     setIsLoading(true)
-    setPosts([])
-    setNextCursor(undefined)
-    setHasMore(false)
   }, [activeTab, activeFilter])
 
   // Helper to call server feed API
@@ -162,8 +161,8 @@ export default function HomeClientV0({ initialItems = [], initialNextCursor, ini
         limit: 20
       })
     })
-    if (!res.ok) throw new Error('Failed to load feed')
-    return res.json() as Promise<{ items: any[]; nextCursor?: { id: string; created_at: string }; hasMore: boolean }>
+    // API always returns 200 with a stable shape; network failures will throw
+    return res.json() as Promise<{ items: any[]; nextCursor: { id: string; created_at: string } | null; hasMore: boolean }>
   }
 
   // Load data based on activeTab and sessionUserId
@@ -202,7 +201,7 @@ export default function HomeClientV0({ initialItems = [], initialNextCursor, ini
 
         if (!abortController.signal.aborted) {
           setPosts(transformedPosts);
-          setNextCursor(nc);
+          setNextCursor(nc || undefined);
           setHasMore(hm);
           setIsLoading(false);
         }
@@ -210,6 +209,7 @@ export default function HomeClientV0({ initialItems = [], initialNextCursor, ini
       } catch (error) {
         if (!abortController.signal.aborted) {
           console.error('Error loading data:', error);
+          addToast({ type: 'error', message: 'Failed to refresh feed. Showing last posts.' })
           setIsLoading(false);
         }
       }
@@ -248,11 +248,11 @@ export default function HomeClientV0({ initialItems = [], initialNextCursor, ini
         isLiked: post.user_reactions?.liked || false,
       }))
       setPosts(prev => [...prev, ...transformed])
-      setNextCursor(nc)
+      setNextCursor(nc || undefined)
       setHasMore(hm)
     } catch (e) {
       console.error('Failed to load more:', e)
-      // TODO: toast error, keep last good page
+      addToast({ type: 'error', message: 'Could not load more posts. Try again.' })
     }
   }
 

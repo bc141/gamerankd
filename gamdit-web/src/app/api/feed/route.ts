@@ -5,28 +5,38 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json()
-    const { viewerId, tab, filter, cursor, limit } = body || {}
+    const body = await req.json().catch(() => ({}))
+    const rawViewerId = body?.viewerId
+    const rawTab = body?.tab
+    const rawFilter = body?.filter
+    const rawCursor = body?.cursor
+    const rawLimit = body?.limit
 
-    const result = await serverDataService.getFeed({
-      viewerId,
-      tab: tab === 'following' ? 'following' : 'for-you',
-      filter: ['all', 'clips', 'reviews', 'screens'].includes(filter) ? filter : 'all',
-      cursor: cursor || null,
-      limit: typeof limit === 'number' ? Math.max(1, Math.min(50, limit)) : 20
-    })
+    const viewerId = typeof rawViewerId === 'string' ? rawViewerId : null
+    const tab: 'following' | 'for-you' = rawTab === 'following' ? 'following' : 'for-you'
+    const filter: 'all' | 'clips' | 'reviews' | 'screens' = ['all', 'clips', 'reviews', 'screens'].includes(rawFilter)
+      ? rawFilter
+      : 'all'
+    const cursor = rawCursor && typeof rawCursor === 'object' && rawCursor.id && rawCursor.created_at
+      ? { id: String(rawCursor.id), created_at: String(rawCursor.created_at) }
+      : null
+    const limit = typeof rawLimit === 'number' ? Math.max(1, Math.min(50, rawLimit)) : 20
+
+    const result = await serverDataService.getFeed({ viewerId, tab, filter, cursor, limit })
 
     if (!result.success) {
-      return NextResponse.json({ error: result.error }, { status: 500 })
+      console.error('[api/feed]', result.error, body)
+      return NextResponse.json({ items: [], nextCursor: null, hasMore: false })
     }
 
     return NextResponse.json({
       items: result.data.data,
-      nextCursor: result.data.next_cursor,
-      hasMore: result.data.has_more
+      nextCursor: result.data.next_cursor ?? null,
+      hasMore: !!result.data.has_more
     })
-  } catch (error: any) {
-    return NextResponse.json({ error: { message: error?.message || 'Unknown error' } }, { status: 500 })
+  } catch (err: any) {
+    try { console.error('[api/feed]', err, await req.json().catch(() => ({}))) } catch {}
+    return NextResponse.json({ items: [], nextCursor: null, hasMore: false })
   }
 }
 

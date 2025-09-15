@@ -125,9 +125,13 @@
 
 ### Preview-only CSP for Vercel Toolbar
 - Added dynamic CSP in `next.config.ts` that, when `VERCEL_ENV=preview`, whitelists `https://vercel.live` in `script-src`, `connect-src`, and `frame-src`. Production remains strict (no vercel.live, `frame-src 'none'`).
+- Extended preview `img-src` to allow `https://*.supabase.co` for Supabase Storage assets; added Next.js `images.remotePatterns` for `xzxqqkltakvtfsglaalc.supabase.co`.
 
 ### Search route polish
 - `src/app/api/search/route.ts`: Keeps `meta.route: 'v2'`, clamps `limit`, and isolates game/user search errors so one bucket failing doesn’t break the other.
+
+### Mixed feed content
+- Server feed now returns a mixed stream of posts, reviews, and ratings with cursor pagination and chip filters applied server-side (clips/screens/reviews).
 
 ## Constraints / Out of Scope
 - Don't touch `main`

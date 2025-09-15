@@ -29,7 +29,7 @@ const nextConfig: NextConfig = {
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://vercel.live",
       "connect-src 'self' https://vercel.live https: wss:",
-      "img-src 'self' blob: data:",
+      "img-src 'self' blob: data: https://*.supabase.co",
       "style-src 'self' 'unsafe-inline'",
       "font-src 'self' data:",
       "frame-src https://vercel.live",
@@ -59,6 +59,17 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+};
+
+// Next.js Image allowlist for preview/prod (host-specific for Supabase storage)
+// Keep this broad enough for both envs while not loosening CSP in prod.
+export const images = {
+  remotePatterns: [
+    {
+      protocol: 'https',
+      hostname: 'xzxqqkltakvtfsglaalc.supabase.co',
+    },
+  ],
 };
 
 export default nextConfig;

@@ -68,60 +68,78 @@ export function HomeV0Adapter({
   }
 
   return (
-    <main className="max-w-[1240px] mx-auto px-6 py-8">
-      <div className="flex gap-8 lg:gap-12">
-        {/* Main Feed */}
-        <div className="flex-1 min-w-0 lg:min-w-[720px]">
-          <HeroCard
-            title="Welcome to the Gaming Universe"
-            buttonText="Discover Games"
-            onButtonClick={onDiscoverGames}
-          />
+    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      {/* Main Feed */}
+      <div className="lg:col-span-3 space-y-3">
+        {/* Hero Section */}
+        <HeroCard
+          title="Welcome to Gamdit"
+          description="Connect with fellow gamers and share your experiences."
+          buttonText="Get Started"
+          onButtonClick={onDiscoverGames}
+        />
 
-          <div className="mt-8">
-            <FeedTabs activeTab={activeTab} onTabChange={handleTabChange} />
-
-            <div className="mt-6">
-              <Composer
-                onPost={handlePost}
-                onAddImage={onAddImage}
-                onAddGame={onAddGame}
-              />
-
-              <div className="mt-8 space-y-6">
-                {isLoading ? (
-                  <>
-                    <SkeletonPostCard />
-                    <SkeletonPostCard />
-                    <SkeletonPostCard />
-                  </>
-                ) : (
-                  posts.map((post) => (
-                    <PostCard
-                      key={post.id}
-                      post={post}
-                      onLike={onLike}
-                      onComment={onComment}
-                      onShare={onShare}
-                      onMore={onMore}
-                    />
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
+        {/* Sticky Feed Tabs */}
+        <div className="sticky-tabs">
+          <FeedTabs activeTab={activeTab} onTabChange={handleTabChange} />
         </div>
 
-        {/* Sidebar */}
-        <aside className="hidden lg:block w-[360px] flex-shrink-0">
-          <Sidebar
-            games={games}
-            users={users}
-            onPlayGame={onGameClick}
-            onFollow={onFollowUser}
-          />
-        </aside>
+        {/* Quick Filter Chips */}
+        <div className="filter-chips">
+          <button className="filter-chip active" type="button">
+            All
+          </button>
+          <button className="filter-chip" type="button">
+            Clips
+          </button>
+          <button className="filter-chip" type="button">
+            Reviews
+          </button>
+          <button className="filter-chip" type="button">
+            Screens
+          </button>
+        </div>
+
+        {/* Composer */}
+        <Composer
+          onPost={handlePost}
+          onAddImage={onAddImage}
+          onAddGame={onAddGame}
+          placeholder="What's happening in your game?"
+        />
+
+        {/* Posts */}
+        <div className="space-y-3">
+          {isLoading ? (
+            <>
+              <SkeletonPostCard />
+              <SkeletonPostCard />
+              <SkeletonPostCard />
+            </>
+          ) : (
+            posts.map((post) => (
+              <PostCard
+                key={post.id}
+                post={post}
+                onLike={onLike}
+                onComment={onComment}
+                onShare={onShare}
+                onMore={onMore}
+              />
+            ))
+          )}
+        </div>
       </div>
-    </main>
+
+      {/* Sidebar */}
+      <div className="space-y-4">
+        <Sidebar
+          games={games}
+          users={users}
+          onPlayGame={onGameClick}
+          onFollow={onFollowUser}
+        />
+      </div>
+    </div>
   )
 }

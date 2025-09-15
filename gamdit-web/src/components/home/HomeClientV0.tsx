@@ -5,7 +5,6 @@ import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { waitForSession } from '@/lib/waitForSession';
 import { timeAgo } from '@/lib/timeAgo';
 import { HomeV0Adapter } from './HomeV0Adapter';
-import { Header } from '@/components/v0-ui';
 import type { PostData, Game, User } from '@/components/v0-ui';
 
 // ---------- constants ----------
@@ -84,6 +83,22 @@ export default function HomeClientV0() {
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [scope, setScope] = useState<'following' | 'for-you'>('following');
+  const [showScrollToTop, setShowScrollToTop] = useState(false);
+
+  // Scroll to top functionality
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Scroll listener for scroll-to-top button
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollToTop(window.scrollY > 300);
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   // Initialize session and data
   useEffect(() => {
@@ -244,14 +259,7 @@ export default function HomeClientV0() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header
-        onSearch={handleSearch}
-        onNotifications={handleNotifications}
-        onMessages={handleMessages}
-        onProfile={handleProfile}
-      />
-
+    <>
       <HomeV0Adapter
         posts={posts}
         games={games}
@@ -272,6 +280,16 @@ export default function HomeClientV0() {
         onSeeAllUsers={handleSeeAllUsers}
         onDiscoverGames={handleDiscoverGames}
       />
-    </div>
+
+      {/* Scroll to Top Button */}
+      <button
+        className={`scroll-to-top ${showScrollToTop ? 'visible' : ''}`}
+        onClick={scrollToTop}
+        aria-label="Scroll to top"
+        type="button"
+      >
+        ↑
+      </button>
+    </>
   );
 }

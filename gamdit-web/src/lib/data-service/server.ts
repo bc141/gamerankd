@@ -84,13 +84,12 @@ class ServerDataService {
 
         const followingIds = (follows || []).map(f => (f as any).following_id)
         const ids = [...new Set([viewerId, ...followingIds])]
-        if (ids.length === 0) {
-          return {
-            success: true,
-            data: { data: [], next_cursor: undefined, has_more: false }
-          }
+        if (ids.length === 1 && ids[0] === viewerId) {
+          // Only self followed? still return self posts
+          baseQuery = baseQuery.eq('user_id', viewerId)
+        } else if (ids.length > 0) {
+          baseQuery = baseQuery.in('user_id', ids)
         }
-        baseQuery = baseQuery.in('user_id', ids)
       }
 
       // Content filter (simple heuristic on content/media)

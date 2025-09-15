@@ -169,6 +169,8 @@ export default function HomeClientV0({ initialItems = [], initialNextCursor, ini
   // Load data based on activeTab and sessionUserId
   useEffect(() => {
     if (!isMounted) return;
+    // For Following, wait until we know the viewer id to avoid fetching wrong feed
+    if (activeTab === 'following' && !sessionUserId) return;
     
     let abortController = new AbortController();
     

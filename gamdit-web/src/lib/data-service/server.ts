@@ -295,6 +295,23 @@ class ServerDataService {
     }
   }
 
+  // Following ids for a viewer (service role; bypass RLS)
+  async getFollowingIds(viewerId: string): Promise<DataServiceResult<string[]>> {
+    try {
+      const { data, error } = await supabase
+        .from('follows')
+        .select('following_id')
+        .eq('follower_id', viewerId)
+
+      if (error) throw error
+
+      const ids = (data || []).map((row: any) => String(row.following_id)).filter(Boolean)
+      return { success: true, data: ids }
+    } catch (error) {
+      return { success: false, error: this.handleError(error, 'getFollowingIds') }
+    }
+  }
+
   async getWhoToFollow(limit = 5): Promise<DataServiceResult<WhoToFollow[]>> {
     try {
       const { data, error } = await supabase

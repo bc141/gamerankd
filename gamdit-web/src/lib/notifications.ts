@@ -270,18 +270,9 @@ export async function clearFollow(
 }
 
 /* ----------------------------- unread badge -------------------------- */
-export async function getUnreadCount(supabase: SupabaseClient) {
-  const { data: auth } = await supabase.auth.getUser();
-  const uid = auth.user?.id;
-  if (!uid) return 0;
-
-  const { count /*, error */ } = await supabase
-    .from('notifications_visible')   // ← read from the view
-    .select('id', { head: true, count: 'exact' })
-    .eq('user_id', uid)              // keep this for correctness & index use
-    .is('read_at', null);
-
-  return count ?? 0;
+export async function getUnreadCount(_supabase: SupabaseClient) {
+  // Temporarily disabled until notifications_visible is guaranteed present
+  return 0;
 }
 
 export async function markAllRead(supabase: SupabaseClient) {

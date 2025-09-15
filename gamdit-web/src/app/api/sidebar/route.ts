@@ -29,4 +29,21 @@ export async function GET(_req: NextRequest) {
   }
 }
 
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json().catch(() => ({}))
+    const viewerId = typeof body?.viewerId === 'string' ? body.viewerId : null
+    if (!viewerId) return NextResponse.json({ ids: [] })
+    const result = await serverDataService.getFollowingIds(viewerId)
+    if (!result.success) {
+      console.error('[api/sidebar:getFollowingIds]', result.error, body)
+      return NextResponse.json({ ids: [] })
+    }
+    return NextResponse.json({ ids: result.data })
+  } catch (err) {
+    console.error('[api/sidebar:getFollowingIds]', err)
+    return NextResponse.json({ ids: [] })
+  }
+}
+
 

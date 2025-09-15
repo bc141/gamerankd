@@ -84,15 +84,18 @@ export default function HomeClientV0({ initialItems = [], initialNextCursor, ini
         
         if (isMounted && session?.user) {
           setSessionUserId(session.user.id);
-          
-          // Load user's following data
-          const { data: followingData } = await sb
-            .from('follows')
-            .select('following_id')
-            .eq('follower_id', session.user.id);
-          
-          if (followingData) {
-            setFollowedUsers(new Set(followingData.map(f => f.following_id)));
+          // Load following ids via server helper to avoid client PostgREST
+          try {
+            const res = await fetch('/api/sidebar', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ viewerId: session.user.id })
+            })
+            const json = await res.json()
+            const ids: string[] = Array.isArray(json?.ids) ? json.ids : []
+            setFollowedUsers(new Set(ids))
+          } catch (e) {
+            // ignore; not critical for initial feed
           }
         }
       } catch (error) {

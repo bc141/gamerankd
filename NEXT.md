@@ -118,6 +118,11 @@
 - Issue: `useToast must be used within a ToastProvider` thrown by `HomeClientV0` when showing error toasts.
 - Resolution: Mounted a single `ToastProvider` at the app root in `src/app/layout.tsx` wrapping the header and `{children}`. Removed need for any down-tree providers.
 
+### Console Noise Silencing (Supabase 400/404)
+- Replaced client `from('follows')` read in `HomeClientV0` with server-backed `POST /api/sidebar { viewerId }` that calls `serverDataService.getFollowingIds` using the service role.
+- Disabled unread polling against `notifications_visible` by returning `0` in `getUnreadCount` to stop HEAD requests until the view is guaranteed present.
+- Feed now reads only from `/api/feed`; no PostgREST reads for feed on the client.
+
 ## Constraints / Out of Scope
 - Don't touch `main`
 - No prod keys; RLS stays on

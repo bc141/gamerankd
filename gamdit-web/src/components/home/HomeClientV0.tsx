@@ -1,36 +1,46 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { waitForSession } from '@/lib/waitForSession';
 import { timeAgo } from '@/lib/timeAgo';
-import { HomeV0Adapter } from './HomeV0Adapter';
 import { Header } from '@/components/v0-ui';
-import type { PostData, Game, User } from '@/components/v0-ui';
+import { HeroCard } from '@/components/v0-ui/hero-card';
+import { FeedTabs } from '@/components/v0-ui/feed-tabs';
+import { Composer } from '@/components/v0-ui/composer';
+import { PostCard } from '@/components/v0-ui/post-card';
+import { Sidebar } from '@/components/v0-ui/sidebar';
+import { SkeletonPostCard, SkeletonSidebar } from '@/components/v0-ui/skeletons';
+import './v0-sandbox.css';
 
 // ---------- constants ----------
 const POSTS_VIEW = 'post_feed_v2';
 const POST_COLS = 'id,user_id,created_at,body,tags,media_urls,like_count,comment_count,username,display_name,avatar_url,game_id,game_name,game_cover_url';
 
 // ---------- types ----------
-interface PostRow {
+interface V0Post {
   id: string;
-  user_id: string;
-  created_at: string;
-  body: string;
-  tags: string[];
-  media_urls: string[];
-  like_count: number;
-  comment_count: number;
-  username: string;
-  display_name: string;
-  avatar_url: string;
-  game_id: string;
-  game_name: string;
-  game_cover_url: string;
+  user: {
+    avatar: string;
+    displayName: string;
+    handle: string;
+  };
+  timestamp: string;
+  content: string;
+  gameImage?: string;
+  likes: number;
+  comments: number;
+  shares: number;
+  isLiked: boolean;
 }
 
-interface LocalUser {
+interface V0Game {
+  id: string;
+  name: string;
+  cover_url: string;
+}
+
+interface V0User {
   id: string;
   username: string;
   display_name: string;
@@ -38,90 +48,37 @@ interface LocalUser {
 }
 
 // ---------- helpers ----------
-async function selectPostsWithFallback(
-  sb: ReturnType<typeof supabaseBrowser>,
-  build: (q: any) => any,
-  limit = 40
-): Promise<PostRow[]> {
-  let q = build(sb.from(POSTS_VIEW).select(POST_COLS))
-    .order('created_at', { ascending: false })
-    .limit(limit);
-  let { data, error } = await q;
-  if (!error) return (data ?? []) as PostRow[];
-
-  // fallback to v1
-  q = build(sb.from('post_feed').select(POST_COLS))
-    .order('created_at', { ascending: false })
-    .limit(limit);
-  ({ data, error } = await q);
-  if (error) throw error;
-  return (data ?? []) as PostRow[];
-}
-
-function transformPostToV0(post: PostRow): PostData {
-  return {
-    id: post.id,
-    user: {
-      avatar: post.avatar_url || '/avatar-placeholder.svg',
-      displayName: post.display_name || post.username,
-      handle: `@${post.username}`,
-    },
-    timestamp: timeAgo(new Date(post.created_at)),
-    content: post.body,
-    gameImage: post.game_cover_url || undefined,
-    likes: post.like_count || 0,
-    comments: post.comment_count || 0,
-    shares: 0, // Not implemented yet
-    isLiked: false, // Will be updated by like handlers
-  };
-}
 
 // ---------- main component ----------
 export default function HomeClientV0() {
-  const [me, setMe] = useState<LocalUser | null>(null);
-  const [posts, setPosts] = useState<PostData[]>([]);
-  const [games, setGames] = useState<Game[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
+  const [posts, setPosts] = useState<V0Post[]>([]);
+  const [games, setGames] = useState<V0Game[]>([]);
+  const [users, setUsers] = useState<V0User[]>([]);
+  const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
+  const [activeTab, setActiveTab] = useState<'following' | 'for-you'>('for-you');
   const [isLoading, setIsLoading] = useState(true);
-  const [scope, setScope] = useState<'following' | 'for-you'>('following');
   const [showScrollToTop, setShowScrollToTop] = useState(false);
+  const [selectedGame, setSelectedGame] = useState<V0Game | null>(null);
+  const [showGameModal, setShowGameModal] = useState(false);
 
-  // Scroll to top functionality
-  const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  // Scroll listener for scroll-to-top button
+  // Load data
   useEffect(() => {
-    const handleScroll = () => {
-      setShowScrollToTop(window.scrollY > 300);
-    };
-
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
-  // Initialize session and data
-  useEffect(() => {
-    async function init() {
+    async function loadData() {
       try {
         const sb = supabaseBrowser();
-        const session = await waitForSession(sb);
-        
-        if (session?.user) {
-          setMe({
-            id: session.user.id,
-            username: session.user.user_metadata?.username || 'user',
-            display_name: session.user.user_metadata?.display_name || session.user.user_metadata?.full_name || 'User',
-            avatar_url: session.user.user_metadata?.avatar_url || '/avatar-placeholder.svg',
-          });
-        }
 
         // Load posts
-        const postsData = await selectPostsWithFallback(sb, (q) => q);
-        setPosts(postsData.map(transformPostToV0));
+        const { data: postsData, error: postsError } = await sb
+          .from('post_feed_v2')
+          .select('id,user_id,created_at,body,tags,media_urls,like_count,comment_count,username,display_name,avatar_url,game_id,game_name,game_cover_url')
+          .order('created_at', { ascending: false })
+          .limit(10);
 
-        // Load real games data
+        if (postsError) {
+          console.error('Error loading posts:', postsError);
+        }
+
+        // Load games
         const { data: gamesData, error: gamesError } = await sb
           .from('games')
           .select('id, name, cover_url')
@@ -132,7 +89,7 @@ export default function HomeClientV0() {
           console.error('Error loading games:', gamesError);
         }
 
-        // Load real users data
+        // Load users
         const { data: usersData, error: usersError } = await sb
           .from('profiles')
           .select('id, username, display_name, avatar_url')
@@ -142,158 +99,209 @@ export default function HomeClientV0() {
           console.error('Error loading users:', usersError);
         }
 
-        // Transform and set real data
-        setGames((gamesData || []).map((game: any) => ({
-          id: game.id,
-          name: game.name,
-          cover_url: game.cover_url || '/placeholder.jpg',
-        })));
+        // Transform posts
+        const transformedPosts: V0Post[] = (postsData || []).map((post: any) => ({
+          id: post.id,
+          user: {
+            avatar: post.avatar_url || '/avatar-placeholder.svg',
+            displayName: post.display_name || post.username,
+            handle: `@${post.username}`,
+          },
+          timestamp: timeAgo(new Date(post.created_at)),
+          content: post.body,
+          gameImage: post.game_cover_url || undefined,
+          likes: post.like_count || 0,
+          comments: post.comment_count || 0,
+          shares: 0,
+          isLiked: false,
+        }));
 
-        setUsers((usersData || []).map((user: any) => ({
-          id: user.id,
-          username: user.username,
-          display_name: user.display_name,
-          avatar_url: user.avatar_url || '/avatar-placeholder.svg',
-        })));
+        setPosts(transformedPosts);
+        setGames(gamesData || []);
+        setUsers(usersData || []);
 
       } catch (error) {
-        console.error('Error initializing HomeClientV0:', error);
+        console.error('Error loading data:', error);
       } finally {
         setIsLoading(false);
       }
     }
 
-    init();
+    loadData();
   }, []);
 
-  // Event handlers
-  const handleTabChange = (tab: 'following' | 'for-you') => {
-    setScope(tab);
-    // TODO: Implement different feed logic based on scope
+  // Scroll to top functionality
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollToTop(window.scrollY > 300);
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handlePost = async (content: string) => {
-    try {
-      const sb = supabaseBrowser();
-      const { error } = await sb.from('posts').insert({
-        body: content,
-        user_id: me?.id,
-      });
-
-      if (error) throw error;
-
-      // Refresh posts
-      const postsData = await selectPostsWithFallback(sb, (q) => q);
-      setPosts(postsData.map(transformPostToV0));
-    } catch (error) {
-      console.error('Error creating post:', error);
-    }
-  };
-
-  const handleLike = async (postId: string) => {
-    // TODO: Implement like functionality
+  const handleLike = (postId: string) => {
+    setLikedPosts(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(postId)) {
+        newSet.delete(postId);
+      } else {
+        newSet.add(postId);
+      }
+      return newSet;
+    });
     console.log('Like post:', postId);
   };
 
-  const handleComment = (postId: string) => {
-    // TODO: Implement comment functionality
-    console.log('Comment on post:', postId);
-  };
-
-  const handleShare = (postId: string) => {
-    // TODO: Implement share functionality
-    console.log('Share post:', postId);
-  };
-
-  const handleMore = (postId: string) => {
-    // TODO: Implement more actions
-    console.log('More actions for post:', postId);
+  const handlePost = (content: string) => {
+    console.log('Post created:', { content, gameId: selectedGame?.id });
+    // TODO: Implement post creation
   };
 
   const handleAddImage = () => {
-    // TODO: Implement image upload
     console.log('Add image');
+    // TODO: Implement image upload
   };
 
   const handleAddGame = () => {
-    // TODO: Implement game selection
-    console.log('Add game');
+    setShowGameModal(true);
   };
 
-  const handleGameClick = (gameId: string) => {
-    // TODO: Navigate to game page
-    console.log('Click game:', gameId);
+  const handleComment = (postId: string) => {
+    console.log('Comment on post:', postId);
+    // TODO: Implement comment functionality
   };
 
-  const handleFollowUser = (userId: string) => {
-    // TODO: Implement follow functionality
+  const handleShare = (postId: string) => {
+    console.log('Share post:', postId);
+    // TODO: Implement share functionality
+  };
+
+  const handleMore = (postId: string) => {
+    console.log('More actions for post:', postId);
+    // TODO: Implement more actions
+  };
+
+  const handleFollow = (userId: string) => {
     console.log('Follow user:', userId);
+    // TODO: Implement follow functionality
   };
 
-  const handleSeeAllGames = () => {
-    // TODO: Navigate to games page
-    console.log('See all games');
-  };
-
-  const handleSeeAllUsers = () => {
-    // TODO: Navigate to users page
-    console.log('See all users');
-  };
-
-  const handleDiscoverGames = () => {
-    // TODO: Navigate to discover page
-    console.log('Discover games');
+  const handlePlayGame = (gameId: string) => {
+    console.log('Play game:', gameId);
+    // TODO: Implement game play functionality
   };
 
   const handleSearch = (query: string) => {
-    // TODO: Implement search
     console.log('Search:', query);
   };
 
   const handleNotifications = () => {
-    // TODO: Navigate to notifications
     console.log('Notifications');
   };
 
   const handleMessages = () => {
-    // TODO: Navigate to messages
     console.log('Messages');
   };
 
   const handleProfile = () => {
-    // TODO: Navigate to profile
     console.log('Profile');
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="v0-sandbox">
       <Header
         onSearch={handleSearch}
         onNotifications={handleNotifications}
         onMessages={handleMessages}
         onProfile={handleProfile}
       />
-      <div className="max-w-[1240px] mx-auto px-6 py-8">
-        <HomeV0Adapter
-        posts={posts}
-        games={games}
-        users={users}
-        userAvatar={me?.avatar_url}
-        isLoading={isLoading}
-        onTabChange={handleTabChange}
-        onPost={handlePost}
-        onLike={handleLike}
-        onComment={handleComment}
-        onShare={handleShare}
-        onMore={handleMore}
-        onAddImage={handleAddImage}
-        onAddGame={handleAddGame}
-        onGameClick={handleGameClick}
-        onFollowUser={handleFollowUser}
-        onSeeAllGames={handleSeeAllGames}
-        onSeeAllUsers={handleSeeAllUsers}
-        onDiscoverGames={handleDiscoverGames}
-        />
+      
+      <div className="main-container">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          {/* Main Feed */}
+          <div className="lg:col-span-3 space-y-3">
+            {/* Hero Section */}
+            <HeroCard
+              title="Welcome to Gamdit"
+              description="Connect with fellow gamers and share your experiences."
+              buttonText="Get Started"
+              onButtonClick={() => console.log('Get Started clicked')}
+            />
+
+            {/* Sticky Feed Tabs */}
+            <div className="sticky-tabs">
+              <FeedTabs
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+              />
+            </div>
+
+            {/* Quick Filter Chips */}
+            <div className="filter-chips">
+              <button className="filter-chip active" type="button">
+                All
+              </button>
+              <button className="filter-chip" type="button">
+                Clips
+              </button>
+              <button className="filter-chip" type="button">
+                Reviews
+              </button>
+              <button className="filter-chip" type="button">
+                Screens
+              </button>
+            </div>
+
+            {/* Composer */}
+            <Composer
+              onPost={handlePost}
+              onAddImage={handleAddImage}
+              onAddGame={handleAddGame}
+              placeholder="What's happening in your game?"
+            />
+
+            {/* Posts */}
+            <div className="space-y-3">
+              {isLoading ? (
+                <>
+                  <SkeletonPostCard />
+                  <SkeletonPostCard />
+                  <SkeletonPostCard />
+                </>
+              ) : (
+                posts.map((post) => (
+                  <PostCard
+                    key={post.id}
+                    post={post}
+                    onLike={() => handleLike(post.id)}
+                    onComment={() => handleComment(post.id)}
+                    onShare={() => handleShare(post.id)}
+                    onMore={() => handleMore(post.id)}
+                  />
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Sidebar */}
+          <div className="space-y-4">
+            {isLoading ? (
+              <SkeletonSidebar />
+            ) : (
+              <Sidebar
+                games={games}
+                users={users}
+                onFollow={handleFollow}
+                onPlayGame={handlePlayGame}
+              />
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Scroll to Top Button */}

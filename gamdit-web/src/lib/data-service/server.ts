@@ -98,11 +98,16 @@ class ServerDataService {
 
       // Cursor pagination (created_at DESC, tie-breaker id)
       if (cursor) {
-        baseQuery = baseQuery.lt('created_at', cursor.created_at)
+        // Compound cursor on (created_at DESC, id DESC)
+        // created_at < cursor.created_at OR (created_at = cursor.created_at AND id < cursor.id)
+        baseQuery = baseQuery.or(
+          `and(created_at.lt.${cursor.created_at}),and(created_at.eq.${cursor.created_at},id.lt.${cursor.id})`
+        )
       }
 
       const { data, error } = await baseQuery
         .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
         .limit(limit)
 
       if (error) throw error

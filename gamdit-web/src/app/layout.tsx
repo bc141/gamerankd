@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
+import HeaderLegacy from '@/components/Header';
+import { Header as HeaderV0 } from '@/components/v0-ui';
 
 const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] });
 const geistMono = Geist_Mono({ variable: '--font-geist-mono', subsets: ['latin'] });
@@ -40,9 +42,22 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const useV0Header = process.env.NEXT_PUBLIC_USE_V0_HEADER === 'true'
+  // Single global header; expose a CSS var for sticky offset
+  const headerHeight = '56px'
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`} style={{ ['--app-header-height' as any]: headerHeight }}>
+        {useV0Header ? (
+          <HeaderV0
+            onSearch={() => {}}
+            onNotifications={() => {}}
+            onMessages={() => {}}
+            onProfile={() => {}}
+          />
+        ) : (
+          <HeaderLegacy />
+        )}
         {children}
       </body>
     </html>

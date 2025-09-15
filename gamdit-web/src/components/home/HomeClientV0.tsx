@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { waitForSession } from '@/lib/waitForSession';
 import { timeAgo } from '@/lib/timeAgo';
-import { Header } from '@/components/v0-ui';
+// Header is rendered globally in layout; keep v0 header unused here
 import { HeroCard } from '@/components/v0-ui/hero-card';
 import { FeedTabs } from '@/components/v0-ui/feed-tabs';
 import { Composer } from '@/components/v0-ui/composer';
@@ -449,13 +449,6 @@ export default function HomeClientV0({ initialItems = [], initialNextCursor, ini
 
   return (
     <div className="v0-sandbox">
-      <Header
-        onSearch={handleSearch}
-        onNotifications={handleNotifications}
-        onMessages={handleMessages}
-        onProfile={handleProfile}
-      />
-      
       <div className="main-container">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Main Feed */}

@@ -5,6 +5,7 @@ import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { waitForSession } from '@/lib/waitForSession';
 import { timeAgo } from '@/lib/timeAgo';
 import { HomeV0Adapter } from './HomeV0Adapter';
+import { Header } from '@/components/v0-ui';
 import type { PostData, Game, User } from '@/components/v0-ui';
 
 // ---------- constants ----------
@@ -120,34 +121,40 @@ export default function HomeClientV0() {
         const postsData = await selectPostsWithFallback(sb, (q) => q);
         setPosts(postsData.map(transformPostToV0));
 
-        // Mock data for sidebar (replace with real data later)
-        setGames([
-          {
-            id: '1',
-            name: 'Cyberpunk 2077',
-            cover_url: '/placeholder.jpg',
-          },
-          {
-            id: '2',
-            name: 'Elden Ring',
-            cover_url: '/placeholder.jpg',
-          },
-        ]);
+        // Load real games data
+        const { data: gamesData, error: gamesError } = await sb
+          .from('games')
+          .select('id, name, cover_url')
+          .order('created_at', { ascending: false })
+          .limit(5);
 
-        setUsers([
-          {
-            id: '1',
-            username: 'mikeplays',
-            display_name: 'ProGamer_Mike',
-            avatar_url: '/avatar-placeholder.svg',
-          },
-          {
-            id: '2',
-            username: 'queenstreams',
-            display_name: 'StreamQueen',
-            avatar_url: '/avatar-placeholder.svg',
-          },
-        ]);
+        if (gamesError) {
+          console.error('Error loading games:', gamesError);
+        }
+
+        // Load real users data
+        const { data: usersData, error: usersError } = await sb
+          .from('profiles')
+          .select('id, username, display_name, avatar_url')
+          .limit(3);
+
+        if (usersError) {
+          console.error('Error loading users:', usersError);
+        }
+
+        // Transform and set real data
+        setGames((gamesData || []).map((game: any) => ({
+          id: game.id,
+          name: game.name,
+          cover_url: game.cover_url || '/placeholder.jpg',
+        })));
+
+        setUsers((usersData || []).map((user: any) => ({
+          id: user.id,
+          username: user.username,
+          display_name: user.display_name,
+          avatar_url: user.avatar_url || '/avatar-placeholder.svg',
+        })));
 
       } catch (error) {
         console.error('Error initializing HomeClientV0:', error);
@@ -259,8 +266,15 @@ export default function HomeClientV0() {
   };
 
   return (
-    <>
-      <HomeV0Adapter
+    <div className="min-h-screen bg-background">
+      <Header
+        onSearch={handleSearch}
+        onNotifications={handleNotifications}
+        onMessages={handleMessages}
+        onProfile={handleProfile}
+      />
+      <div className="max-w-[1240px] mx-auto px-6 py-8">
+        <HomeV0Adapter
         posts={posts}
         games={games}
         users={users}
@@ -279,7 +293,8 @@ export default function HomeClientV0() {
         onSeeAllGames={handleSeeAllGames}
         onSeeAllUsers={handleSeeAllUsers}
         onDiscoverGames={handleDiscoverGames}
-      />
+        />
+      </div>
 
       {/* Scroll to Top Button */}
       <button
@@ -290,6 +305,6 @@ export default function HomeClientV0() {
       >
         ↑
       </button>
-    </>
+    </div>
   );
 }

@@ -8,7 +8,7 @@ export const revalidate = 0;
 
 // V0 Test - Completely isolated from main app
 const USE_V0_TEST = false;
-const USE_V0 = false;
+const USE_V0 = true;
 
 export default function Page() {
   if (USE_V0_TEST) {

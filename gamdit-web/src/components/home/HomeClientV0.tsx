@@ -8,6 +8,8 @@ import { waitForSession } from '@/lib/waitForSession';
 import { timeAgo } from '@/lib/timeAgo';
 // Header is rendered globally in layout; keep v0 header unused here
 import { HeroCard } from '@/components/v0-ui/hero-card';
+import { FeedCardV2 } from '@/components/feed/FeedCardV2';
+import { normalizeToFeedCard } from '@/components/feed/normalize';
 import { FeedTabs } from '@/components/v0-ui/feed-tabs';
 import { Composer } from '@/components/v0-ui/composer';
 import { PostCard } from '@/components/v0-ui/post-card';
@@ -535,14 +537,18 @@ export default function HomeClientV0({ initialItems = [], initialNextCursor, ini
                         </div>
                       ) : (
                         filteredPosts.map((post) => (
-                          <PostCard
-                            key={post.id}
-                            post={post}
-                            onLike={() => handleLike(post.id)}
-                            onComment={() => handleComment(post.id)}
-                            onShare={() => handleShare(post.id)}
-                            onMore={() => handleMore(post.id)}
-                          />
+                          process.env.NEXT_PUBLIC_FEED_CARD_V2 === 'true' ? (
+                            <FeedCardV2 key={post.id} {...normalizeToFeedCard(post as any)} />
+                          ) : (
+                            <PostCard
+                              key={post.id}
+                              post={post}
+                              onLike={() => handleLike(post.id)}
+                              onComment={() => handleComment(post.id)}
+                              onShare={() => handleShare(post.id)}
+                              onMore={() => handleMore(post.id)}
+                            />
+                          )
                         ))
                       )}
                     </div>

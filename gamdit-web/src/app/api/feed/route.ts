@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { serverDataService } from '@/lib/data-service/server'
 
+const ALLOWED_TABS = ['following', 'for-you'] as const
+export type Tab = typeof ALLOWED_TABS[number]
+
+const ALLOWED_FILTERS = ['all', 'clips', 'reviews', 'screens'] as const
+export type FeedFilter = typeof ALLOWED_FILTERS[number]
+
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
@@ -12,14 +18,29 @@ export async function POST(req: NextRequest) {
     const rawCursor = body?.cursor
     const rawLimit = body?.limit
 
-    const viewerId = typeof rawViewerId === 'string' ? rawViewerId : null
-    const tab: 'following' | 'for-you' = rawTab === 'following' ? 'following' : 'for-you'
-    const filter: 'all' | 'clips' | 'reviews' | 'screens' = ['all', 'clips', 'reviews', 'screens'].includes(rawFilter)
-      ? rawFilter
+    const viewerId = typeof rawViewerId === 'string' && rawViewerId.trim() ? rawViewerId : null
+
+    const tab: Tab = (ALLOWED_TABS as readonly string[]).includes(String(rawTab))
+      ? (rawTab as Tab)
+      : 'for-you'
+
+    const filter: FeedFilter = (ALLOWED_FILTERS as readonly string[]).includes(String(rawFilter))
+      ? (rawFilter as FeedFilter)
       : 'all'
-    const cursor = rawCursor && typeof rawCursor === 'object' && rawCursor.id && rawCursor.created_at
-      ? { id: String(rawCursor.id), created_at: String(rawCursor.created_at) }
-      : null
+
+    let cursor: { id: string; created_at: string } | null = null
+    if (
+      rawCursor &&
+      typeof rawCursor === 'object' &&
+      'id' in (rawCursor as Record<string, unknown>) &&
+      'created_at' in (rawCursor as Record<string, unknown>)
+    ) {
+      cursor = {
+        id: String((rawCursor as any).id),
+        created_at: String((rawCursor as any).created_at),
+      }
+    }
+
     const limit = typeof rawLimit === 'number' ? Math.max(1, Math.min(50, rawLimit)) : 20
 
     const result = await serverDataService.getFeed({ viewerId, tab, filter, cursor, limit })
@@ -29,10 +50,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ items: [], nextCursor: null, hasMore: false })
     }
 
+    const payload: any = result?.data ?? {}
     return NextResponse.json({
-      items: result.data.data,
-      nextCursor: result.data.next_cursor ?? null,
-      hasMore: !!result.data.has_more
+      items: payload.items ?? payload.data ?? [],
+      nextCursor: payload.nextCursor ?? payload.next_cursor ?? null,
+      hasMore: typeof payload.hasMore === 'boolean' ? payload.hasMore : !!payload.has_more,
     })
   } catch (err: any) {
     try { console.error('[api/feed]', err, await req.json().catch(() => ({}))) } catch {}

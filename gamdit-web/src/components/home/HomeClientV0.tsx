@@ -528,6 +528,15 @@ export default function HomeClientV0({ initialItems = [], initialNextCursor, ini
                           <SkeletonPostCard />
                           <SkeletonPostCard />
                         </>
+                      ) : activeTab === 'following' && filteredPosts.length === 0 ? (
+                        <div className="sidebar-card" role="region" aria-label="Following onboarding">
+                          <div className="sidebar-header">
+                            <h2 className="sidebar-title">Your Following feed is empty</h2>
+                          </div>
+                          <p className="text-sm" style={{ color: 'var(--v0-muted-foreground)' }}>
+                            Follow players to see their posts here. Try the suggestions in "Who to Follow".
+                          </p>
+                        </div>
                       ) : (
                         filteredPosts.map((post) => (
                           <PostCard

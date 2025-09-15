@@ -200,7 +200,7 @@ class ServerDataService {
           console.log('[feed] anon client distinct users:', anonUsers)
           console.log('[feed] admin client distinct users:', distinctUsers)
         } catch (anonError) {
-          console.log('[feed] anon client error (expected):', anonError.message)
+          console.log('[feed] anon client error (expected):', anonError instanceof Error ? anonError.message : String(anonError))
         }
       }
       

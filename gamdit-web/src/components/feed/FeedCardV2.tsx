@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react'
+import Image from 'next/image'
 
 export type FeedKind = 'post' | 'review' | 'rating'
 
@@ -25,91 +26,113 @@ export function FeedCardV2(props: FeedCardProps) {
   const isVideo = (url: string) => /\.(mp4|webm|mov|m4v)(\?|$)/i.test(url)
 
   return (
-    <article className="sidebar-card" role="article" aria-label={`${kind} by ${authorName}`}>
-      {/* Header */}
-      <header className="flex items-center gap-3 mb-2" aria-label="Header">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={author.avatarUrl || '/avatar-placeholder.svg'}
-          alt=""
-          className="h-9 w-9 rounded-full object-cover border border-white/10"
-          loading="lazy"
-          decoding="async"
-        />
-        <div className="min-w-0">
-          <div className="text-sm font-medium text-white/90 truncate">{authorName}{handle ? <span className="text-white/40 ml-2">{handle}</span> : null}</div>
-          <div className="text-xs text-white/40 truncate flex items-center gap-2">
-            {game?.coverUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={game.coverUrl} alt="" className="h-4 w-4 rounded object-cover" />
-            ) : null}
-            {game?.name ? <span className="truncate">{game.name}</span> : null}
-            <span className="text-white/30">·</span>
-            <time title={new Date(createdAt).toLocaleString()}>{new Date(createdAt).toLocaleDateString()}</time>
+    <article className="sidebar-card p-4 md:p-5" role="article" aria-label={`${kind} by ${authorName}`}>
+      <div className="space-y-4">
+        {/* Header */}
+        <header className="flex items-center gap-3" aria-label="Header">
+          <Image
+            src={author.avatarUrl || '/avatar-placeholder.svg'}
+            alt=""
+            width={36}
+            height={36}
+            className="h-9 w-9 rounded-full object-cover border border-white/10"
+          />
+          <div className="min-w-0">
+            <div className="text-sm font-medium text-white/90 truncate">{authorName}{handle ? <span className="text-white/40 ml-2">{handle}</span> : null}</div>
+            <div className="text-xs text-white/40 truncate flex items-center gap-2">
+              {game?.coverUrl ? (
+                <Image src={game.coverUrl} alt="" width={16} height={16} className="h-4 w-4 rounded object-cover" />
+              ) : null}
+              {game?.name ? <span className="truncate">{game.name}</span> : null}
+              <span className="text-white/30">·</span>
+              <time title={new Date(createdAt).toLocaleString()}>{new Date(createdAt).toLocaleDateString()}</time>
+            </div>
           </div>
+        </header>
+
+        {/* Text Body */}
+        <div className="space-y-2" aria-label="Body">
+          {kind === 'review' ? (
+            <div>
+              {text ? (
+                <p className="text-sm text-white/90 line-clamp-2">{text}</p>
+              ) : null}
+              <button type="button" className="text-xs text-blue-400 hover:underline mt-1">Read review →</button>
+            </div>
+          ) : null}
+
+          {kind === 'post' && text ? (
+            <p className="text-sm text-white/90 whitespace-pre-wrap">{text}</p>
+          ) : null}
+
+          {kind === 'rating' && text ? (
+            <p className="text-sm text-white/90">{text}</p>
+          ) : null}
         </div>
-      </header>
 
-      {/* Body */}
-      <div className="space-y-2" aria-label="Body">
-        {kind === 'review' ? (
-          <div>
-            {text ? (
-              <p className="text-sm text-white/90 line-clamp-2">{text}</p>
-            ) : null}
-            <button type="button" className="text-xs text-blue-400 hover:underline mt-1">Read review →</button>
-          </div>
-        ) : null}
-
-        {kind === 'post' && text ? (
-          <p className="text-sm text-white/90 whitespace-pre-wrap">{text}</p>
-        ) : null}
-
-        {/* Media reserved aspect boxes to avoid layout shift */}
+        {/* Media Block */}
         {kind === 'post' && media.length > 0 ? (
-          <div className="grid grid-cols-2 gap-2">
-            {media.slice(0, 4).map((url, idx) => (
-              <div key={idx} className="relative w-full overflow-hidden rounded-md border border-white/10" style={{ paddingTop: '56.25%' }}>
-                {isVideo(url) ? (
-                  <video
-                    className="absolute inset-0 w-full h-full object-cover"
-                    src={url}
-                    controls
-                    preload="metadata"
-                  />
-                ) : (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    className="absolute inset-0 w-full h-full object-cover"
-                    src={url}
-                    alt=""
-                    loading="lazy"
-                    decoding="async"
-                  />
-                )}
+          <div className="relative mx-auto aspect-[16/9] w-full max-w-xl md:max-w-2xl overflow-hidden rounded-lg border border-zinc-800 bg-zinc-950/50">
+            {media.length === 1 ? (
+              isVideo(media[0]) ? (
+                <video
+                  className="w-full h-full object-contain"
+                  src={media[0]}
+                  controls
+                  preload="metadata"
+                />
+              ) : (
+                <Image
+                  src={media[0]}
+                  alt=""
+                  fill
+                  sizes="(min-width: 1280px) 640px, (min-width: 768px) 80vw, 100vw"
+                  quality={85}
+                  className="object-contain"
+                />
+              )
+            ) : (
+              <div className="grid grid-cols-2 gap-2 h-full">
+                {media.slice(0, 4).map((url, idx) => (
+                  <div key={idx} className="relative overflow-hidden rounded-md border border-white/10">
+                    {isVideo(url) ? (
+                      <video
+                        className="w-full h-full object-cover"
+                        src={url}
+                        controls
+                        preload="metadata"
+                      />
+                    ) : (
+                      <Image
+                        src={url}
+                        alt=""
+                        fill
+                        sizes="(min-width: 1280px) 320px, (min-width: 768px) 40vw, 50vw"
+                        quality={85}
+                        className="object-cover"
+                      />
+                    )}
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
           </div>
         ) : null}
-      </div>
 
-      {/* Rating Strip */}
-      {(kind === 'rating' || kind === 'review') && typeof rating === 'number' ? (
-        <div className="mt-3 flex items-center gap-2" aria-label="Rating">
-          <span className="inline-flex items-center px-2 py-0.5 rounded bg-white/10 text-xs text-white/90">{Math.round(rating)}/100</span>
-          <StarRow value={rating} />
-          <span className="text-xs text-white/50">{rating >= 80 ? 'Loved' : rating >= 60 ? 'Liked' : 'Mixed'}</span>
-        </div>
-      ) : null}
+        {/* Rating Strip */}
+        {(kind === 'rating' || kind === 'review') && typeof rating === 'number' ? (
+          <div className="flex items-center gap-2" aria-label="Rating">
+            <StarRow value={rating} />
+          </div>
+        ) : null}
 
-      {/* Actions */}
-      <footer className="mt-3 border-t border-white/10 pt-2" aria-label="Actions">
-        <div className="flex items-center gap-4">
+        {/* Actions */}
+        <footer className="flex items-center justify-between gap-4 py-2 border-t border-white/10" aria-label="Actions">
           <ActionButton label="Like" active={!!myReactions?.liked} count={counts.likes} />
           <ActionButton label="Comment" active={!!myReactions?.commented} count={counts.comments} />
           <ActionButton label="Share" active={!!myReactions?.shared} count={counts.shares} />
-        </div>
-      </footer>
+        </footer>
+      </div>
     </article>
   )
 }
@@ -118,7 +141,7 @@ function ActionButton({ label, active, count }: { label: string; active?: boolea
   return (
     <button
       type="button"
-      className={`h-11 px-3 rounded-md flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-blue-500/60 ${active ? 'bg-white/10' : 'hover:bg-white/5'}`}
+      className={`h-8 px-3 rounded-md flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-blue-500/60 ${active ? 'bg-white/10' : 'hover:bg-white/5'}`}
       aria-pressed={active ? 'true' : 'false'}
       aria-label={label}
     >
@@ -141,16 +164,33 @@ function StarRow({ value }: { value: number }) {
 
 export function FeedCardV2Skeleton({ kind = 'post' as FeedKind }) {
   return (
-    <div className="sidebar-card p-4 animate-pulse">
-      <div className="flex items-center gap-3 mb-3">
-        <div className="h-9 w-9 rounded-full bg-white/10" />
-        <div className="flex-1">
-          <div className="h-3 w-32 bg-white/10 rounded" />
-          <div className="h-2 w-24 bg-white/5 rounded mt-2" />
+    <div className="sidebar-card p-4 md:p-5 animate-pulse">
+      <div className="space-y-4">
+        {/* Header skeleton */}
+        <div className="flex items-center gap-3">
+          <div className="h-9 w-9 rounded-full bg-white/10" />
+          <div className="flex-1">
+            <div className="h-3 w-32 bg-white/10 rounded" />
+            <div className="h-2 w-24 bg-white/5 rounded mt-2" />
+          </div>
+        </div>
+        
+        {/* Text body skeleton */}
+        {kind !== 'rating' ? <div className="h-20 bg-white/5 rounded" /> : null}
+        
+        {/* Media block skeleton */}
+        {kind === 'post' ? <div className="h-48 bg-white/5 rounded-lg" /> : null}
+        
+        {/* Rating skeleton */}
+        {kind === 'rating' || kind === 'review' ? <div className="h-4 w-20 bg-white/5 rounded" /> : null}
+        
+        {/* Actions skeleton */}
+        <div className="flex items-center justify-between gap-4 py-2 border-t border-white/10">
+          <div className="h-8 w-16 bg-white/5 rounded" />
+          <div className="h-8 w-20 bg-white/5 rounded" />
+          <div className="h-8 w-16 bg-white/5 rounded" />
         </div>
       </div>
-      {kind !== 'rating' ? <div className="h-20 bg-white/5 rounded" /> : null}
-      <div className="h-6 bg-white/5 rounded mt-3" />
     </div>
   )
 }

@@ -86,18 +86,7 @@ class ServerDataService {
             }
           }
         }
-        const authorIds = followingResult.data
-        if (authorIds.length === 0) {
-          // Return empty result if no following
-          return {
-            success: true,
-            data: {
-              data: [],
-              next_cursor: undefined,
-              has_more: false
-            }
-          }
-        }
+        const authorIds = [viewerId, ...followingResult.data] // Include self
         baseQuery = baseQuery.in('user_id', authorIds)
       }
 
@@ -201,18 +190,11 @@ class ServerDataService {
         }
       }
     } catch (error: any) {
-      // If the unified feed view is missing (e.g., migration not applied),
-      // fall back to the legacy posts-only preload so the feed never goes blank.
-      const msg = String(error?.message ?? '')
-      const code = String(error?.code ?? '')
-      const missingUnifiedView = code === '42P01' || msg.includes('feed_unified_v1') || msg.includes('relation') && msg.includes('does not exist')
-
-      if (missingUnifiedView) {
-        console.warn('[serverDataService.getFeed] unified view missing – falling back to posts-only preload')
-        const fallback = await this.preloadFeedPosts(params.limit ?? 20)
-        if (fallback.success) {
-          return fallback
-        }
+      // Log when fallback triggers for debugging
+      console.warn('[serverDataService.getFeed] unified view error – falling back to posts-only preload:', error.message)
+      const fallback = await this.preloadFeedPosts(params.limit ?? 20)
+      if (fallback.success) {
+        return fallback
       }
 
       return { success: false, error: this.handleError(error, 'getFeed') }

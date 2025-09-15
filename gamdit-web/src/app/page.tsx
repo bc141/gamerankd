@@ -1,16 +1,23 @@
 // src/app/page.tsx
 import HomeClientV0 from '@/components/home/HomeClientV0';
 import { serverDataService } from '@/lib/data-service/server'
-import { cookies } from 'next/headers'
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export default async function Page() {
-  // Preload first page server-side so first post is visible immediately
-  const preload = await serverDataService.preloadFeedPosts(10)
-  const initialItems = preload.success ? preload.data.data : []
-  const initialNextCursor = preload.success ? preload.data.next_cursor : undefined
+  // SSR: fetch via server feed contract (no viewer on initial paint) to avoid RLS
+  const result = await serverDataService.getFeed({
+    viewerId: null,
+    tab: 'for-you',
+    filter: 'all',
+    cursor: null,
+    limit: 10
+  })
 
-  return <HomeClientV0 initialItems={initialItems} initialNextCursor={initialNextCursor} />;
+  const initialItems = result.success ? result.data.data : []
+  const initialNextCursor = result.success ? result.data.next_cursor : undefined
+  const initialHasMore = result.success ? result.data.has_more : false
+
+  return <HomeClientV0 initialItems={initialItems} initialNextCursor={initialNextCursor} initialHasMore={initialHasMore} />;
 }

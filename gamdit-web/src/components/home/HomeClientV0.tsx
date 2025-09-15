@@ -53,9 +53,11 @@ interface V0User {
 // ---------- helpers ----------
 
 // ---------- main component ----------
-export default function HomeClientV0({ initialItems = [], initialNextCursor }: { initialItems?: any[]; initialNextCursor?: InitialCursor }) {
+export default function HomeClientV0({ initialItems = [], initialNextCursor, initialHasMore = false }: { initialItems?: any[]; initialNextCursor?: InitialCursor; initialHasMore?: boolean }) {
   const router = useRouter();
   const [posts, setPosts] = useState<V0Post[]>([]);
+  const [nextCursor, setNextCursor] = useState<{ id: string; created_at: string } | undefined>(initialNextCursor);
+  const [hasMore, setHasMore] = useState<boolean>(initialHasMore);
   const [games, setGames] = useState<V0Game[]>([]);
   const [users, setUsers] = useState<V0User[]>([]);
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
@@ -149,7 +151,7 @@ export default function HomeClientV0({ initialItems = [], initialNextCursor }: {
     
     async function loadData() {
       try {
-        const { items } = await fetchFeed({
+        const { items, nextCursor: nc, hasMore: hm } = await fetchFeed({
           viewerId: sessionUserId,
           tab: activeTab,
           filter: activeFilter,
@@ -175,6 +177,8 @@ export default function HomeClientV0({ initialItems = [], initialNextCursor }: {
 
         if (!abortController.signal.aborted) {
           setPosts(transformedPosts);
+          setNextCursor(nc);
+          setHasMore(hm);
           setIsLoading(false);
         }
 
@@ -192,6 +196,40 @@ export default function HomeClientV0({ initialItems = [], initialNextCursor }: {
       abortController.abort();
     };
   }, [activeTab, sessionUserId, isMounted]);
+
+  // Cursor pagination
+  const loadMore = async () => {
+    if (!hasMore || !nextCursor) return
+    try {
+      const { items, nextCursor: nc, hasMore: hm } = await fetchFeed({
+        viewerId: sessionUserId,
+        tab: activeTab,
+        filter: activeFilter,
+        cursor: nextCursor
+      })
+      const transformed: V0Post[] = (items || []).map((post: any) => ({
+        id: post.id,
+        user: {
+          avatar: post.user?.avatar_url || '/avatar-placeholder.svg',
+          displayName: post.user?.display_name || post.user?.username,
+          handle: `@${post.user?.username || 'user'}`,
+        },
+        timestamp: timeAgo(new Date(post.created_at)),
+        content: post.content,
+        gameImage: post.game?.cover_url || undefined,
+        likes: post.reaction_counts?.likes || 0,
+        comments: post.reaction_counts?.comments || 0,
+        shares: post.reaction_counts?.shares || 0,
+        isLiked: post.user_reactions?.liked || false,
+      }))
+      setPosts(prev => [...prev, ...transformed])
+      setNextCursor(nc)
+      setHasMore(hm)
+    } catch (e) {
+      console.error('Failed to load more:', e)
+      // TODO: toast error, keep last good page
+    }
+  }
 
   // Scroll to top functionality
   useEffect(() => {

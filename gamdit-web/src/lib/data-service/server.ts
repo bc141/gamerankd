@@ -150,9 +150,15 @@ class ServerDataService {
 
       const nextCursor = posts.length === limit ? posts[posts.length - 1]._cursor : undefined
 
+      console.log('[serverDataService.getFeed] posts:', posts.length, 'tab:', tab, 'filter:', filter, 'viewerId:', viewerId ?? 'anon')
+      // Standardized feed contract used by the app UI
       return {
         success: true,
-        data: { data: posts, next_cursor: nextCursor, has_more: posts.length === limit }
+        data: {
+          items: posts,
+          nextCursor,
+          hasMore: posts.length === limit
+        }
       }
     } catch (error) {
       return { success: false, error: this.handleError(error, 'getFeed') }
@@ -242,12 +248,14 @@ class ServerDataService {
 
       const next_cursor = posts.length === limit ? posts[posts.length - 1]._cursor : undefined
 
+      console.log('[serverDataService.preloadFeedPosts] posts:', posts.length)
+      // Standardized feed contract used by the app UI
       return {
         success: true,
         data: {
-          data: posts,
-          next_cursor,
-          has_more: posts.length === limit
+          items: posts,
+          nextCursor: next_cursor,
+          hasMore: posts.length === limit
         }
       }
     } catch (error) {

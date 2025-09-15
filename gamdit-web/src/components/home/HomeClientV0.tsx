@@ -14,6 +14,8 @@ import { Sidebar } from '@/components/v0-ui/sidebar';
 import { SkeletonPostCard, SkeletonSidebar } from '@/components/v0-ui/skeletons';
 import './v0-sandbox.css';
 
+type InitialCursor = { id: string; created_at: string } | undefined;
+
 // ---------- constants ----------
 const POSTS_VIEW = 'post_feed_v2';
 const POST_COLS = 'id,user_id,created_at,body,tags,media_urls,like_count,comment_count,username,display_name,avatar_url,game_id,game_name,game_cover_url';
@@ -51,7 +53,7 @@ interface V0User {
 // ---------- helpers ----------
 
 // ---------- main component ----------
-export default function HomeClientV0() {
+export default function HomeClientV0({ initialItems = [], initialNextCursor }: { initialItems?: any[]; initialNextCursor?: InitialCursor }) {
   const router = useRouter();
   const [posts, setPosts] = useState<V0Post[]>([]);
   const [games, setGames] = useState<V0Game[]>([]);
@@ -67,7 +69,7 @@ export default function HomeClientV0() {
   const [sessionUserId, setSessionUserId] = useState<string | null>(null);
   const [isMounted, setIsMounted] = useState(false);
 
-  // Load session once on mount
+  // Load session once on mount and seed initial server data
   useEffect(() => {
     let isMounted = true;
     
@@ -98,12 +100,46 @@ export default function HomeClientV0() {
       }
     }
 
+    // seed initial posts from server (transform contract to V0Post)
+    const transform = (post: any): V0Post => ({
+      id: post.id,
+      user: {
+        avatar: post.user?.avatar_url || '/avatar-placeholder.svg',
+        displayName: post.user?.display_name || post.user?.username || 'User',
+        handle: `@${post.user?.username || 'user'}`,
+      },
+      timestamp: timeAgo(new Date(post.created_at)),
+      content: post.content,
+      gameImage: post.game?.cover_url || undefined,
+      likes: post.reaction_counts?.likes || 0,
+      comments: post.reaction_counts?.comments || 0,
+      shares: post.reaction_counts?.shares || 0,
+      isLiked: post.user_reactions?.liked || false,
+    })
+    setPosts((initialItems || []).map(transform));
     loadSession();
     
     return () => {
       isMounted = false;
     };
   }, []);
+
+  // Helper to call server feed API
+  async function fetchFeed(params: { viewerId: string | null; tab: 'following' | 'for-you'; filter: 'all' | 'clips' | 'reviews' | 'screens'; cursor?: { id: string; created_at: string } | null }) {
+    const res = await fetch('/api/feed', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        viewerId: params.viewerId,
+        tab: params.tab,
+        filter: params.filter,
+        cursor: params.cursor ?? null,
+        limit: 20
+      })
+    })
+    if (!res.ok) throw new Error('Failed to load feed')
+    return res.json() as Promise<{ items: any[]; nextCursor?: { id: string; created_at: string }; hasMore: boolean }>
+  }
 
   // Load data based on activeTab and sessionUserId
   useEffect(() => {
@@ -113,99 +149,32 @@ export default function HomeClientV0() {
     
     async function loadData() {
       try {
-        const sb = supabaseBrowser();
-        
-        // Load posts based on active tab
-        let postsData, postsError;
-        
-        if (activeTab === 'following' && sessionUserId) {
-          // Get posts from users I follow
-          const { data: followingIds } = await sb
-            .from('follows')
-            .select('following_id')
-            .eq('follower_id', sessionUserId);
-          
-          if (followingIds && followingIds.length > 0) {
-            const followingUserIds = followingIds.map(f => f.following_id);
-            const { data, error } = await sb
-              .from('post_feed_v2')
-              .select('id,user_id,created_at,body,tags,media_urls,like_count,comment_count,username,display_name,avatar_url,game_id,game_name,game_cover_url')
-              .in('user_id', followingUserIds)
-              .order('created_at', { ascending: false })
-              .limit(20);
-            postsData = data;
-            postsError = error;
-          } else {
-            // No following, show empty
-            if (!abortController.signal.aborted) {
-              setPosts([]);
-              setIsLoading(false);
-            }
-            return;
-          }
-        } else {
-          // Load all posts for "For You" tab
-          const { data, error } = await sb
-            .from('post_feed_v2')
-            .select('id,user_id,created_at,body,tags,media_urls,like_count,comment_count,username,display_name,avatar_url,game_id,game_name,game_cover_url')
-            .order('created_at', { ascending: false })
-            .limit(20);
-          postsData = data;
-          postsError = error;
-        }
-
-        if (abortController.signal.aborted) return;
-
-        if (postsError) {
-          console.error('Error loading posts:', postsError);
-        }
-
-        // Load games
-        const { data: gamesData, error: gamesError } = await sb
-          .from('games')
-          .select('id, name, cover_url')
-          .order('created_at', { ascending: false })
-          .limit(5);
-
-        if (abortController.signal.aborted) return;
-
-        if (gamesError) {
-          console.error('Error loading games:', gamesError);
-        }
-
-        // Load users for sidebar
-        const { data: usersData, error: usersError } = await sb
-          .from('profiles')
-          .select('id, username, display_name, avatar_url')
-          .limit(3);
-
-        if (abortController.signal.aborted) return;
-
-        if (usersError) {
-          console.error('Error loading users:', usersError);
-        }
+        const { items } = await fetchFeed({
+          viewerId: sessionUserId,
+          tab: activeTab,
+          filter: activeFilter,
+          cursor: null
+        })
 
         // Transform posts
-        const transformedPosts: V0Post[] = (postsData || []).map((post: any) => ({
+        const transformedPosts: V0Post[] = (items || []).map((post: any) => ({
           id: post.id,
           user: {
-            avatar: post.avatar_url || '/avatar-placeholder.svg',
-            displayName: post.display_name || post.username,
-            handle: `@${post.username}`,
+            avatar: post.user?.avatar_url || '/avatar-placeholder.svg',
+            displayName: post.user?.display_name || post.user?.username,
+            handle: `@${post.user?.username || 'user'}`,
           },
           timestamp: timeAgo(new Date(post.created_at)),
-          content: post.body,
-          gameImage: post.game_cover_url || undefined,
-          likes: post.like_count || 0,
-          comments: post.comment_count || 0,
-          shares: 0,
-          isLiked: false,
+          content: post.content,
+          gameImage: post.game?.cover_url || undefined,
+          likes: post.reaction_counts?.likes || 0,
+          comments: post.reaction_counts?.comments || 0,
+          shares: post.reaction_counts?.shares || 0,
+          isLiked: post.user_reactions?.liked || false,
         }));
 
         if (!abortController.signal.aborted) {
           setPosts(transformedPosts);
-          setGames(gamesData || []);
-          setUsers(usersData || []);
           setIsLoading(false);
         }
 

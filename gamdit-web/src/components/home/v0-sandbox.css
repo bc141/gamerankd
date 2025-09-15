@@ -86,8 +86,8 @@
 /* Sticky Tab Bar - Stays under header while scrolling */
 .v0-sandbox .sticky-tabs {
   position: sticky;
-  top: 0;
-  z-index: 10;
+  top: 56px; /* match header height so highlight never bleeds under header */
+  z-index: 9; /* under header */
   background: var(--v0-app-bg);
   padding: 1rem 0 0.5rem 0;
   margin-bottom: 0.5rem;

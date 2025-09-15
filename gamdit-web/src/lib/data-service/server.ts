@@ -41,6 +41,126 @@ class ServerDataService {
     }
   }
 
+  // Unified feed contract
+  async getFeed(params: {
+    viewerId?: string | null
+    tab: 'following' | 'for-you'
+    filter: 'all' | 'clips' | 'reviews' | 'screens'
+    cursor?: { created_at: string; id: string } | null
+    limit?: number
+  }): Promise<DataServiceResult<PaginatedResponse<FeedPost>>> {
+    const { viewerId, tab, filter, cursor, limit = 20 } = params
+    try {
+      let baseQuery = supabase
+        .from('posts')
+        .select(`
+          id,
+          content,
+          created_at,
+          updated_at,
+          user_id,
+          game_id,
+          media_urls,
+          user:profiles!posts_user_id_fkey (
+            id,
+            username,
+            display_name,
+            avatar_url
+          ),
+          game:games!posts_game_id_fkey (
+            id,
+            name,
+            cover_url
+          )
+        `)
+
+      // Tab filter
+      if (tab === 'following' && viewerId) {
+        const { data: follows, error: followsError } = await supabase
+          .from('follows')
+          .select('following_id')
+          .eq('follower_id', viewerId)
+
+        if (followsError) throw followsError
+
+        const followingIds = (follows || []).map(f => (f as any).following_id)
+        const ids = [...new Set([viewerId, ...followingIds])]
+        if (ids.length === 0) {
+          return {
+            success: true,
+            data: { data: [], next_cursor: undefined, has_more: false }
+          }
+        }
+        baseQuery = baseQuery.in('user_id', ids)
+      }
+
+      // Content filter (simple heuristic on content/media)
+      if (filter === 'clips') {
+        baseQuery = baseQuery.or('content.ilike.%clip%,content.ilike.%video%')
+      } else if (filter === 'reviews') {
+        baseQuery = baseQuery.or('content.ilike.%review%,content.ilike.%rating%')
+      } else if (filter === 'screens') {
+        baseQuery = baseQuery.or('content.ilike.%screenshot%,content.ilike.%screen%')
+      }
+
+      // Cursor pagination (created_at DESC, tie-breaker id)
+      if (cursor) {
+        baseQuery = baseQuery.lt('created_at', cursor.created_at)
+      }
+
+      const { data, error } = await baseQuery
+        .order('created_at', { ascending: false })
+        .limit(limit)
+
+      if (error) throw error
+
+      const posts: FeedPost[] = (data || []).map((post: any) => ({
+        id: post.id,
+        content: post.content,
+        created_at: post.created_at,
+        updated_at: post.updated_at,
+        user_id: post.user_id,
+        user: {
+          id: post.user?.id || '',
+          username: post.user?.username || '',
+          display_name: post.user?.display_name || '',
+          avatar_url: post.user?.avatar_url,
+          bio: undefined,
+          followers_count: 0,
+          following_count: 0,
+          posts_count: 0,
+          is_following: false,
+          is_verified: false
+        },
+        game_id: post.game?.id,
+        game: post.game
+          ? {
+              id: post.game.id,
+              name: post.game.name,
+              cover_url: post.game.cover_url,
+              last_played_at: post.created_at,
+              playtime_minutes: 0,
+              progress_percentage: 0,
+              status: 'playing'
+            }
+          : undefined,
+        media_urls: post.media_urls || [],
+        reaction_counts: { likes: 0, comments: 0, shares: 0, views: 0 },
+        user_reactions: { liked: false, commented: false, shared: false },
+        _cursor: { id: post.id, created_at: post.created_at }
+      }))
+
+      const next_cursor = posts.length === limit ? posts[posts.length - 1]._cursor : undefined
+
+      return {
+        success: true,
+        data: { data: posts, next_cursor, has_more: posts.length === limit }
+      }
+    } catch (error) {
+      return { success: false, error: this.handleError(error, 'getFeed') }
+    }
+  }
+
   // Preload feed posts for SSR
   async preloadFeedPosts(limit = 10): Promise<DataServiceResult<PaginatedResponse<FeedPost>>> {
     try {

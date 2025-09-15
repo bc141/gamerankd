@@ -6,6 +6,13 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
 
+  images: {
+    remotePatterns: [
+      { protocol: 'https', hostname: 'xzxqqkltakvtfsglaalc.supabase.co' },
+      { protocol: 'https', hostname: 'images.igdb.com' },
+    ],
+  },
+
   // (optional) if you ever hit TS type errors on Vercel, you can temporarily add:
   // typescript: { ignoreBuildErrors: true },
 
@@ -27,12 +34,12 @@ const nextConfig: NextConfig = {
 
     const previewCsp = [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-      "connect-src 'self' https: wss:",
-      "img-src 'self' blob: data: https://*.supabase.co",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://vercel.live",
+      "connect-src 'self' https: wss: https://vercel.live wss://*.vercel.live",
+      "img-src 'self' blob: data: https://*.supabase.co https://images.igdb.com",
       "style-src 'self' 'unsafe-inline'",
       "font-src 'self' data:",
-      "frame-src 'none'",
+      "frame-src https://vercel.live",
       "frame-ancestors 'none'",
     ].join('; ');
 
@@ -40,7 +47,7 @@ const nextConfig: NextConfig = {
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
       "connect-src 'self' https: wss:",
-      "img-src 'self' blob: data:",
+      "img-src 'self' blob: data: https://*.supabase.co https://images.igdb.com",
       "style-src 'self' 'unsafe-inline'",
       "font-src 'self' data:",
       "frame-src 'none'",
@@ -59,17 +66,6 @@ const nextConfig: NextConfig = {
       },
     ];
   },
-};
-
-// Next.js Image allowlist for preview/prod (host-specific for Supabase storage)
-// Keep this broad enough for both envs while not loosening CSP in prod.
-export const images = {
-  remotePatterns: [
-    {
-      protocol: 'https',
-      hostname: 'xzxqqkltakvtfsglaalc.supabase.co',
-    },
-  ],
 };
 
 export default nextConfig;

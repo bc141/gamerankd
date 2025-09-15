@@ -3,13 +3,14 @@ import type { FeedCardProps } from './FeedCardV2'
 export type LegacyItem = any
 
 export function normalizeToFeedCard(item: LegacyItem): FeedCardProps {
-  // Heuristic: mixed items already shaped by server; fall back to legacy post shape
+  // Use server-provided kind and rating_score from unified feed
   const kind = (item.kind as string) || 'post'
   const author = item.user || item.author || {}
   const game = item.game || null
   const content = item.content || item.text || ''
   const media = item.media_urls || item.media || []
-  const rating = typeof item.rating === 'number' ? item.rating : undefined
+  const rating = typeof item.rating_score === 'number' ? item.rating_score : 
+    (typeof item.rating === 'number' ? item.rating : undefined)
   const ratingFromText = !rating && /Rated\s+(\d{1,3})\/100/i.test(String(content))
     ? Math.min(100, Math.max(0, Number(String(content).match(/Rated\s+(\d{1,3})\/100/i)![1])))
     : undefined

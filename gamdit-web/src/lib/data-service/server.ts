@@ -51,67 +51,72 @@ class ServerDataService {
   }): Promise<DataServiceResult<PaginatedResponse<FeedPost>>> {
     const { viewerId, tab, filter, cursor, limit = 20 } = params
     try {
-      // gather author filter if following
-      let authorIds: string[] | null = null
-      if (tab === 'following' && viewerId) {
-        const { data: follows, error: followsError } = await supabase
-          .from('follows')
-          .select('following_id')
-          .eq('follower_id', viewerId)
-        if (followsError) throw followsError
-        const followingIds = (follows || []).map((f: any) => String(f.following_id)).filter(Boolean)
-        authorIds = Array.from(new Set([viewerId, ...followingIds]))
-      }
-
-      // Use the consolidated feed view that backs v0 tests
-      // Columns: id, user_id, created_at, body, tags, media_urls,
-      // like_count, comment_count, username, display_name, avatar_url,
-      // game_id, game_name, game_cover_url
+      // Build query from unified feed view
       let baseQuery = supabase
-        .from('post_feed_v2')
+        .from('feed_unified_v1')
         .select(`
           id,
           user_id,
           created_at,
+          kind,
           body,
+          rating_score,
           media_urls,
+          game_id,
+          game_name,
+          game_cover_url,
           like_count,
           comment_count,
           username,
           display_name,
-          avatar_url,
-          game_id,
-          game_name,
-          game_cover_url
+          avatar_url
         `)
 
-      // Tab filter
+      // Tab filter: for-you shows all public content, following shows self + followees
       if (tab === 'following' && viewerId) {
-        const { data: follows, error: followsError } = await supabase
-          .from('follows')
-          .select('following_id')
-          .eq('follower_id', viewerId)
-
-        if (followsError) throw followsError
-
-        const followingIds = (follows || []).map(f => (f as any).following_id)
-        const ids = [...new Set([viewerId, ...followingIds])]
-        baseQuery = ids.length > 0 ? baseQuery.in('user_id', ids) : baseQuery.eq('user_id', viewerId)
+        const followingResult = await this.getFollowingIds(viewerId)
+        if (!followingResult.success) {
+          // Return empty result for following if we can't get following list
+          return {
+            success: true,
+            data: {
+              data: [],
+              next_cursor: undefined,
+              has_more: false
+            }
+          }
+        }
+        const authorIds = followingResult.data
+        if (authorIds.length === 0) {
+          // Return empty result if no following
+          return {
+            success: true,
+            data: {
+              data: [],
+              next_cursor: undefined,
+              has_more: false
+            }
+          }
+        }
+        baseQuery = baseQuery.in('user_id', authorIds)
       }
 
-      // Content filter (simple heuristic on content/media)
-      if (filter === 'clips') {
-        baseQuery = baseQuery.or('body.ilike.%clip%,body.ilike.%video%')
-      } else if (filter === 'reviews') {
-        baseQuery = baseQuery.or('body.ilike.%review%,body.ilike.%rating%')
+      // Kind-aware content filters
+      if (filter === 'reviews') {
+        baseQuery = baseQuery.in('kind', ['review', 'rating'])
+      } else if (filter === 'clips') {
+        baseQuery = baseQuery.eq('kind', 'post')
+        // Note: video detection will be done in client-side filtering for now
+        // TODO: Add proper video detection in SQL if needed
       } else if (filter === 'screens') {
-        baseQuery = baseQuery.or('body.ilike.%screenshot%,body.ilike.%screen%')
+        baseQuery = baseQuery.eq('kind', 'post')
+        // Note: image-only detection will be done in client-side filtering for now
+        // TODO: Add proper image-only detection in SQL if needed
       }
+      // filter === 'all' applies no additional filter
 
       // Cursor pagination (created_at DESC, tie-breaker id)
       if (cursor) {
-        // Compound cursor on (created_at DESC, id DESC)
-        // created_at < cursor.created_at OR (created_at = cursor.created_at AND id < cursor.id)
         baseQuery = baseQuery.or(
           `and(created_at.lt.${cursor.created_at}),and(created_at.eq.${cursor.created_at},id.lt.${cursor.id})`
         )
@@ -124,17 +129,32 @@ class ServerDataService {
 
       if (error) throw error
 
-      const posts: FeedPost[] = (data || []).map((post: any) => ({
-        id: post.id,
-        content: post.body,
-        created_at: post.created_at,
-        updated_at: post.created_at,
-        user_id: post.user_id,
+      // Apply client-side filters for clips/screens (until we add SQL detection)
+      let filteredData = data || []
+      if (filter === 'clips') {
+        const isVideo = (url: string) => /\.(mp4|webm|mov|m4v)(\?|$)/i.test(url)
+        filteredData = filteredData.filter((item: any) => 
+          item.kind === 'post' && Array.isArray(item.media_urls) && item.media_urls.some(isVideo)
+        )
+      } else if (filter === 'screens') {
+        const isVideo = (url: string) => /\.(mp4|webm|mov|m4v)(\?|$)/i.test(url)
+        filteredData = filteredData.filter((item: any) => 
+          item.kind === 'post' && Array.isArray(item.media_urls) && 
+          item.media_urls.length > 0 && item.media_urls.every((url: string) => !isVideo(url))
+        )
+      }
+
+      const posts: FeedPost[] = filteredData.map((item: any) => ({
+        id: item.id,
+        content: item.body,
+        created_at: item.created_at,
+        updated_at: item.created_at,
+        user_id: item.user_id,
         user: {
-          id: post.user_id || '',
-          username: post.username || '',
-          display_name: post.display_name || '',
-          avatar_url: post.avatar_url || null,
+          id: item.user_id || '',
+          username: item.username || '',
+          display_name: item.display_name || '',
+          avatar_url: item.avatar_url || null,
           bio: undefined,
           followers_count: 0,
           following_count: 0,
@@ -142,22 +162,25 @@ class ServerDataService {
           is_following: false,
           is_verified: false
         },
-        game_id: post.game_id,
-        game: post.game_id
+        game_id: item.game_id,
+        game: item.game_id
           ? {
-              id: post.game_id,
-              name: post.game_name,
-              cover_url: post.game_cover_url,
-              last_played_at: post.created_at,
+              id: item.game_id,
+              name: item.game_name,
+              cover_url: item.game_cover_url,
+              last_played_at: item.created_at,
               playtime_minutes: 0,
               progress_percentage: 0,
               status: 'playing'
             }
           : undefined,
-        media_urls: post.media_urls || [],
-        reaction_counts: { likes: post.like_count || 0, comments: post.comment_count || 0, shares: 0, views: 0 },
+        media_urls: item.media_urls || [],
+        reaction_counts: { likes: item.like_count || 0, comments: item.comment_count || 0, shares: 0, views: 0 },
         user_reactions: { liked: false, commented: false, shared: false },
-        _cursor: { id: post.id, created_at: post.created_at }
+        _cursor: { id: item.id, created_at: item.created_at },
+        // Add extras for FeedCardV2
+        kind: item.kind,
+        rating_score: item.rating_score
       }))
 
       const next_cursor = posts.length === limit ? posts[posts.length - 1]._cursor : undefined

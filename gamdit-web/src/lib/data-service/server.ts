@@ -63,8 +63,11 @@ class ServerDataService {
         authorIds = Array.from(new Set([viewerId, ...followingIds]))
       }
 
-      // Build base queries
-      let postsQuery = supabase
+      // Use the consolidated feed view that backs v0 tests
+      // Columns: id, user_id, created_at, body, tags, media_urls,
+      // like_count, comment_count, username, display_name, avatar_url,
+      // game_id, game_name, game_cover_url
+      let baseQuery = supabase
         .from('post_feed_v2')
         .select(`
           id,
@@ -82,133 +85,56 @@ class ServerDataService {
           game_cover_url
         `)
 
-      if (authorIds && authorIds.length) {
-        postsQuery = postsQuery.in('user_id', authorIds)
+      // Tab filter
+      if (tab === 'following' && viewerId) {
+        const { data: follows, error: followsError } = await supabase
+          .from('follows')
+          .select('following_id')
+          .eq('follower_id', viewerId)
+
+        if (followsError) throw followsError
+
+        const followingIds = (follows || []).map(f => (f as any).following_id)
+        const ids = [...new Set([viewerId, ...followingIds])]
+        baseQuery = ids.length > 0 ? baseQuery.in('user_id', ids) : baseQuery.eq('user_id', viewerId)
       }
 
-      // Cursor for posts
+      // Content filter (simple heuristic on content/media)
+      if (filter === 'clips') {
+        baseQuery = baseQuery.or('body.ilike.%clip%,body.ilike.%video%')
+      } else if (filter === 'reviews') {
+        baseQuery = baseQuery.or('body.ilike.%review%,body.ilike.%rating%')
+      } else if (filter === 'screens') {
+        baseQuery = baseQuery.or('body.ilike.%screenshot%,body.ilike.%screen%')
+      }
+
+      // Cursor pagination (created_at DESC, tie-breaker id)
       if (cursor) {
-        postsQuery = postsQuery.or(
+        // Compound cursor on (created_at DESC, id DESC)
+        // created_at < cursor.created_at OR (created_at = cursor.created_at AND id < cursor.id)
+        baseQuery = baseQuery.or(
           `and(created_at.lt.${cursor.created_at}),and(created_at.eq.${cursor.created_at},id.lt.${cursor.id})`
         )
       }
 
-      postsQuery = postsQuery.order('created_at', { ascending: false }).order('id', { ascending: false }).limit(limit)
+      const { data, error } = await baseQuery
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+        .limit(limit)
 
-      // Reviews table: user_id, game_id, rating, review, created_at
-      let reviewsQuery = supabase
-        .from('reviews')
-        .select(`
-          id,
-          user_id,
-          game_id,
-          rating,
-          review,
-          created_at,
-          user:profiles!reviews_user_id_fkey (username, display_name, avatar_url),
-          game:games!reviews_game_id_fkey (name, cover_url)
-        `)
+      if (error) throw error
 
-      if (authorIds && authorIds.length) {
-        reviewsQuery = reviewsQuery.in('user_id', authorIds)
-      }
-
-      if (cursor) {
-        reviewsQuery = reviewsQuery.or(
-          `and(created_at.lt.${cursor.created_at}),and(created_at.eq.${cursor.created_at},id.lt.${cursor.id})`
-        )
-      }
-
-      reviewsQuery = reviewsQuery.order('created_at', { ascending: false }).order('id', { ascending: false }).limit(limit)
-
-      const [postsRes, reviewsRes] = await Promise.all([
-        postsQuery,
-        reviewsQuery
-      ])
-
-      if ((postsRes as any).error) throw (postsRes as any).error
-      if ((reviewsRes as any).error) throw (reviewsRes as any).error
-
-      const postsRaw: any[] = (postsRes as any).data || []
-      const reviewsRaw: any[] = (reviewsRes as any).data || []
-
-      const isVideo = (url: string) => /\.(mp4|webm|mov|m4v)(\?|$)/i.test(url)
-
-      type Mixed = {
-        id: string
-        created_at: string
-        kind: 'post' | 'review' | 'rating'
-        author: { id: string; username?: string; display_name?: string; avatar_url?: string | null }
-        game?: { id: string | number; name?: string; cover_url?: string | null }
-        content?: string | null
-        media?: string[]
-        reaction_counts: { likes: number; comments: number; shares: number; views: number }
-      }
-
-      const mixed: Mixed[] = []
-
-      for (const p of postsRaw) {
-        mixed.push({
-          id: p.id,
-          created_at: p.created_at,
-          kind: 'post',
-          author: { id: p.user_id, username: p.username, display_name: p.display_name, avatar_url: p.avatar_url },
-          game: p.game_id ? { id: p.game_id, name: p.game_name, cover_url: p.game_cover_url } : undefined,
-          content: p.body,
-          media: Array.isArray(p.media_urls) ? p.media_urls : [],
-          reaction_counts: { likes: p.like_count || 0, comments: p.comment_count || 0, shares: 0, views: 0 }
-        })
-      }
-
-      for (const r of reviewsRaw) {
-        const kind: 'review' | 'rating' = r.review && String(r.review).trim().length > 0 ? 'review' : 'rating'
-        mixed.push({
-          id: r.id,
-          created_at: r.created_at,
-          kind,
-          author: { id: r.user_id, username: (r.user as any)?.username, display_name: (r.user as any)?.display_name, avatar_url: (r.user as any)?.avatar_url },
-          game: r.game_id ? { id: r.game_id, name: (r.game as any)?.name, cover_url: (r.game as any)?.cover_url } : undefined,
-          content: kind === 'review' ? String(r.review) : `Rated ${r.rating}/100`,
-          media: [],
-          reaction_counts: { likes: 0, comments: 0, shares: 0, views: 0 }
-        })
-      }
-
-      // Apply filter semantics on mixed list
-      const filtered: Mixed[] = mixed.filter(item => {
-        if (filter === 'all') return true
-        if (filter === 'reviews') return item.kind === 'review' || item.kind === 'rating'
-        if (item.kind !== 'post') return false
-        const media = item.media || []
-        if (filter === 'clips') return media.some(m => isVideo(m))
-        if (filter === 'screens') return media.length > 0 && media.every(m => !isVideo(m))
-        return true
-      })
-
-      // Global sort and paginate by cursor
-      filtered.sort((a, b) => {
-        const ta = new Date(a.created_at).getTime()
-        const tb = new Date(b.created_at).getTime()
-        if (ta !== tb) return tb - ta
-        return String(b.id).localeCompare(String(a.id))
-      })
-
-      const page = filtered.slice(0, limit)
-      const last = page[page.length - 1]
-      const next_cursor = last ? { id: String(last.id), created_at: String(last.created_at) } : undefined
-
-      // Map to FeedPost-compatible shape the client expects
-      const items: FeedPost[] = page.map((it) => ({
-        id: String(it.id),
-        content: it.content || '',
-        created_at: it.created_at,
-        updated_at: it.created_at,
-        user_id: it.author.id,
+      const posts: FeedPost[] = (data || []).map((post: any) => ({
+        id: post.id,
+        content: post.body,
+        created_at: post.created_at,
+        updated_at: post.created_at,
+        user_id: post.user_id,
         user: {
-          id: it.author.id,
-          username: (it as any).author?.username || it.author.username || '',
-          display_name: (it as any).author?.display_name || it.author.display_name || '',
-          avatar_url: (it as any).author?.avatar_url || it.author.avatar_url || undefined,
+          id: post.user_id || '',
+          username: post.username || '',
+          display_name: post.display_name || '',
+          avatar_url: post.avatar_url || null,
           bio: undefined,
           followers_count: 0,
           following_count: 0,
@@ -216,31 +142,34 @@ class ServerDataService {
           is_following: false,
           is_verified: false
         },
-        game_id: (it.game as any)?.id ? String((it.game as any).id) : undefined,
-        game: it.game
+        game_id: post.game_id,
+        game: post.game_id
           ? {
-              id: String((it.game as any).id),
-              name: (it.game as any).name,
-              cover_url: (it.game as any).cover_url,
-              last_played_at: it.created_at,
+              id: post.game_id,
+              name: post.game_name,
+              cover_url: post.game_cover_url,
+              last_played_at: post.created_at,
               playtime_minutes: 0,
               progress_percentage: 0,
               status: 'playing'
             }
           : undefined,
-        media_urls: it.media || [],
-        reaction_counts: it.reaction_counts,
+        media_urls: post.media_urls || [],
+        reaction_counts: { likes: post.like_count || 0, comments: post.comment_count || 0, shares: 0, views: 0 },
         user_reactions: { liked: false, commented: false, shared: false },
-        _cursor: { id: String(it.id), created_at: it.created_at }
+        _cursor: { id: post.id, created_at: post.created_at }
       }))
 
-      console.log('[serverDataService.getFeed] posts:', items.length, 'tab:', tab, 'filter:', filter, 'viewerId:', viewerId ?? 'anon')
+      const next_cursor = posts.length === limit ? posts[posts.length - 1]._cursor : undefined
+
+      console.log('[serverDataService.getFeed] posts:', posts.length, 'tab:', tab, 'filter:', filter, 'viewerId:', viewerId ?? 'anon')
+      // Return PaginatedResponse<FeedPost> to satisfy types; API maps to {items,nextCursor,hasMore}
       return {
         success: true,
         data: {
-          data: items,
+          data: posts,
           next_cursor,
-          has_more: items.length === limit
+          has_more: posts.length === limit
         }
       }
     } catch (error) {

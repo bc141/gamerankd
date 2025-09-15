@@ -38,9 +38,13 @@ export function FeedCardV2(props: FeedCardProps) {
         />
         <div className="min-w-0">
           <div className="text-sm font-medium text-white/90 truncate">{authorName}{handle ? <span className="text-white/40 ml-2">{handle}</span> : null}</div>
-          <div className="text-xs text-white/40 truncate">
-            {game?.name ? <span>{game.name}</span> : null}
-            {game?.name ? <span className="mx-1">·</span> : null}
+          <div className="text-xs text-white/40 truncate flex items-center gap-2">
+            {game?.coverUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={game.coverUrl} alt="" className="h-4 w-4 rounded object-cover" />
+            ) : null}
+            {game?.name ? <span className="truncate">{game.name}</span> : null}
+            <span className="text-white/30">·</span>
             <time title={new Date(createdAt).toLocaleString()}>{new Date(createdAt).toLocaleDateString()}</time>
           </div>
         </div>

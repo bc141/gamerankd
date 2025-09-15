@@ -10,6 +10,9 @@ export function normalizeToFeedCard(item: LegacyItem): FeedCardProps {
   const content = item.content || item.text || ''
   const media = item.media_urls || item.media || []
   const rating = typeof item.rating === 'number' ? item.rating : undefined
+  const ratingFromText = !rating && /Rated\s+(\d{1,3})\/100/i.test(String(content))
+    ? Math.min(100, Math.max(0, Number(String(content).match(/Rated\s+(\d{1,3})\/100/i)![1])))
+    : undefined
   const counts = item.reaction_counts || item.counts || { likes: 0, comments: 0, shares: 0 }
   const my = item.user_reactions || item.myReactions || {}
 
@@ -29,7 +32,7 @@ export function normalizeToFeedCard(item: LegacyItem): FeedCardProps {
     } : undefined,
     text: content,
     media: Array.isArray(media) ? media : [],
-    rating,
+    rating: rating ?? ratingFromText,
     counts: {
       likes: Number(counts.likes || 0),
       comments: Number(counts.comments || 0),

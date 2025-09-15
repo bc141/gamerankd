@@ -98,7 +98,16 @@ class ServerDataService {
       // Reviews table: user_id, game_id, rating, review, created_at
       let reviewsQuery = supabase
         .from('reviews')
-        .select('id, user_id, game_id, rating, review, created_at')
+        .select(`
+          id,
+          user_id,
+          game_id,
+          rating,
+          review,
+          created_at,
+          user:profiles!reviews_user_id_fkey (username, display_name, avatar_url),
+          game:games!reviews_game_id_fkey (name, cover_url)
+        `)
 
       if (authorIds && authorIds.length) {
         reviewsQuery = reviewsQuery.in('user_id', authorIds)
@@ -157,8 +166,8 @@ class ServerDataService {
           id: r.id,
           created_at: r.created_at,
           kind,
-          author: { id: r.user_id },
-          game: r.game_id ? { id: r.game_id } : undefined,
+          author: { id: r.user_id, username: (r.user as any)?.username, display_name: (r.user as any)?.display_name, avatar_url: (r.user as any)?.avatar_url },
+          game: r.game_id ? { id: r.game_id, name: (r.game as any)?.name, cover_url: (r.game as any)?.cover_url } : undefined,
           content: kind === 'review' ? String(r.review) : `Rated ${r.rating}/100`,
           media: [],
           reaction_counts: { likes: 0, comments: 0, shares: 0, views: 0 }
@@ -197,9 +206,9 @@ class ServerDataService {
         user_id: it.author.id,
         user: {
           id: it.author.id,
-          username: it.author.username || '',
-          display_name: it.author.display_name || '',
-          avatar_url: it.author.avatar_url || undefined,
+          username: (it as any).author?.username || it.author.username || '',
+          display_name: (it as any).author?.display_name || it.author.display_name || '',
+          avatar_url: (it as any).author?.avatar_url || it.author.avatar_url || undefined,
           bio: undefined,
           followers_count: 0,
           following_count: 0,

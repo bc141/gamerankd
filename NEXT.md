@@ -123,6 +123,12 @@
 - Disabled unread polling against `notifications_visible` by returning `0` in `getUnreadCount` to stop HEAD requests until the view is guaranteed present.
 - Feed now reads only from `/api/feed`; no PostgREST reads for feed on the client.
 
+### Preview-only CSP for Vercel Toolbar
+- Added dynamic CSP in `next.config.ts` that, when `VERCEL_ENV=preview`, whitelists `https://vercel.live` in `script-src`, `connect-src`, and `frame-src`. Production remains strict (no vercel.live, `frame-src 'none'`).
+
+### Search route polish
+- `src/app/api/search/route.ts`: Keeps `meta.route: 'v2'`, clamps `limit`, and isolates game/user search errors so one bucket failing doesn’t break the other.
+
 ## Constraints / Out of Scope
 - Don't touch `main`
 - No prod keys; RLS stays on

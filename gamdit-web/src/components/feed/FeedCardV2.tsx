@@ -24,6 +24,23 @@ export function FeedCardV2(props: FeedCardProps) {
   const handle = author.username ? `@${author.username}` : ''
 
   const isVideo = (url: string) => /\.(mp4|webm|mov|m4v)(\?|$)/i.test(url)
+  const enhanceMediaUrl = (url: string) => {
+    if (!url) return url
+    if (!/images\.igdb\.com\/igdb\/image\/upload\//.test(url)) return url
+    return url.replace(/\/t_([^/]+)\//, (_, token: string) => {
+      if (token.startsWith('screenshot')) {
+        return '/t_screenshot_huge/'
+      }
+      return '/t_cover_big_2x/'
+    })
+  }
+  const mediaUrls = media.map(enhanceMediaUrl)
+  const getContainerWidthClass = (url: string) => {
+    if (/images\.igdb\.com/.test(url)) {
+      return 'max-w-[18rem] sm:max-w-[22rem]'
+    }
+    return 'max-w-[22rem] sm:max-w-[28rem] md:max-w-[32rem]'
+  }
 
   return (
     <article className="sidebar-card p-4 md:p-5" role="article" aria-label={`${kind} by ${authorName}`}>
@@ -71,30 +88,30 @@ export function FeedCardV2(props: FeedCardProps) {
         </div>
 
         {/* Media Block */}
-        {kind === 'post' && media.length > 0 ? (
-          <div className="mx-auto w-full max-w-lg md:max-w-xl">
+        {kind === 'post' && mediaUrls.length > 0 ? (
+          <div className={`mx-auto w-full ${getContainerWidthClass(mediaUrls[0])}`}>
             <div className="relative aspect-[4/3] sm:aspect-[16/9] overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950/60">
-              {media.length === 1 ? (
-                isVideo(media[0]) ? (
+              {mediaUrls.length === 1 ? (
+                isVideo(mediaUrls[0]) ? (
                   <video
                     className="h-full w-full object-cover"
-                    src={media[0]}
+                    src={mediaUrls[0]}
                     controls
                     preload="metadata"
                   />
                 ) : (
                   <Image
-                    src={media[0]}
+                    src={mediaUrls[0]}
                     alt=""
                     fill
-                    sizes="(min-width: 1280px) 560px, (min-width: 768px) 70vw, 100vw"
+                    sizes="(min-width: 1280px) 480px, (min-width: 768px) 60vw, 90vw"
                     quality={90}
                     className="object-cover"
                   />
                 )
               ) : (
                 <div className="grid h-full w-full grid-cols-2 gap-[2px] bg-zinc-900/50">
-                  {media.slice(0, 4).map((url, idx) => (
+                  {mediaUrls.slice(0, 4).map((url, idx) => (
                     <div key={idx} className="relative overflow-hidden">
                       {isVideo(url) ? (
                         <video
@@ -108,7 +125,7 @@ export function FeedCardV2(props: FeedCardProps) {
                           src={url}
                           alt=""
                           fill
-                          sizes="(min-width: 1280px) 280px, (min-width: 768px) 35vw, 50vw"
+                          sizes="(min-width: 1280px) 220px, (min-width: 768px) 30vw, 45vw"
                           quality={90}
                           className="object-cover"
                         />
@@ -196,4 +213,3 @@ export function FeedCardV2Skeleton({ kind = 'post' as FeedKind }) {
     </div>
   )
 }
-

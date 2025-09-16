@@ -8,14 +8,15 @@ import { waitForSession } from '@/lib/waitForSession';
 import { timeAgo } from '@/lib/timeAgo';
 // Header is rendered globally in layout; keep v0 header unused here
 import { HeroCard } from '@/components/v0-ui/hero-card';
-import { FeedCardV2 } from '@/components/feed/FeedCardV2';
+import { FeedCardV2, type FeedKind } from '@/components/feed/FeedCardV2';
 import { normalizeToFeedCard } from '@/components/feed/normalize';
 import { FeedTabs } from '@/components/v0-ui/feed-tabs';
 import { Composer } from '@/components/v0-ui/composer';
-import { PostCard } from '@/components/v0-ui/post-card';
+import { PostCard, type PostData } from '@/components/v0-ui/post-card';
 import { Sidebar } from '@/components/v0-ui/sidebar';
 import { SkeletonPostCard, SkeletonSidebar } from '@/components/v0-ui/skeletons';
 import './v0-sandbox.css';
+import type { FeedPost } from '@/lib/data-service/types';
 
 type InitialCursor = { id: string; created_at: string } | undefined;
 
@@ -24,22 +25,6 @@ const POSTS_VIEW = 'post_feed_v2';
 const POST_COLS = 'id,user_id,created_at,body,tags,media_urls,like_count,comment_count,username,display_name,avatar_url,game_id,game_name,game_cover_url';
 
 // ---------- types ----------
-interface V0Post {
-  id: string;
-  user: {
-    avatar: string;
-    displayName: string;
-    handle: string;
-  };
-  timestamp: string;
-  content: string;
-  gameImage?: string;
-  likes: number;
-  comments: number;
-  shares: number;
-  isLiked: boolean;
-}
-
 interface V0Game {
   id: string;
   name: string;
@@ -54,21 +39,170 @@ interface V0User {
 }
 
 // ---------- helpers ----------
+type FeedItem = (FeedPost & { kind?: FeedKind; rating_score?: number | null })
+
+const isVideoMedia = (url: string) => /\.(mp4|webm|mov|m4v)(\?|$)/i.test(String(url || ''))
+
+const toNumber = (value: any, fallback = 0) => {
+  const num = Number(value)
+  return Number.isFinite(num) ? num : fallback
+}
+
+const parseMediaArray = (value: any): string[] => {
+  if (!value) return []
+  if (Array.isArray(value)) return value.map((entry) => String(entry))
+  if (typeof value === 'string' && value.trim().length > 0) return [value]
+  return []
+}
+
+const mapUser = (item: any): FeedItem['user'] => {
+  const source = item?.user || {}
+  const username = source.username ?? item?.username ?? ''
+  const displayName = source.display_name ?? source.displayName ?? item?.display_name ?? username
+
+  return {
+    id: String(source.id ?? item?.user_id ?? ''),
+    username: String(username ?? ''),
+    display_name: String(displayName ?? ''),
+    avatar_url: source.avatar_url ?? source.avatarUrl ?? source.avatar ?? item?.avatar_url ?? undefined,
+    bio: source.bio ?? item?.bio,
+    followers_count: toNumber(source.followers_count ?? item?.followers_count, 0),
+    following_count: toNumber(source.following_count ?? item?.following_count, 0),
+    posts_count: toNumber(source.posts_count ?? item?.posts_count, 0),
+    is_following: Boolean(source.is_following ?? item?.is_following ?? false),
+    is_verified: Boolean(source.is_verified ?? item?.is_verified ?? false)
+  }
+}
+
+const mapGame = (item: any): FeedItem['game'] => {
+  const game = item?.game
+  const createdAt = item?.created_at ?? item?.createdAt ?? new Date().toISOString()
+
+  if (game) {
+    const allowedStatuses: Set<'playing' | 'completed' | 'paused' | 'dropped'> = new Set(['playing', 'completed', 'paused', 'dropped'])
+    const rawStatus = (game.status ?? 'playing') as string
+    const safeStatus: 'playing' | 'completed' | 'paused' | 'dropped' = allowedStatuses.has(rawStatus as any)
+      ? (rawStatus as 'playing' | 'completed' | 'paused' | 'dropped')
+      : 'playing'
+
+    return {
+      id: String(game.id ?? item?.game_id ?? ''),
+      name: game.name ?? item?.game_name ?? '',
+      cover_url: game.cover_url ?? game.coverUrl ?? item?.game_cover_url ?? undefined,
+      last_played_at: game.last_played_at ?? createdAt,
+      playtime_minutes: toNumber(game.playtime_minutes, 0),
+      progress_percentage: toNumber(game.progress_percentage, 0),
+      status: safeStatus
+    }
+  }
+
+  if (item?.game_id) {
+    return {
+      id: String(item.game_id),
+      name: item?.game_name ?? '',
+      cover_url: item?.game_cover_url ?? undefined,
+      last_played_at: createdAt,
+      playtime_minutes: 0,
+      progress_percentage: 0,
+      status: 'playing'
+    }
+  }
+
+  return undefined
+}
+
+const normalizeReactionCounts = (raw: any): FeedItem['reaction_counts'] => {
+  return {
+    likes: toNumber(raw?.likes ?? raw?.like_count, 0),
+    comments: toNumber(raw?.comments ?? raw?.comment_count, 0),
+    shares: toNumber(raw?.shares ?? raw?.share_count, 0),
+    views: toNumber(raw?.views ?? raw?.view_count, 0)
+  }
+}
+
+const mapToFeedItem = (item: any): FeedItem => {
+  const createdAt = String(item?.created_at ?? item?.createdAt ?? new Date().toISOString())
+  const updatedAt = String(item?.updated_at ?? item?.updatedAt ?? createdAt)
+  const user = mapUser(item)
+  const rawKind = typeof item?.kind === 'string' ? item.kind.toLowerCase() : undefined
+  const kind: FeedKind | undefined = rawKind === 'post' || rawKind === 'review' || rawKind === 'rating'
+    ? (rawKind as FeedKind)
+    : undefined
+  const reactionCounts = normalizeReactionCounts(item?.reaction_counts ?? item)
+  const userReactions = item?.user_reactions ?? item?.myReactions ?? {}
+
+  return {
+    id: String(item?.id ?? ''),
+    content: String(item?.content ?? item?.body ?? item?.text ?? ''),
+    created_at: createdAt,
+    updated_at: updatedAt,
+    user_id: String(item?.user_id ?? user.id ?? ''),
+    user,
+    game_id: item?.game_id ? String(item.game_id) : item?.game?.id ? String(item.game.id) : undefined,
+    game: mapGame(item),
+    media_urls: parseMediaArray(item?.media_urls ?? item?.media ?? item?.mediaUrls),
+    reaction_counts: reactionCounts,
+    user_reactions: {
+      liked: Boolean(userReactions?.liked ?? false),
+      commented: Boolean(userReactions?.commented ?? false),
+      shared: Boolean(userReactions?.shared ?? false)
+    },
+    _cursor: item?._cursor
+      ? {
+          id: String(item._cursor.id ?? item?.id ?? ''),
+          created_at: String(item._cursor.created_at ?? createdAt)
+        }
+      : {
+          id: String(item?.id ?? ''),
+          created_at: createdAt
+        },
+    kind,
+    rating_score: typeof item?.rating_score === 'number'
+      ? item.rating_score
+      : typeof item?.rating === 'number'
+      ? item.rating
+      : null
+  }
+}
+
+const toLegacyPostData = (item: FeedItem): PostData => ({
+  id: item.id,
+  user: {
+    avatar: item.user.avatar_url || '/avatar-placeholder.svg',
+    displayName: item.user.display_name || item.user.username || 'User',
+    handle: `@${item.user.username || 'user'}`
+  },
+  timestamp: timeAgo(new Date(item.created_at)),
+  content: item.content,
+  gameImage: item.game?.cover_url ?? undefined,
+  likes: item.reaction_counts?.likes ?? 0,
+  comments: item.reaction_counts?.comments ?? 0,
+  shares: item.reaction_counts?.shares ?? 0,
+  isLiked: item.user_reactions?.liked ?? false
+})
 
 // ---------- main component ----------
 export default function HomeClientV0({ initialItems = [], initialNextCursor, initialHasMore = false }: { initialItems?: any[]; initialNextCursor?: InitialCursor; initialHasMore?: boolean }) {
   const router = useRouter();
   const { addToast } = useToast();
-  const [posts, setPosts] = useState<V0Post[]>([]);
+  const [posts, setPosts] = useState<FeedItem[]>(() => (initialItems || []).map(mapToFeedItem));
   const [nextCursor, setNextCursor] = useState<{ id: string; created_at: string } | undefined>(initialNextCursor);
   const [hasMore, setHasMore] = useState<boolean>(initialHasMore);
   const [games, setGames] = useState<V0Game[]>([]);
   const [users, setUsers] = useState<V0User[]>([]);
-  const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
+  const [likedPosts, setLikedPosts] = useState<Set<string>>(
+    () =>
+      new Set(
+        (initialItems || [])
+          .map(mapToFeedItem)
+          .filter(item => item.user_reactions?.liked)
+          .map(item => item.id)
+      )
+  );
   const [followedUsers, setFollowedUsers] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<'following' | 'for-you'>('for-you');
   const [activeFilter, setActiveFilter] = useState<'all' | 'clips' | 'reviews' | 'screens'>('all');
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(() => (initialItems?.length ?? 0) === 0);
   const [showScrollToTop, setShowScrollToTop] = useState(false);
   const [selectedGame, setSelectedGame] = useState<V0Game | null>(null);
   const [showGameModal, setShowGameModal] = useState(false);
@@ -77,14 +211,14 @@ export default function HomeClientV0({ initialItems = [], initialNextCursor, ini
 
   // Load session once on mount and seed initial server data
   useEffect(() => {
-    let isMounted = true;
+    let mounted = true;
     
     async function loadSession() {
       try {
         const sb = supabaseBrowser();
         const session = await waitForSession(sb);
         
-        if (isMounted && session?.user) {
+        if (mounted && session?.user) {
           setSessionUserId(session.user.id);
           // Load following ids via server helper to avoid client PostgREST
           try {
@@ -103,29 +237,15 @@ export default function HomeClientV0({ initialItems = [], initialNextCursor, ini
       } catch (error) {
         console.error('Error loading session:', error);
       } finally {
-        if (isMounted) {
+        if (mounted) {
           setIsMounted(true);
         }
       }
     }
 
-    // seed initial posts from server (transform contract to V0Post)
-    const transform = (post: any): V0Post => ({
-      id: post.id,
-      user: {
-        avatar: post.user?.avatar_url || '/avatar-placeholder.svg',
-        displayName: post.user?.display_name || post.user?.username || 'User',
-        handle: `@${post.user?.username || 'user'}`,
-      },
-      timestamp: timeAgo(new Date(post.created_at)),
-      content: post.content,
-      gameImage: post.game?.cover_url || undefined,
-      likes: post.reaction_counts?.likes || 0,
-      comments: post.reaction_counts?.comments || 0,
-      shares: post.reaction_counts?.shares || 0,
-      isLiked: post.user_reactions?.liked || false,
-    })
-    setPosts((initialItems || []).map(transform));
+    if ((initialItems || []).length > 0) {
+      setIsLoading(false)
+    }
     loadSession();
 
     // load sidebar via API (server-backed) to avoid RLS
@@ -143,18 +263,22 @@ export default function HomeClientV0({ initialItems = [], initialNextCursor, ini
     })()
     
     return () => {
-      isMounted = false;
+      mounted = false;
     };
   }, []);
 
   // Reset feed loading when tab or filter changes (preserve last good page until next load succeeds)
   useEffect(() => {
+    if (!isMounted) return
     window.scrollTo({ top: 0, behavior: 'smooth' })
     setIsLoading(true)
-  }, [activeTab, activeFilter])
+  }, [activeTab, activeFilter, isMounted])
 
   // Helper to call server feed API
-  async function fetchFeed(params: { viewerId: string | null; tab: 'following' | 'for-you'; filter: 'all' | 'clips' | 'reviews' | 'screens'; cursor?: { id: string; created_at: string } | null }) {
+  async function fetchFeed(
+    params: { viewerId: string | null; tab: 'following' | 'for-you'; filter: 'all' | 'clips' | 'reviews' | 'screens'; cursor?: { id: string; created_at: string } | null },
+    signal?: AbortSignal
+  ) {
     const res = await fetch('/api/feed', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -164,7 +288,8 @@ export default function HomeClientV0({ initialItems = [], initialNextCursor, ini
         filter: params.filter,
         cursor: params.cursor ?? null,
         limit: 20
-      })
+      }),
+      signal
     })
     // API always returns 200 with a stable shape; network failures will throw
     return res.json() as Promise<{ items: any[]; nextCursor: { id: string; created_at: string } | null; hasMore: boolean }>
@@ -173,59 +298,46 @@ export default function HomeClientV0({ initialItems = [], initialNextCursor, ini
   // Load data based on activeTab and sessionUserId
   useEffect(() => {
     if (!isMounted) return;
-    // For Following, wait until we know the viewer id to avoid fetching wrong feed
     if (activeTab === 'following' && !sessionUserId) return;
-    
-    let abortController = new AbortController();
-    
+
+    const abortController = new AbortController();
+
     async function loadData() {
       try {
-        const { items, nextCursor: nc, hasMore: hm } = await fetchFeed({
-          viewerId: sessionUserId,
-          tab: activeTab,
-          filter: activeFilter,
-          cursor: null
-        })
-
-        // Transform posts
-        const transformedPosts: V0Post[] = (items || []).map((post: any) => ({
-          id: post.id,
-          user: {
-            avatar: post.user?.avatar_url || '/avatar-placeholder.svg',
-            displayName: post.user?.display_name || post.user?.username,
-            handle: `@${post.user?.username || 'user'}`,
+        const { items, nextCursor: nc, hasMore: hm } = await fetchFeed(
+          {
+            viewerId: sessionUserId,
+            tab: activeTab,
+            filter: activeFilter,
+            cursor: null
           },
-          timestamp: timeAgo(new Date(post.created_at)),
-          content: post.content,
-          gameImage: post.game?.cover_url || undefined,
-          likes: post.reaction_counts?.likes || 0,
-          comments: post.reaction_counts?.comments || 0,
-          shares: post.reaction_counts?.shares || 0,
-          isLiked: post.user_reactions?.liked || false,
-        }));
+          abortController.signal
+        )
+
+        const mappedPosts = (items || []).map(mapToFeedItem)
 
         if (!abortController.signal.aborted) {
-          setPosts(transformedPosts);
-          setNextCursor(nc || undefined);
-          setHasMore(hm);
-          setIsLoading(false);
+          setPosts(mappedPosts)
+          setLikedPosts(new Set(mappedPosts.filter(item => item.user_reactions?.liked).map(item => item.id)))
+          setNextCursor(nc || undefined)
+          setHasMore(hm)
+          setIsLoading(false)
         }
-
       } catch (error) {
         if (!abortController.signal.aborted) {
-          console.error('Error loading data:', error);
+          console.error('Error loading data:', error)
           addToast({ type: 'error', message: 'Failed to refresh feed. Showing last posts.' })
-          setIsLoading(false);
+          setIsLoading(false)
         }
       }
     }
 
-    loadData();
-    
+    loadData()
+
     return () => {
-      abortController.abort();
-    };
-  }, [activeTab, sessionUserId, isMounted]);
+      abortController.abort()
+    }
+  }, [activeTab, activeFilter, sessionUserId, isMounted]);
 
   // Cursor pagination
   const loadMore = async () => {
@@ -237,22 +349,17 @@ export default function HomeClientV0({ initialItems = [], initialNextCursor, ini
         filter: activeFilter,
         cursor: nextCursor
       })
-      const transformed: V0Post[] = (items || []).map((post: any) => ({
-        id: post.id,
-        user: {
-          avatar: post.user?.avatar_url || '/avatar-placeholder.svg',
-          displayName: post.user?.display_name || post.user?.username,
-          handle: `@${post.user?.username || 'user'}`,
-        },
-        timestamp: timeAgo(new Date(post.created_at)),
-        content: post.content,
-        gameImage: post.game?.cover_url || undefined,
-        likes: post.reaction_counts?.likes || 0,
-        comments: post.reaction_counts?.comments || 0,
-        shares: post.reaction_counts?.shares || 0,
-        isLiked: post.user_reactions?.liked || false,
-      }))
-      setPosts(prev => [...prev, ...transformed])
+      const mapped = (items || []).map(mapToFeedItem)
+      setPosts(prev => [...prev, ...mapped])
+      setLikedPosts(prev => {
+        const next = new Set(prev)
+        mapped.forEach(item => {
+          if (item.user_reactions?.liked) {
+            next.add(item.id)
+          }
+        })
+        return next
+      })
       setNextCursor(nc || undefined)
       setHasMore(hm)
     } catch (e) {
@@ -291,6 +398,22 @@ export default function HomeClientV0({ initialItems = [], initialNextCursor, ini
       }
       return newSet;
     });
+    setPosts(prev => prev.map(item => {
+      if (item.id !== postId) return item
+      const likeCount = item.reaction_counts?.likes ?? 0
+      const delta = isLiked ? -1 : 1
+      return {
+        ...item,
+        reaction_counts: {
+          ...item.reaction_counts,
+          likes: Math.max(0, likeCount + delta)
+        },
+        user_reactions: {
+          ...item.user_reactions,
+          liked: !isLiked
+        }
+      }
+    }))
 
     try {
       if (isLiked) {
@@ -310,6 +433,22 @@ export default function HomeClientV0({ initialItems = [], initialNextCursor, ini
         }
         return newSet;
       });
+      setPosts(prev => prev.map(item => {
+        if (item.id !== postId) return item
+        const likeCount = item.reaction_counts?.likes ?? 0
+        const delta = isLiked ? 1 : -1
+        return {
+          ...item,
+          reaction_counts: {
+            ...item.reaction_counts,
+            likes: Math.max(0, likeCount + delta)
+          },
+          user_reactions: {
+            ...item.user_reactions,
+            liked: isLiked
+          }
+        }
+      }))
     }
   };
 
@@ -445,12 +584,25 @@ export default function HomeClientV0({ initialItems = [], initialNextCursor, ini
 
   // Filter posts based on active filter
   const filteredPosts = posts.filter(post => {
-    if (activeFilter === 'all') return true;
-    if (activeFilter === 'clips') return post.content.toLowerCase().includes('clip') || post.content.toLowerCase().includes('video');
-    if (activeFilter === 'reviews') return post.content.toLowerCase().includes('review') || post.content.toLowerCase().includes('rating');
-    if (activeFilter === 'screens') return post.content.toLowerCase().includes('screenshot') || post.content.toLowerCase().includes('screen');
-    return true;
-  });
+    if (activeFilter === 'all') return true
+
+    const content = (post.content || '').toLowerCase()
+    const media = Array.isArray(post.media_urls) ? post.media_urls : []
+
+    if (activeFilter === 'clips') {
+      return (post.kind === 'post' || !post.kind) && media.some(isVideoMedia)
+    }
+
+    if (activeFilter === 'reviews') {
+      return post.kind === 'review' || post.kind === 'rating' || content.includes('review') || content.includes('rating')
+    }
+
+    if (activeFilter === 'screens') {
+      return (post.kind === 'post' || !post.kind) && media.length > 0 && media.every(url => !isVideoMedia(url))
+    }
+
+    return true
+  })
 
   return (
     <div className="v0-sandbox">
@@ -542,7 +694,7 @@ export default function HomeClientV0({ initialItems = [], initialNextCursor, ini
                           ) : (
                             <PostCard
                               key={post.id}
-                              post={post}
+                              post={toLegacyPostData(post)}
                               onLike={() => handleLike(post.id)}
                               onComment={() => handleComment(post.id)}
                               onShare={() => handleShare(post.id)}

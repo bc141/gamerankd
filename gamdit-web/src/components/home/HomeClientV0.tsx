@@ -604,6 +604,8 @@ export default function HomeClientV0({ initialItems = [], initialNextCursor, ini
     return true
   })
 
+  const useFeedCardV2 = process.env.NEXT_PUBLIC_FEED_CARD_V2 !== 'false'
+
   return (
     <div className="v0-sandbox">
       <div className="main-container">
@@ -689,7 +691,7 @@ export default function HomeClientV0({ initialItems = [], initialNextCursor, ini
                         </div>
                       ) : (
                         filteredPosts.map((post) => (
-                          process.env.NEXT_PUBLIC_FEED_CARD_V2 === 'true' ? (
+                          useFeedCardV2 ? (
                             <FeedCardV2 key={post.id} {...normalizeToFeedCard(post as any)} />
                           ) : (
                             <PostCard

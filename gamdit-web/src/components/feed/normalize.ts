@@ -1,4 +1,4 @@
-import type { FeedCardProps } from './FeedCardV2'
+import type { FeedCardProps, FeedKind } from './FeedCardV2'
 
 export type LegacyItem = any
 
@@ -17,8 +17,10 @@ export function normalizeToFeedCard(item: LegacyItem): FeedCardProps {
   const counts = item.reaction_counts || item.counts || { likes: 0, comments: 0, shares: 0 }
   const my = item.user_reactions || item.myReactions || {}
 
+  const normalizedKind: FeedKind = kind === 'review' || kind === 'rating' || kind === 'post' ? (kind as FeedKind) : 'post'
+
   return {
-    kind: kind === 'review' || kind === 'rating' || kind === 'post' ? (kind as any) : 'post',
+    kind: normalizedKind,
     author: {
       id: String(author.id || item.user_id || ''),
       username: author.username,
@@ -32,7 +34,7 @@ export function normalizeToFeedCard(item: LegacyItem): FeedCardProps {
       coverUrl: game.cover_url || game.coverUrl,
     } : undefined,
     text: content,
-    media: Array.isArray(media) ? media : [],
+    media: normalizedKind === 'post' && Array.isArray(media) ? media : [],
     rating: rating ?? ratingFromText,
     counts: {
       likes: Number(counts.likes || 0),
@@ -46,5 +48,3 @@ export function normalizeToFeedCard(item: LegacyItem): FeedCardProps {
     }
   }
 }
-
-

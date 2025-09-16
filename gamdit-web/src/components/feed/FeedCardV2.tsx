@@ -2,6 +2,10 @@
 
 import React from 'react'
 import Image from 'next/image'
+import Link from 'next/link'
+import clsx from 'clsx'
+import { Heart, MessageCircle, Repeat2, MoreHorizontal } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 
 export type FeedKind = 'post' | 'review' | 'rating'
 
@@ -15,10 +19,16 @@ export type FeedCardProps = {
   rating?: number // 0-100
   counts: { likes: number; comments: number; shares: number }
   myReactions?: { liked?: boolean; commented?: boolean; shared?: boolean }
+  actions?: {
+    onLike?: () => void
+    onComment?: () => void
+    onShare?: () => void
+    disabled?: boolean
+  }
 }
 
 export function FeedCardV2(props: FeedCardProps) {
-  const { kind, author, createdAt, game, text, media = [], rating, counts, myReactions } = props
+  const { kind, author, createdAt, game, text, media = [], rating, counts, myReactions, actions } = props
 
   const authorName = author.displayName || author.username || 'User'
   const handle = author.username ? `@${author.username}` : ''
@@ -42,55 +52,65 @@ export function FeedCardV2(props: FeedCardProps) {
     return 'max-w-[22rem] sm:max-w-[28rem] md:max-w-[32rem]'
   }
 
+  const primaryBodyText = (() => {
+    if (!text) return undefined
+    if (kind === 'rating' && /^Rated\s+\d{1,3}\/100/i.test(text.trim())) {
+      return undefined
+    }
+    return text
+  })()
+
   return (
     <article className="sidebar-card p-4 md:p-5" role="article" aria-label={`${kind} by ${authorName}`}>
-      <div className="space-y-4">
-        {/* Header */}
-        <header className="flex items-center gap-3" aria-label="Header">
+      <div className="space-y-5">
+        <header className="flex items-start gap-3" aria-label="Post header">
           <Image
             src={author.avatarUrl || '/avatar-placeholder.svg'}
             alt=""
-            width={36}
-            height={36}
-            className="h-9 w-9 rounded-full object-cover border border-white/10"
+            width={40}
+            height={40}
+            className="h-10 w-10 rounded-full object-cover ring-1 ring-white/10"
           />
-          <div className="min-w-0">
-            <div className="text-sm font-medium text-white/90 truncate">{authorName}{handle ? <span className="text-white/40 ml-2">{handle}</span> : null}</div>
-            <div className="text-xs text-white/40 truncate flex items-center gap-2">
-              {game?.coverUrl ? (
-                <Image src={game.coverUrl} alt="" width={16} height={16} className="h-4 w-4 rounded object-cover" />
-              ) : null}
-              {game?.name ? <span className="truncate">{game.name}</span> : null}
-              <span className="text-white/30">·</span>
-              <time title={new Date(createdAt).toLocaleString()}>{new Date(createdAt).toLocaleDateString()}</time>
+          <div className="flex-1 min-w-0 space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm font-semibold text-white/95 truncate">{authorName}</p>
+              {handle ? <span className="text-xs text-white/45 truncate">{handle}</span> : null}
+              {kind !== 'post' ? <KindBadge kind={kind} /> : null}
             </div>
+            <div className="flex flex-wrap items-center gap-3 text-xs text-white/40">
+              <time title={new Date(createdAt).toLocaleString()}>{new Date(createdAt).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric' })}</time>
+            </div>
+            {game ? (
+              <div>
+                <GameBadge game={game} />
+              </div>
+            ) : null}
           </div>
+          <button
+            type="button"
+            aria-label="Post options"
+            className="rounded-full p-1 text-white/40 transition hover:bg-white/10 hover:text-white/80"
+          >
+            <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+          </button>
         </header>
 
-        {/* Text Body */}
-        <div className="space-y-2" aria-label="Body">
-          {kind === 'review' ? (
-            <div>
-              {text ? (
-                <p className="text-sm text-white/90 line-clamp-2">{text}</p>
-              ) : null}
-              <button type="button" className="text-xs text-blue-400 hover:underline mt-1">Read review →</button>
-            </div>
-          ) : null}
+        {primaryBodyText ? (
+          <div className="space-y-2 text-sm text-white/90" aria-label="Post body">
+            {kind === 'review' ? (
+              <>
+                <p className="line-clamp-4 whitespace-pre-line">{primaryBodyText}</p>
+                <button type="button" className="text-xs font-medium text-violet-300 hover:text-violet-200">Read full review</button>
+              </>
+            ) : (
+              <p className={clsx('whitespace-pre-wrap', kind === 'post' ? 'leading-relaxed' : 'leading-snug')}>{primaryBodyText}</p>
+            )}
+          </div>
+        ) : null}
 
-          {kind === 'post' && text ? (
-            <p className="text-sm text-white/90 whitespace-pre-wrap">{text}</p>
-          ) : null}
-
-          {kind === 'rating' && text ? (
-            <p className="text-sm text-white/90">{text}</p>
-          ) : null}
-        </div>
-
-        {/* Media Block */}
         {kind === 'post' && mediaUrls.length > 0 ? (
           <div className={`mx-auto w-full ${getContainerWidthClass(mediaUrls[0])}`}>
-            <div className="relative aspect-[4/3] sm:aspect-[16/9] overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950/60">
+            <div className="relative aspect-[4/3] sm:aspect-[16/9] overflow-hidden rounded-xl border border-white/10 bg-zinc-950/70">
               {mediaUrls.length === 1 ? (
                 isVideo(mediaUrls[0]) ? (
                   <video
@@ -104,13 +124,13 @@ export function FeedCardV2(props: FeedCardProps) {
                     src={mediaUrls[0]}
                     alt=""
                     fill
-                    sizes="(min-width: 1280px) 480px, (min-width: 768px) 60vw, 90vw"
+                    sizes="(min-width: 1280px) 420px, (min-width: 768px) 55vw, 90vw"
                     quality={90}
                     className="object-cover"
                   />
                 )
               ) : (
-                <div className="grid h-full w-full grid-cols-2 gap-[2px] bg-zinc-900/50">
+                <div className="grid h-full w-full grid-cols-2 gap-[2px] bg-zinc-900/60">
                   {mediaUrls.slice(0, 4).map((url, idx) => (
                     <div key={idx} className="relative overflow-hidden">
                       {isVideo(url) ? (
@@ -125,7 +145,7 @@ export function FeedCardV2(props: FeedCardProps) {
                           src={url}
                           alt=""
                           fill
-                          sizes="(min-width: 1280px) 220px, (min-width: 768px) 30vw, 45vw"
+                          sizes="(min-width: 1280px) 210px, (min-width: 768px) 28vw, 45vw"
                           quality={90}
                           className="object-cover"
                         />
@@ -138,44 +158,120 @@ export function FeedCardV2(props: FeedCardProps) {
           </div>
         ) : null}
 
-        {/* Rating Strip */}
         {(kind === 'rating' || kind === 'review') && typeof rating === 'number' ? (
-          <div className="flex items-center gap-2" aria-label="Rating">
+          <div className="flex items-center gap-3" aria-label="Rating">
             <StarRow value={rating} />
+            {kind === 'review' ? <span className="text-xs uppercase tracking-wide text-white/35">Critic score</span> : null}
           </div>
         ) : null}
 
-        {/* Actions */}
-        <footer className="flex items-center justify-between gap-4 py-2 border-t border-white/10" aria-label="Actions">
-          <ActionButton label="Like" active={!!myReactions?.liked} count={counts.likes} />
-          <ActionButton label="Comment" active={!!myReactions?.commented} count={counts.comments} />
-          <ActionButton label="Share" active={!!myReactions?.shared} count={counts.shares} />
+        <footer className="flex items-center justify-between gap-3 border-t border-white/5 pt-3" aria-label="Post actions">
+          <ActionButton
+            label="Like"
+            count={counts.likes}
+            active={!!myReactions?.liked}
+            Icon={Heart}
+            onClick={actions?.onLike}
+            disabled={actions?.disabled}
+          />
+          <ActionButton
+            label="Comment"
+            count={counts.comments}
+            active={!!myReactions?.commented}
+            Icon={MessageCircle}
+            onClick={actions?.onComment}
+            disabled={actions?.disabled}
+          />
+          <ActionButton
+            label="Share"
+            count={counts.shares}
+            active={!!myReactions?.shared}
+            Icon={Repeat2}
+            onClick={actions?.onShare}
+            disabled={actions?.disabled}
+          />
         </footer>
       </div>
     </article>
   )
 }
 
-function ActionButton({ label, active, count }: { label: string; active?: boolean; count?: number }) {
+type ActionButtonProps = {
+  label: string
+  count?: number
+  active?: boolean
+  Icon: LucideIcon
+  onClick?: () => void
+  disabled?: boolean
+}
+
+function ActionButton({ label, count, active, Icon, onClick, disabled }: ActionButtonProps) {
+  const isInteractive = typeof onClick === 'function' && !disabled
   return (
     <button
       type="button"
-      className={`h-8 px-3 rounded-md flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-blue-500/60 ${active ? 'bg-white/10' : 'hover:bg-white/5'}`}
+      onClick={isInteractive ? onClick : undefined}
+      disabled={!isInteractive}
+      className={clsx(
+        'flex h-9 flex-1 items-center justify-center gap-2 rounded-lg px-3 text-sm transition',
+        active ? 'text-violet-300 bg-violet-500/10 ring-1 ring-violet-500/40' : 'text-white/70',
+        isInteractive ? 'hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-400' : 'cursor-default opacity-70'
+      )}
       aria-pressed={active ? 'true' : 'false'}
       aria-label={label}
     >
-      <span className="text-sm text-white/90">{label}</span>
-      <span className="text-xs text-white/50">{typeof count === 'number' ? count : 0}</span>
+      <Icon className={clsx('h-4 w-4', active ? 'text-violet-300' : 'text-white/50')} aria-hidden="true" />
+      <span className="font-medium">{label}</span>
+      <span className="text-xs text-white/50 tabular-nums">{typeof count === 'number' ? count : 0}</span>
     </button>
+  )
+}
+
+function KindBadge({ kind }: { kind: FeedKind }) {
+  if (kind === 'post') return null
+  const label = kind === 'review' ? 'Review' : 'Rating'
+  const palette = kind === 'review' ? 'bg-emerald-500/10 text-emerald-200' : 'bg-amber-500/10 text-amber-200'
+  return (
+    <span className={clsx('rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide', palette)}>{label}</span>
+  )
+}
+
+function GameBadge({ game }: { game?: { id: string | number; name?: string; coverUrl?: string } }) {
+  if (!game?.id) return null
+  const href = `/game/${encodeURIComponent(String(game.id))}`
+  const cover = game.coverUrl || '/cover-fallback.png'
+
+  return (
+    <div className="group/game relative inline-flex">
+      <Link
+        href={href}
+        className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/80 transition hover:border-violet-400/40 hover:bg-violet-500/10 hover:text-white"
+      >
+        <Image src={cover} alt="" width={28} height={36} className="h-9 w-7 rounded object-cover" />
+        <span className="max-w-[150px] truncate font-medium text-white/90">{game.name || 'View game'}</span>
+      </Link>
+      <div className="pointer-events-none absolute left-0 top-full z-30 mt-2 w-64 -translate-y-1 rounded-xl border border-white/15 bg-zinc-950/95 p-3 opacity-0 shadow-2xl backdrop-blur transition duration-200 group-hover/game:translate-y-0 group-hover/game:opacity-100">
+        <div className="flex items-start gap-3">
+          <div className="relative h-16 w-12 overflow-hidden rounded-md border border-white/10 bg-white/5">
+            <Image src={cover} alt="" fill className="object-cover" sizes="96px" />
+          </div>
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-white/95">{game.name || 'Untitled game'}</p>
+            <p className="text-xs text-white/50">Open the game hub for stats, reviews, and more.</p>
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
 
 function StarRow({ value }: { value: number }) {
   const stars = Math.max(0, Math.min(5, Math.round((value / 100) * 5)))
+  const ratingOutOfFive = Math.round(((value / 100) * 5) * 10) / 10
   return (
-    <div className="flex items-center gap-0.5" aria-hidden="true">
+    <div className="flex items-center gap-1" aria-label={`${ratingOutOfFive} out of 5 star rating`}>
       {Array.from({ length: 5 }).map((_, i) => (
-        <span key={i} className={i < stars ? 'text-yellow-400' : 'text-white/20'}>★</span>
+        <span key={i} className={i < stars ? 'text-yellow-400' : 'text-white/20'} aria-hidden="true">★</span>
       ))}
     </div>
   )
@@ -184,30 +280,27 @@ function StarRow({ value }: { value: number }) {
 export function FeedCardV2Skeleton({ kind = 'post' as FeedKind }) {
   return (
     <div className="sidebar-card p-4 md:p-5 animate-pulse">
-      <div className="space-y-4">
-        {/* Header skeleton */}
-        <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-full bg-white/10" />
-          <div className="flex-1">
-            <div className="h-3 w-32 bg-white/10 rounded" />
-            <div className="h-2 w-24 bg-white/5 rounded mt-2" />
+      <div className="space-y-5">
+        <div className="flex items-start gap-3">
+          <div className="h-10 w-10 rounded-full bg-white/10" />
+          <div className="flex-1 space-y-2">
+            <div className="h-3 w-32 rounded bg-white/10" />
+            <div className="h-3 w-20 rounded bg-white/5" />
+            <div className="h-6 w-40 rounded-full bg-white/5" />
           </div>
+          <div className="h-6 w-6 rounded-full bg-white/5" />
         </div>
-        
-        {/* Text body skeleton */}
-        {kind !== 'rating' ? <div className="h-20 bg-white/5 rounded" /> : null}
-        
-        {/* Media block skeleton */}
-        {kind === 'post' ? <div className="h-48 bg-white/5 rounded-lg" /> : null}
-        
-        {/* Rating skeleton */}
-        {kind === 'rating' || kind === 'review' ? <div className="h-4 w-20 bg-white/5 rounded" /> : null}
-        
-        {/* Actions skeleton */}
-        <div className="flex items-center justify-between gap-4 py-2 border-t border-white/10">
-          <div className="h-8 w-16 bg-white/5 rounded" />
-          <div className="h-8 w-20 bg-white/5 rounded" />
-          <div className="h-8 w-16 bg-white/5 rounded" />
+
+        {kind !== 'rating' ? <div className="h-16 rounded-lg bg-white/5" /> : null}
+
+        {kind === 'post' ? <div className="h-48 rounded-xl bg-white/5" /> : null}
+
+        {kind === 'rating' || kind === 'review' ? <div className="h-4 w-24 rounded bg-white/5" /> : null}
+
+        <div className="flex items-center gap-3 border-t border-white/5 pt-3">
+          <div className="h-9 flex-1 rounded-lg bg-white/5" />
+          <div className="h-9 flex-1 rounded-lg bg-white/5" />
+          <div className="h-9 flex-1 rounded-lg bg-white/5" />
         </div>
       </div>
     </div>

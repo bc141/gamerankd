@@ -20,10 +20,6 @@ import type { FeedPost } from '@/lib/data-service/types';
 
 type InitialCursor = { id: string; created_at: string } | undefined;
 
-// ---------- constants ----------
-const POSTS_VIEW = 'post_feed_v2';
-const POST_COLS = 'id,user_id,created_at,body,tags,media_urls,like_count,comment_count,username,display_name,avatar_url,game_id,game_name,game_cover_url';
-
 // ---------- types ----------
 interface V0Game {
   id: string;
@@ -690,9 +686,18 @@ export default function HomeClientV0({ initialItems = [], initialNextCursor, ini
                           </p>
                         </div>
                       ) : (
-                        filteredPosts.map((post) => (
-                          useFeedCardV2 ? (
-                            <FeedCardV2 key={post.id} {...normalizeToFeedCard(post as any)} />
+                        filteredPosts.map((post) => {
+                          const cardProps = normalizeToFeedCard(post as any)
+                          return useFeedCardV2 ? (
+                            <FeedCardV2
+                              key={post.id}
+                              {...cardProps}
+                              actions={{
+                                onLike: () => handleLike(post.id),
+                                onComment: () => handleComment(post.id),
+                                onShare: () => handleShare(post.id)
+                              }}
+                            />
                           ) : (
                             <PostCard
                               key={post.id}
@@ -703,7 +708,7 @@ export default function HomeClientV0({ initialItems = [], initialNextCursor, ini
                               onMore={() => handleMore(post.id)}
                             />
                           )
-                        ))
+                        })
                       )}
                     </div>
           </div>

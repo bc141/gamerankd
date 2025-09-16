@@ -32,6 +32,7 @@ export function FeedCardV2(props: FeedCardProps) {
 
   const authorName = author.displayName || author.username || 'User'
   const handle = author.username ? `@${author.username}` : ''
+  const profileHref = author.id ? `/u/${encodeURIComponent(author.id)}` : author.username ? `/u/${encodeURIComponent(author.username)}` : null
 
   const isVideo = (url: string) => /\.(mp4|webm|mov|m4v)(\?|$)/i.test(url)
   const enhanceMediaUrl = (url: string) => {
@@ -64,17 +65,41 @@ export function FeedCardV2(props: FeedCardProps) {
     <article className="sidebar-card p-4 md:p-5" role="article" aria-label={`${kind} by ${authorName}`}>
       <div className="space-y-5">
         <header className="flex items-start gap-3" aria-label="Post header">
-          <Image
-            src={author.avatarUrl || '/avatar-placeholder.svg'}
-            alt=""
-            width={40}
-            height={40}
-            className="h-10 w-10 rounded-full object-cover ring-1 ring-white/10"
-          />
+          {profileHref ? (
+            <Link
+              href={profileHref}
+              className="block h-10 w-10 shrink-0 overflow-hidden rounded-full ring-1 ring-white/10 transition hover:ring-violet-400/60"
+            >
+              <Image
+                src={author.avatarUrl || '/avatar-placeholder.svg'}
+                alt=""
+                width={40}
+                height={40}
+                className="h-full w-full object-cover"
+              />
+            </Link>
+          ) : (
+            <Image
+              src={author.avatarUrl || '/avatar-placeholder.svg'}
+              alt=""
+              width={40}
+              height={40}
+              className="h-10 w-10 rounded-full object-cover ring-1 ring-white/10"
+            />
+          )}
           <div className="flex-1 min-w-0 space-y-2">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-sm font-semibold text-white/95 truncate">{authorName}</p>
-              {handle ? <span className="text-xs text-white/45 truncate">{handle}</span> : null}
+              {profileHref ? (
+                <Link
+                  href={profileHref}
+                  className="flex items-center gap-2 truncate text-sm font-semibold text-white/95 transition hover:text-white"
+                >
+                  <span className="truncate">{authorName}</span>
+                  {handle ? <span className="text-xs font-normal text-white/45">{handle}</span> : null}
+                </Link>
+              ) : (
+                <p className="text-sm font-semibold text-white/95 truncate">{authorName}{handle ? <span className="ml-2 text-xs font-normal text-white/45">{handle}</span> : null}</p>
+              )}
               {kind !== 'post' ? <KindBadge kind={kind} /> : null}
             </div>
             <div className="flex flex-wrap items-center gap-3 text-xs text-white/40">
@@ -213,7 +238,7 @@ function ActionButton({ label, count, active, Icon, onClick, disabled }: ActionB
       onClick={isInteractive ? onClick : undefined}
       disabled={!isInteractive}
       className={clsx(
-        'flex h-9 flex-1 items-center justify-center gap-2 rounded-lg px-3 text-sm transition',
+        'flex h-9 flex-1 items-center justify-center gap-2 rounded-lg px-2 text-sm transition',
         active ? 'text-violet-300 bg-violet-500/10 ring-1 ring-violet-500/40' : 'text-white/70',
         isInteractive ? 'hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-400' : 'cursor-default opacity-70'
       )}
@@ -221,8 +246,8 @@ function ActionButton({ label, count, active, Icon, onClick, disabled }: ActionB
       aria-label={label}
     >
       <Icon className={clsx('h-4 w-4', active ? 'text-violet-300' : 'text-white/50')} aria-hidden="true" />
-      <span className="font-medium">{label}</span>
-      <span className="text-xs text-white/50 tabular-nums">{typeof count === 'number' ? count : 0}</span>
+      <span className="sr-only">{label}</span>
+      <span className="text-xs text-white/60 tabular-nums">{typeof count === 'number' ? count : 0}</span>
     </button>
   )
 }

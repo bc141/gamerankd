@@ -4,7 +4,7 @@ export default defineConfig({
   timeout: 30_000,
   retries: 2,                  // helps with minor network flakes
   use: {
-    baseURL: process.env.BASE_URL || 'http://localhost:3000',
+    baseURL: process.env.BASE_URL || 'gamdit-git-fix-v0-parity-home-brandonc141s-projects.vercel.app',
     headless: true,
     trace: 'on-first-retry',   // produce .zip traces when a test retries
     screenshot: 'only-on-failure',

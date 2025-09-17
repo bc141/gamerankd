@@ -86,8 +86,8 @@ npm run test:ci:strict
 
 ### Modified Files:
 - `.gitignore` - Enhanced env file exclusions
-- `gamebox-web/package.json` - Added security scripts
-- `gamebox-web/src/app/game/[id]/page.tsx` - Fixed key usage
+- `gamdit-web/package.json` - Added security scripts
+- `gamdit-web/src/app/game/[id]/page.tsx` - Fixed key usage
 
 ## 🎯 Next Steps
 

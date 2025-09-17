@@ -1,0 +1,212 @@
+/* V0 Sandbox - Completely isolated styling */
+@import "tailwindcss";
+
+/* V0 Sandbox - Completely isolated from main app styles */
+.v0-sandbox {
+  /* Reset everything to prevent conflicts */
+  * {
+    box-sizing: border-box;
+  }
+  
+  /* Override any global styles */
+  .btn, .icon-btn, button {
+    all: unset;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+/* V0 Sandbox - Define colors directly to avoid conflicts */
+.v0-sandbox {
+  /* V0 Brand Colors - Direct values */
+  --brand-gradient-start: #7a00ff;
+  --brand-gradient-end: #2f3bff;
+  --brand-accent: #8b5cf6;
+  --brand-spark: #5de1ff;
+
+  /* V0 Neutral Colors - Lighter for better contrast */
+  --neutral-bg: #0a0a0a;
+  --neutral-bg-elevated: #111111;
+  --neutral-surface: #1a1a1a;
+  --neutral-border: #262626;
+
+  /* V0 Text Colors - Better contrast */
+  --text-strong: #ffffff;
+  --text-muted: #a3a3a3;
+  --text-subtle: #737373;
+
+  /* V0 Status Colors */
+  --status-success: #22c55e;
+  --status-warning: #eab308;
+  --status-danger: #ef4444;
+  --rating-star: #f5c518;
+
+  /* V0 Semantic Design Tokens */
+  --background: var(--neutral-bg);
+  --foreground: var(--text-strong);
+  --card: var(--neutral-bg-elevated);
+  --card-foreground: var(--text-strong);
+  --popover: var(--neutral-surface);
+  --popover-foreground: var(--text-strong);
+  --primary: var(--brand-accent);
+  --primary-foreground: var(--text-strong);
+  --secondary: var(--neutral-surface);
+  --secondary-foreground: var(--text-strong);
+  --muted: var(--neutral-surface);
+  --muted-foreground: var(--text-muted);
+  --accent: var(--brand-accent);
+  --accent-foreground: var(--text-strong);
+  --destructive: var(--status-danger);
+  --destructive-foreground: var(--text-strong);
+  --border: var(--neutral-border);
+  --input: var(--neutral-surface);
+  --ring: var(--brand-accent);
+  --radius: 0.5rem;
+  --sidebar: var(--neutral-bg);
+  --sidebar-foreground: var(--text-subtle);
+  --sidebar-primary: var(--brand-accent);
+  --sidebar-primary-foreground: var(--text-strong);
+  --sidebar-accent: var(--neutral-surface);
+  --sidebar-accent-foreground: var(--text-subtle);
+  --sidebar-border: var(--neutral-border);
+  --sidebar-ring: var(--brand-accent);
+  --hover: rgba(255, 255, 255, 0.05);
+  --border-subtle: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.2);
+
+  /* V0 Base Styles - Isolated */
+  * {
+    border-color: var(--border);
+  }
+  
+  body {
+    background: var(--background);
+    color: var(--foreground);
+  }
+
+  /* V0 Button Variants - Midnight Nova Brand Rules Applied */
+  .v0-button {
+    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50;
+    /* Apply outline by default policy */
+    border: 1px solid var(--neutral-border);
+    background: transparent;
+    color: var(--text-strong);
+  }
+
+  .v0-button-default {
+    /* One solid primary per view - only for main CTA */
+    background: var(--brand-accent);
+    color: var(--text-strong);
+    border-color: var(--brand-accent);
+  }
+
+  .v0-button-ghost {
+    /* Quiet outline controls as default */
+    border-color: transparent;
+    background: transparent;
+    color: var(--text-muted);
+  }
+
+  .v0-button-ghost:hover {
+    background: var(--hover);
+    color: var(--text-strong);
+  }
+
+  .v0-button-outline {
+    /* Outline style for secondary actions */
+    border-color: var(--neutral-border);
+    background: transparent;
+    color: var(--text-strong);
+  }
+
+  .v0-button-outline:hover {
+    background: var(--hover);
+    border-color: var(--border-strong);
+  }
+
+  .v0-button-sm {
+    @apply h-8 rounded-md gap-1.5 px-3;
+  }
+
+  .v0-button-lg {
+    @apply h-10 rounded-md px-6;
+  }
+
+  .v0-button-icon {
+    @apply size-9;
+  }
+
+  /* Post card styling */
+  .post-card {
+    background-color: var(--card) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+  }
+
+  /* Sidebar styling */
+  .sidebar-card {
+    background-color: var(--card) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+  }
+
+  /* Composer styling */
+  .composer-card {
+    background-color: var(--card) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+  }
+
+  /* Tab styling */
+  .tab-button {
+    background-color: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    transition: all 0.2s;
+  }
+
+  .tab-button.active {
+    background-color: var(--brand-accent);
+    border-color: var(--brand-accent);
+    color: var(--text-strong);
+  }
+
+  .tab-button:hover:not(.active) {
+    background-color: var(--hover);
+    color: var(--text-strong);
+  }
+
+  /* Responsive layout fixes */
+  .v0-sandbox {
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
+  .main-layout {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 1rem;
+  }
+
+  @media (max-width: 1024px) {
+    .main-layout {
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .main-layout {
+      padding: 0 0.5rem;
+    }
+  }
+}

@@ -32,7 +32,7 @@ export function FeedCardV2(props: FeedCardProps) {
 
   const authorName = author.displayName || author.username || 'User'
   const handle = author.username ? `@${author.username}` : ''
-  const profileHref = author.id ? `/u/${encodeURIComponent(author.id)}` : author.username ? `/u/${encodeURIComponent(author.username)}` : null
+  const profileHandle = author.username ? `/u/${encodeURIComponent(author.username)}` : author.id ? `/u/${encodeURIComponent(author.id)}` : null
 
   const isVideo = (url: string) => /\.(mp4|webm|mov|m4v)(\?|$)/i.test(url)
   const enhanceMediaUrl = (url: string) => {
@@ -65,10 +65,10 @@ export function FeedCardV2(props: FeedCardProps) {
     <article className="sidebar-card p-4 md:p-5" role="article" aria-label={`${kind} by ${authorName}`}>
       <div className="space-y-5">
         <header className="flex items-start gap-3" aria-label="Post header">
-          {profileHref ? (
+          {profileHandle ? (
             <Link
-              href={profileHref}
-              className="block h-10 w-10 shrink-0 overflow-hidden rounded-full ring-1 ring-white/10 transition hover:ring-violet-400/60"
+              href={profileHandle}
+              className="block h-10 w-10 shrink-0 overflow-hidden rounded-full ring-1 ring-white/10 transition hover:ring-[rgb(var(--brand-accent))]"
             >
               <Image
                 src={author.avatarUrl || '/avatar-placeholder.svg'}
@@ -89,10 +89,10 @@ export function FeedCardV2(props: FeedCardProps) {
           )}
           <div className="flex-1 min-w-0 space-y-2">
             <div className="flex flex-wrap items-center gap-2">
-              {profileHref ? (
+              {profileHandle ? (
                 <Link
-                  href={profileHref}
-                  className="flex items-center gap-2 truncate text-sm font-semibold text-white/95 transition hover:text-white"
+                  href={profileHandle}
+                  className="flex items-center gap-2 truncate text-sm font-semibold text-white/95 transition hover:text-[rgb(var(--brand-accent))]"
                 >
                   <span className="truncate">{authorName}</span>
                   {handle ? <span className="text-xs font-normal text-white/45">{handle}</span> : null}

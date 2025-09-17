@@ -15,6 +15,8 @@ export interface FeedPost {
   game_id?: string
   game?: GameProgress
   media_urls?: string[]
+  kind?: 'post' | 'review' | 'rating'
+  rating_score?: number | null
   reaction_counts: ReactionCounts
   user_reactions: {
     liked: boolean

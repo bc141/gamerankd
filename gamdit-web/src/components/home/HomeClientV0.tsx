@@ -413,9 +413,9 @@ export default function HomeClientV0({ initialItems = [], initialNextCursor, ini
 
     try {
       if (isLiked) {
-        await sb.from('likes').delete().eq('post_id', postId).eq('user_id', sessionUserId);
+        await sb.from('post_likes').delete().eq('post_id', postId).eq('user_id', sessionUserId);
       } else {
-        await sb.from('likes').insert({ post_id: postId, user_id: sessionUserId });
+        await sb.from('post_likes').insert({ post_id: postId, user_id: sessionUserId });
       }
     } catch (error) {
       console.error('Error toggling like:', error);

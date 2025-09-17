@@ -190,12 +190,10 @@ export function FeedCardV2(props: FeedCardProps) {
           </div>
         ) : null}
 
-        <footer className="flex items-center justify-between gap-3 border-t border-white/5 pt-3" aria-label="Post actions">
-          <ActionButton
-            label="Like"
+        <footer className="flex items-center justify-start gap-2 border-t border-white/5 pt-3" aria-label="Post actions">
+          <LikeButton
             count={counts.likes}
             active={!!myReactions?.liked}
-            Icon={Heart}
             onClick={actions?.onLike}
             disabled={actions?.disabled}
           />
@@ -230,6 +228,30 @@ type ActionButtonProps = {
   disabled?: boolean
 }
 
+function LikeButton({ count, active, onClick, disabled }: { count?: number; active?: boolean; onClick?: () => void; disabled?: boolean }) {
+  const isInteractive = typeof onClick === 'function' && !disabled
+  return (
+    <button
+      type="button"
+      onClick={isInteractive ? onClick : undefined}
+      disabled={!isInteractive}
+      className={clsx(
+        'inline-flex items-center gap-1 rounded-full px-2 py-1 text-sm transition',
+        active ? 'text-pink-400' : 'text-white/60',
+        isInteractive ? 'hover:text-pink-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-pink-400/50' : 'cursor-default opacity-70'
+      )}
+      aria-pressed={active ? 'true' : 'false'}
+      aria-label={active ? 'Unlike post' : 'Like post'}
+    >
+      <Heart
+        className={clsx('h-4 w-4 transition', active ? 'fill-pink-400 stroke-pink-400 text-pink-400' : 'stroke-current text-current')}
+        aria-hidden="true"
+      />
+      <span className="text-xs tabular-nums">{typeof count === 'number' ? count : 0}</span>
+    </button>
+  )
+}
+
 function ActionButton({ label, count, active, Icon, onClick, disabled }: ActionButtonProps) {
   const isInteractive = typeof onClick === 'function' && !disabled
   return (
@@ -238,7 +260,7 @@ function ActionButton({ label, count, active, Icon, onClick, disabled }: ActionB
       onClick={isInteractive ? onClick : undefined}
       disabled={!isInteractive}
       className={clsx(
-        'flex h-9 flex-1 items-center justify-center gap-2 rounded-lg px-2 text-sm transition',
+        'flex h-9 items-center justify-center gap-2 rounded-lg px-2 text-sm transition',
         active ? 'text-violet-300 bg-violet-500/10 ring-1 ring-violet-500/40' : 'text-white/70',
         isInteractive ? 'hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-400' : 'cursor-default opacity-70'
       )}

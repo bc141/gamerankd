@@ -177,6 +177,33 @@ class ServerDataService {
         rating_score: item.rating_score
       }))
 
+      if (viewerId && posts.length > 0) {
+        try {
+          const targetIds = posts
+            .filter(post => post.kind === 'post')
+            .map(post => post.id)
+
+          if (targetIds.length > 0) {
+            const { data: likedRows, error: likedError } = await supabase
+              .from('post_likes')
+              .select('post_id')
+              .eq('user_id', viewerId)
+              .in('post_id', targetIds)
+
+            if (!likedError && Array.isArray(likedRows)) {
+              const likedSet = new Set(likedRows.map(row => String(row.post_id)))
+              posts.forEach(post => {
+                if (likedSet.has(post.id)) {
+                  post.user_reactions.liked = true
+                }
+              })
+            }
+          }
+        } catch (likeLookupError) {
+          console.warn('[serverDataService.getFeed] like lookup failed', likeLookupError)
+        }
+      }
+
       const next_cursor = posts.length === limit ? posts[posts.length - 1]._cursor : undefined
 
       // Debug logging to verify multiple authors in For-You

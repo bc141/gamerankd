@@ -6,7 +6,9 @@ test.describe('Smoke Tests', () => {
   test('@smoke home loads + a11y', async ({ page }) => {
     await page.goto('/');
     await expect(page).toHaveTitle(/Gamebox/i);
-    await expect(page.getByRole('link', { name: /Sign in|Profile/i })).toBeVisible();
+    await expect(
+      page.locator('header').getByRole('link', { name: /Sign in|Profile/i }).first()
+    ).toBeVisible();
     
     // Accessibility testing with Axe
     const results = await new AxeBuilder({ page }).analyze();
@@ -29,7 +31,8 @@ test.describe('Smoke Tests', () => {
   test('@smoke login page loads + a11y', async ({ page }) => {
     await page.goto('/login');
     await expect(page).toHaveTitle(/Gamebox/i);
-    await expect(page.getByRole('heading', { name: /Sign in/i })).toBeVisible();
+    // Assert on the visible email field rendered by Supabase Auth UI
+    await expect(page.getByRole('textbox', { name: /email/i })).toBeVisible();
     
     // Accessibility testing with Axe
     const results = await new AxeBuilder({ page }).analyze();

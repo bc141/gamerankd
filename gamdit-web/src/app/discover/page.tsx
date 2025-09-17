@@ -12,12 +12,23 @@ type Game = {
 };
 
 async function fetchSections(sections = ['trending','new','top'] as const) {
-  const res = await fetch(`${siteUrl()}/api/games/browse?sections=${sections.join(',')}&limit=12`, {
-    cache: 'no-store',
-    next: { revalidate: 0 },
-  });
-  if (!res.ok) throw new Error('browse failed');
-  return (await res.json()).sections as Record<typeof sections[number], Game[]>;
+  const baseUrl = siteUrl();
+  try {
+    const url = `${baseUrl}/api/games/browse?sections=${sections.join(',')}&limit=12`;
+    const res = await fetch(url, {
+      cache: 'no-store',
+      next: { revalidate: 0 },
+    });
+    if (!res.ok) throw new Error('browse failed');
+    const json = await res.json();
+    return json.sections as Record<typeof sections[number], Game[]>;
+  } catch (error) {
+    console.error('[discover] failed to load sections', error);
+    return sections.reduce((acc, key) => {
+      acc[key] = [] as Game[];
+      return acc;
+    }, {} as Record<typeof sections[number], Game[]>);
+  }
 }
 
 function Row({ title, games }: { title: string; games: Game[] }) {

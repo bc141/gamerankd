@@ -68,6 +68,7 @@ export function FeedCardV2(props: FeedCardProps) {
           {profileHandle ? (
             <Link
               href={profileHandle}
+              aria-label={`View ${authorName}'s profile`}
               className="block h-10 w-10 shrink-0 overflow-hidden rounded-full ring-1 ring-white/10 transition hover:ring-[rgb(var(--brand-accent))]"
             >
               <Image
@@ -102,7 +103,7 @@ export function FeedCardV2(props: FeedCardProps) {
               )}
               {kind !== 'post' ? <KindBadge kind={kind} /> : null}
             </div>
-            <div className="flex flex-wrap items-center gap-3 text-xs text-white/40">
+            <div className="flex flex-wrap items-center gap-3 text-xs text-white/70">
               <time title={new Date(createdAt).toLocaleString()}>{new Date(createdAt).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric' })}</time>
             </div>
             {game ? (
@@ -184,7 +185,7 @@ export function FeedCardV2(props: FeedCardProps) {
         ) : null}
 
         {(kind === 'rating' || kind === 'review') && typeof rating === 'number' ? (
-          <div className="flex items-center gap-3" aria-label="Rating">
+          <div className="flex items-center gap-3">
             <StarRow value={rating} />
             {kind === 'review' ? <span className="text-xs uppercase tracking-wide text-white/35">Critic score</span> : null}
           </div>
@@ -313,14 +314,29 @@ function GameBadge({ game }: { game?: { id: string | number; name?: string; cove
 }
 
 function StarRow({ value }: { value: number }) {
-  const stars = Math.max(0, Math.min(5, Math.round((value / 100) * 5)))
-  const ratingOutOfFive = Math.round(((value / 100) * 5) * 10) / 10
+  const ratingRaw = (value / 100) * 5
+  const ratingOutOfFive = Math.round(ratingRaw * 10) / 10
+  const fullStars = Math.floor(ratingRaw)
+  const hasHalf = ratingOutOfFive - fullStars >= 0.5 && fullStars < 5
+
   return (
-    <div className="flex items-center gap-1" aria-label={`${ratingOutOfFive} out of 5 star rating`}>
-      {Array.from({ length: 5 }).map((_, i) => (
-        <span key={i} className={i < stars ? 'text-yellow-400' : 'text-white/20'} aria-hidden="true">★</span>
-      ))}
-    </div>
+    <span className="flex items-center gap-1" role="img" aria-label={`${ratingOutOfFive} out of 5 stars`}>
+      {Array.from({ length: 5 }).map((_, i) => {
+        const isFull = i < fullStars
+        const isHalf = !isFull && hasHalf && i === fullStars
+        if (isHalf) {
+          return (
+            <span key={i} className="relative inline-block text-yellow-400" aria-hidden="true">
+              <span className="text-white/20">★</span>
+              <span className="absolute inset-0 overflow-hidden text-yellow-400" style={{ width: '50%' }}>★</span>
+            </span>
+          )
+        }
+        return (
+          <span key={i} className={isFull ? 'text-yellow-400' : 'text-white/20'} aria-hidden="true">★</span>
+        )
+      })}
+    </span>
   )
 }
 
